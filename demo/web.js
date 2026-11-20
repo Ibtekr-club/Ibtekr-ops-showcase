@@ -103,11 +103,57 @@ window.IB_DEMO = true;
     set(KEY_LOG, s);
   };
 
+  // --- the AI: a short «thinking» wait on every AI call (the stand-in answers at once), and the header assistant's ready replies
+  window.__ibDemoDelay = function (method, url) { return method === 'POST' && /\/functions\/v1\/(ai-content|ai-images)\b/.test(url) ? 1400 : 0; };
+  // the replies read the demo's own data (window.__ibDemo.mock), so the numbers match the pages
+  var fmt = function (n) { return Math.round(n).toLocaleString('en-US'); };
+  function facts() {
+    var m = (window.__ibDemo && window.__ibDemo.mock) || {}; var os = (m.orders || []).filter(function (o) { return !o.deleted_at; });
+    var by = function (st) { return os.filter(function (o) { return o.status === st; }); };
+    var done = by('مكتمل'); var doneSum = done.reduce(function (t, o) { return t + Number(o.total || 0); }, 0);
+    var work = by('جاري التنفيذ'); var workSum = work.reduce(function (t, o) { return t + Number(o.total || 0); }, 0);
+    var late = work.filter(function (o) { return o.confirm_at && (Date.now() - Date.parse(o.confirm_at)) / 864e5 > 12; });
+    var acc = m.acc || {}; var bal = (acc.dokan_balances || []).reduce(function (t, b) { return t + Number(b.balance || 0); }, 0);
+    var pend = (acc.dokan_withdrawals || []).filter(function (w) { return w.status === 'pending'; });
+    var vname = function (id) { var v = (m.vendors || []).filter(function (x) { return x.id === id; })[0]; return v ? v.name : ''; };
+    var conv = ((m.cs || {}).conversations || []).filter(function (c) { return c.status === 'مستنية ردنا' || c.status === 'جديدة'; });
+    return { os: os, done: done, doneSum: doneSum, work: work, workSum: workSum, late: late, bal: bal, pend: pend, vname: vname, conv: conv, newO: by('قيد الانتظار'), ship: by('قيد الشحن') };
+  }
+  function reply(q) {
+    var f = facts();
+    if (/(متأخر|تأخير|late)/.test(q)) return f.late.length ? 'عندك ' + f.late.length + ' أوردر متأخر: ' + f.late.map(function (o) { return 'IB-' + o.id; }).join('، ') + '. أقترح تكلّم المبتكر وتحدّث العميل بميعاد جديد — والفلتر «متأخرة» في الأوردرات بيجيبهم.' : 'مفيش أوردرات متأخرة دلوقتي 👌';
+    if (/(مبيعات|بيع|sales|إيراد)/.test(q)) return 'المبيعات المكتملة ' + fmt(f.doneSum) + ' ج.م من ' + f.done.length + ' أوردر، ومتوسط الأوردر ' + fmt(f.done.length ? f.doneSum / f.done.length : 0) + ' ج.م. وفيه ' + f.work.length + ' أوردر جاري تنفيذهم بإجمالي ' + fmt(f.workSum) + ' ج.م.';
+    if (/(مبتكر|رصيد|سحب|maker)/.test(q)) return f.bal || f.pend.length ? 'إجمالي أرصدة المبتكرين على Dokan ' + fmt(f.bal) + ' ج.م' + (f.pend.length ? '، وفيه ' + f.pend.length + ' طلب سحب مستني موافقتك (' + f.pend.map(function (w) { return f.vname(w.vendor_id) + ' — ' + fmt(w.amount) + ' ج.م'; }).join('، ') + ').' : '.') : 'المتجر ده بيبيع براند واحد، فمفيش مبتكرين ولا أرصدة.';
+    if (/(عميل|عملاء|رسايل|واتساب)/.test(q)) return 'عندك ' + f.conv.length + ' محادثة مستنية رد في خدمة العملاء. افتح «الرسايل» والرد المقترح هيبقى جاهز في الخانة.';
+    return 'ملخص النهارده: ' + f.os.length + ' أوردر في السيستم — ' + f.newO.length + ' جديد مستني التأكيد، ' + f.work.length + ' جاري التنفيذ، ' + f.ship.length + ' في الشحن، و' + f.late.length + ' متأخر. ' + (f.conv.length ? 'وفيه ' + f.conv.length + ' رسالة عملاء مستنية رد. ' : '') + 'تحب أبدأ بإيه؟';
+  }
+  window.__ibDemoAnswer = function (method, url, body) {
+    if (method !== 'POST' || !/\/functions\/v1\/ai-content\b/.test(url) || !body) return null;
+    var b; try { b = JSON.parse(body); } catch (e) { return null; }
+    if (!b || b.action !== 'assistant' || b.mode === 'filter') return null;
+    var turns = Array.isArray(b.turns) ? b.turns : []; var q = String((turns[turns.length - 1] || {}).text || '');
+    return { result: 'ok', text: reply(q), actions: [], tools: [], report: [], model: 'demo', cost_usd: 0, run_id: Date.now() };
+  };
+
   window.__ibDemoWeb = {
     mode: mode,
     log: function () { return log.slice(); },
     replaying: function (on) { replaying = !!on; },
   };
+
+  // --- single store: what still speaks of makers is hidden from the demo (the app's own single-store mode covers the rest)
+  //   · the accounts overview tile «مستحقات المبتكرين — الآن» and the same KPI in the reports — there are no makers to pay
+  //   · the dashboard's «محتاج منك دلوقتي» rows of the makers' section — maker follow-ups have no meaning for one brand
+  var HIDE_KPI = ['مستحقات المبتكرين — الآن'];
+  function hideSingle(root) {
+    (root || document).querySelectorAll('.acc-ov-tile[data-acc-ov="vendors"]').forEach(function (n) { n.hidden = true; });
+    (root || document).querySelectorAll('.kpi .kpi-label').forEach(function (n) { if (HIDE_KPI.indexOf(n.textContent.trim()) >= 0) { var k = n.closest('.acc-ov-tile') || n.closest('.kpi'); if (k) k.hidden = true; } });
+    (root || document).querySelectorAll('.dn-item .dn-sec').forEach(function (n) { if (n.textContent.trim() === 'المبتكرين') { var it = n.closest('.dn-item'); if (it) it.hidden = true; } });
+  }
+  if (mode === 'single') {
+    var queued = false; var run = function () { queued = false; hideSingle(); };
+    new MutationObserver(function () { if (!queued) { queued = true; requestAnimationFrame(run); } }).observe(document.documentElement, { childList: true, subtree: true });
+  }
 
   var start = function () { if (mode) banner(); else entry(); };
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);

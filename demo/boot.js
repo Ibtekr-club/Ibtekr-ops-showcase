@@ -3,6 +3,7 @@
 // stand-in's admin through the sign-in screen itself (the same steps as the tests), so the app opens on the dashboard.
 import { installSupabaseMock, USERS, DEV_PW } from './tests/e2e/supabase-mock.js';
 import { demoSeed, demoAfter } from './seed.js';
+import { webSeed } from './web-seed.js';
 
 const D = window.__ibDemo;
 const page = {
@@ -21,6 +22,7 @@ const admin = USERS.find((u) => u.role_id === 'admin' && u.status === 'active');
 const W = window.__ibDemoWeb;
 if (W && !W.mode) { D.uncover(); await new Promise(() => {}); } // the entry screen is up: nothing more until a choice reloads the page
 if (W) {
+  webSeed(D.mock, W.mode); // the business model's data (web-seed.js)
   const put = (section, data) => { D.mock.settings = (D.mock.settings || []).filter((r) => r.section !== section).concat([{ section, data, updated_at: new Date().toISOString(), updated_by: null }]); };
   put('store', W.mode === 'single' ? { platform: 'woo', mode: 'single', dokan: true, margin: 40 } : { platform: 'woo', mode: 'marketplace', dokan: true });
   if (W.mode === 'single') { const g = ((D.mock.settings || []).find((r) => r.section === 'general') || {}).data || {}; put('general', { ...g, company: 'Decoro' }); }

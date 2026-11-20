@@ -73,8 +73,13 @@
           continue: function () { end(jsonRes(404, { error: 'not_in_demo' })); return Promise.resolve(); },
         };
         route.fallback = route.continue;
+        // the web demo (web.js): an answer of its own for a few calls (the assistant's ready replies), and a short wait on the AI's
+        var own = window.__ibDemoAnswer ? window.__ibDemoAnswer(req.method, req.url, buf ? buf.toString() : null) : null;
+        var wait = window.__ibDemoDelay ? window.__ibDemoDelay(req.method, req.url) : 0;
+        if (own) return setTimeout(function () { end(jsonRes(200, own)); }, wait);
         var h = handlers.filter(function (x) { return match(x.pattern, req.url); }).pop();
         if (!h) return route.continue();
+        if (wait) return setTimeout(function () { Promise.resolve().then(function () { return h.handler(route, request); }).then(function () { end(jsonRes(404, { error: 'not_in_demo' })); }, function (e) { console.error('[demo]', e); end(jsonRes(500, { error: 'demo_failed' })); }); }, wait);
         Promise.resolve().then(function () { return h.handler(route, request); }).then(function () { end(jsonRes(404, { error: 'not_in_demo' })); }, function (e) { console.error('[demo]', e); end(jsonRes(500, { error: 'demo_failed' })); });
       });
     });
