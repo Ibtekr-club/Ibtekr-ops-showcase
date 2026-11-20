@@ -141,18 +141,46 @@ window.IB_DEMO = true;
     replaying: function (on) { replaying = !!on; },
   };
 
-  // --- single store: what still speaks of makers is hidden from the demo (the app's own single-store mode covers the rest)
-  //   · the accounts overview tile «مستحقات المبتكرين — الآن» and the same KPI in the reports — there are no makers to pay
-  //   · the dashboard's «محتاج منك دلوقتي» rows of the makers' section — maker follow-ups have no meaning for one brand
-  var HIDE_KPI = ['مستحقات المبتكرين — الآن'];
-  function hideSingle(root) {
-    (root || document).querySelectorAll('.acc-ov-tile[data-acc-ov="vendors"]').forEach(function (n) { n.hidden = true; });
-    (root || document).querySelectorAll('.kpi .kpi-label').forEach(function (n) { if (HIDE_KPI.indexOf(n.textContent.trim()) >= 0) { var k = n.closest('.acc-ov-tile') || n.closest('.kpi'); if (k) k.hidden = true; } });
-    (root || document).querySelectorAll('.dn-item .dn-sec').forEach(function (n) { if (n.textContent.trim() === 'المبتكرين') { var it = n.closest('.dn-item'); if (it) it.hidden = true; } });
+  // --- single store: nothing about makers shows (the owner 20 Nov: «شيل اي حاجة ليها علاقة بالمبتكرين في وضع ال single store»).
+  // The app's own single-store mode hides the makers' page and columns; the rest (tabs, cards, columns, rows, explanations that
+  // speak of makers, Dokan or sub-orders) is hidden here, in the demo only: every visible text that names them hides the smallest
+  // unit around it — a tab, an option, a table column, a row, a card whose title it is, or the line itself.
+  var MAKER = /مبتكر|Dokan|دوكان|(?:أوردر|الأوردر|أوردرات|الأوردرات)\s*(?:ال)?فرعي/;
+  var KEEP = '#demo-bar, #demo-entry, #demo-toast, .ai-panel, .sidebar, .bottom-nav, script, style, title';
+  var BIG = /^(BODY|HTML|MAIN)$/;
+  var hide = function (n) { if (n && !BIG.test(n.tagName) && n.id !== 'root' && n.style.display !== 'none') { n.setAttribute('data-demo-hidden', ''); n.style.display = 'none'; } };
+  var short = function (n, max) { return (n.textContent || '').trim().length <= max; };
+  function unitOf(el) {
+    var tab = el.closest('[role="tab"], .tab, .chip, .seg-btn, [data-tab], [data-dtab]'); if (tab && short(tab, 60)) return tab;
+    var opt = el.closest('option'); if (opt) return opt;
+    var row = el.closest('tr, li, .set-row, .dn-item, .cv, .kv, .info-row, .row-item'); if (row && short(row, 220) && !row.querySelector('input:focus, textarea:focus')) return row;
+    var head = el.closest('h1, h2, h3, h4, .kpi-label, .t-h3, .card-title, .sec-title, .cat-top, [class*="-title"], [class*="-hd"]');
+    if (head) { var card = head.closest('.acc-ov-tile, .kpi, .card, section'); if (card && !card.querySelector('main') && !card.contains(document.querySelector('#root main > *:only-child'))) return card; }
+    var u = el; while (u.parentElement && !BIG.test(u.parentElement.tagName) && short(u.parentElement, 60) && !u.parentElement.matches(KEEP)) u = u.parentElement;
+    return u.querySelector('input, select, textarea, table, button') && !short(u, 60) ? null : u;
+  }
+  function hideColumn(th) {
+    var tr = th.parentElement; var i = Array.prototype.indexOf.call(tr.children, th); var table = th.closest('table'); if (!table || i < 0) return;
+    table.querySelectorAll('tr').forEach(function (r) { var c = r.children[i]; if (c) hide(c); });
+  }
+  function sweep(root) {
+    var tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); var hits = []; var t;
+    while ((t = tw.nextNode())) if (MAKER.test(t.textContent) && t.parentElement && !t.parentElement.closest(KEEP) && !t.parentElement.closest('[data-demo-hidden]')) hits.push(t.parentElement);
+    hits.forEach(function (el) {
+      if (el.closest('select') && !el.closest('option')) return;
+      var th = el.closest('th'); if (th) { hideColumn(th); return; }
+      var u = unitOf(el); if (u) hide(u);
+    });
+    root.querySelectorAll('*').forEach(function (e) { if (e.shadowRoot) sweep(e.shadowRoot); });
   }
   if (mode === 'single') {
-    var queued = false; var run = function () { queued = false; hideSingle(); };
-    new MutationObserver(function () { if (!queued) { queued = true; requestAnimationFrame(run); } }).observe(document.documentElement, { childList: true, subtree: true });
+    var run = function () {
+      try { sweep(document.body); } catch (e) { /* a page in the middle of drawing */ }
+      // the brand line under the logo («بيت لكل مبتكر») is about makers too
+      document.querySelectorAll('.sidebar *, .bottom-nav *').forEach(function (n) { if (n.children.length === 0 && MAKER.test(n.textContent)) hide(n); });
+    };
+    new MutationObserver(function () { clearTimeout(run.t); run.t = setTimeout(run, 60); }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+    setInterval(run, 700); // the orders page draws inside a shadow root the observer does not see
   }
 
   var start = function () { if (mode) banner(); else entry(); };

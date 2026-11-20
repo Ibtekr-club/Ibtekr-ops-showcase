@@ -129,6 +129,9 @@ function singleStore(mock) {
   if (mock.inv && Array.isArray(mock.inv.inv_lots)) mock.inv.inv_lots.forEach((x, i) => { const p = DECORO[i % DECORO.length]; Object.assign(x, { vendor_id: V(9), sku: p[1], name: p[2], mode: 'ملك ابتكر' }); });
   if (Array.isArray(mock.tickets)) mock.tickets = mock.tickets.filter((t) => t.type !== 'vendor');
   if (mock.cs && Array.isArray(mock.cs.conversations)) mock.cs.conversations = mock.cs.conversations.filter((c) => c.seg !== 'vendors');
+  // words in the made-up messages and notes that name a maker read as the brand's own workshop
+  if (mock.cs && Array.isArray(mock.cs.messages)) mock.cs.messages.forEach((m) => { if (typeof m.text === 'string') m.text = m.text.replace(/على واتساب 2/g, '').replace(/المبتكرين/g, 'الورشة').replace(/المبتكر/g, 'الورشة').replace(/\s+$/, ''); });
+  if (Array.isArray(mock.tickets)) mock.tickets.forEach((t) => { ['title', 'description'].forEach((k) => { if (typeof t[k] === 'string') t[k] = t[k].replace(/المبتكرين/g, 'الورشة').replace(/المبتكر/g, 'الورشة'); }); });
   addOrders(mock, true);
 }
 
