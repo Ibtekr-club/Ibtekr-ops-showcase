@@ -12,8 +12,12 @@
   const U = window.IBUI, K = window.IBKit;
   const { h, Icon, Button } = U;
   const FV = () => window.IBFlowView && window.IBFlowView.chat;
-  const CASES = [['photos', 'صور وعايز شيت', 'المبتكر عنده صور بس — بنعمله الشيت بالصور جواه'], ['whatsapp', 'داتا على الواتساب', 'سكرين شوتس بالبيانات + صور المنتجات'], ['sheet', 'شيت جاهز من المبتكر', 'شيت فيه البيانات + صور المنتجات']];
-  const caseName = (k) => (CASES.find((x) => x[0] === k) || [k, k])[1];
+  // single-seller mode: the seller's own sheet / photos — no maker sends them
+  const ONE = () => !!(window.IBSettings && window.IBSettings.single && window.IBSettings.single());
+  const CASES_ALL = [['photos', 'صور وعايز شيت', 'المبتكر عنده صور بس — بنعمله الشيت بالصور جواه'], ['whatsapp', 'داتا على الواتساب', 'سكرين شوتس بالبيانات + صور المنتجات'], ['sheet', 'شيت جاهز من المبتكر', 'شيت فيه البيانات + صور المنتجات']];
+  const CASES_ONE = [['photos', 'صور وعايز شيت', 'صور بس — بنعملك الشيت بالصور جواه'], ['whatsapp', 'داتا على الواتساب', 'سكرين شوتس بالبيانات + صور المنتجات'], ['sheet', 'شيت جاهز', 'شيت فيه البيانات + صور المنتجات']];
+  const casesNow = () => (ONE() ? CASES_ONE : CASES_ALL);
+  const caseName = (k) => (casesNow().find((x) => x[0] === k) || [k, k])[1];
   const isImage = (f) => /^image\//.test(f.type || '') || /\.(jpe?g|png|webp|gif|avif)$/i.test(f.name || '');
   const isSheet = (f) => /\.(xlsx|csv)$/i.test(f.name || '');
   const MAX_PHOTOS = 60;
@@ -50,7 +54,7 @@
     if (s.type) out.push(done('النوع', s.type, back(() => { s.type = ''; s.kinds = null; })));
     if (s.kinds) out.push(done('الشكل', s.kinds.colors + ' لون × ' + s.kinds.sizes + ' مقاس لكل منتج', back(() => { s.kinds = null; })));
     if (s.maker) out.push(done('المبتكر', s.maker.name, back(() => { s.maker = null; })));
-    if (q === 'kase') out.push(Q('عايز ترفع المنتجات إزاي؟'), opts(CASES, (v) => { s.kase = v; redraw(); }));
+    if (q === 'kase') out.push(Q('عايز ترفع المنتجات إزاي؟'), opts(casesNow(), (v) => { s.kase = v; redraw(); }));
     else if (q === 'type') out.push(Q('المنتجات نوعها إيه؟'), opts([['Simple', 'Simple', 'كل منتج صف واحد بسعره وصوره'], ['Variable', 'Variable', 'منتجات بألوان و/أو مقاسات']], (v) => { s.type = v; redraw(); }));
     else if (q === 'kinds') out.push(kindsAsk(s, redraw));
     else if (q === 'maker') out.push(makerAsk(s, redraw));

@@ -1495,7 +1495,9 @@
   const agReg = (a) => (MK() && MK().agentOf ? MK().agentOf(a) : null);
   const agName = (a) => { const r = agReg(a); return (r && r.name) || ({ buyer: 'الميديا باير الذكي', designer: 'الديزاينر الذكي', dev: 'المبرمج الذكي' })[a] || a; };
   const agIcon = (a) => { const r = agReg(a); return (r && r.icon) || AG_DEF_ICON[a] || 'sparkle'; };
-  const agIntro = (a) => AG_INTRO[a] || ('أنا ' + agName(a) + '.' + ((agReg(a) || {}).about ? ' ' + agReg(a).about : ''));
+  // single-seller mode: the operations assistant has no makers or sub-orders to read
+  const AG_INTRO_ONE = { stock: 'أنا التشغيل الذكي. بشوف الأوردرات والمتأخر منها، وطلبات فريق العمليات، والمخزن والمرتجعات — اسألني إيه اللي يتعمل النهارده وبإيه نبدأ. وأقدر أرفعلك منتجات جديدة.' };
+  const agIntro = (a) => (window.IBSettings && window.IBSettings.single && window.IBSettings.single() && AG_INTRO_ONE[a]) || AG_INTRO[a] || ('أنا ' + agName(a) + '.' + ((agReg(a) || {}).about ? ' ' + agReg(a).about : ''));
   const agSugg = (a) => AG_SUGG[a] || [];
   const AG_SUB = { buyer: 'بيقرا أرقام ميتا + أوردرات ووكومرس · بيقترح وانت توافق — مابينفّذش حاجة من الشات', designer: 'أفكار وتصميمات بالبراند · بيولّد صورة لما تطلب — بكريدت الصور', dev: 'صفحات الموقع وتطوير السيستم · بيكتب المواصفات — والتنفيذ من «تقديم طلب»' };
   const agCfg = (a) => { const x = MK() && MK().agentSettingsNow && MK().agentSettingsNow(); return (x && x[a]) || null; };
@@ -2279,7 +2281,7 @@
   const aiList = () => { const L = (MK() && MK().agentsNow && MK().agentsNow()) || null; return L ? L.filter((x) => !x.archived && !(x.id === 'makers' && singleSell())) : null; };
   let aiAsked = false;
   function agentForm(x) {
-    const MKa = MK(); const P = MKa.AGENT_PERMS || []; const S2 = MKa.AGENT_SEES || []; const T = TKD(); const roles = (T && T.ROLES) || [];
+    const MKa = MK(); const P = MKa.AGENT_PERMS || []; const S2 = (MKa.AGENT_SEES || []).filter(([k]) => !(singleSell() && k === 'vendors')); /* single-seller mode: no makers to read */ const T = TKD(); const roles = (T && T.ROLES) || [];
     const ICONS = ['sparkle', 'bot', 'chart', 'image', 'code', 'tag', 'stock', 'truck', 'headset', 'msg', 'users', 'wallet', 'briefcase', 'package', 'box', 'megaphone', 'ticket', 'calendar', 'mail', 'star', 'zap', 'sliders', 'file', 'sheet'];
     const builtin = !!(x && x.builtin);
     K.form({ title: x ? 'تعديل «' + x.name + '»' : 'مساعد جديد', wide: true, submitLabel: x ? 'احفظ' : 'ضيف المساعد',

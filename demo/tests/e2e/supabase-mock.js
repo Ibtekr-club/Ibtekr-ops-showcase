@@ -298,7 +298,7 @@ const SITE_STYLES = [['Modern', 'مودرن'], ['Minimalist', 'مينيمال'],
 const TK_ALL_ROLES = ['مدير النظام', 'خدمة العملاء', 'متابعة المبتكرين', 'الحسابات', 'اللوجستيك والشحن', 'المحتوى والتصوير'];
 // 0081: a request goes to any role — the six old labels + every other role (not hidden) by its name; my roles = the main + the extras
 const TK_OLD_IDS = { admin: ['مدير النظام'], cs: ['خدمة العملاء'], vendors_followup: ['متابعة المبتكرين'], accounts: ['الحسابات'], ops: ['اللوجستيك والشحن', 'المحتوى والتصوير'], viewer: [] };
-const tkRolesOf = (mock) => { const all = (mock.st && mock.st.roles) || mock.roles || ROLES; return TK_ALL_ROLES.map((label) => ({ label, role_id: Object.keys(TK_OLD_IDS).find((k) => TK_OLD_IDS[k].includes(label)) }))
+const tkRolesOf = (mock) => { const all = (mock.st && mock.st.roles) || mock.roles || ROLES; return TK_ALL_ROLES.map((label) => ({ label, role_id: Object.keys(TK_OLD_IDS).find((k) => TK_OLD_IDS[k].includes(label)) })).filter((x) => !all.some((r) => r.id === x.role_id && r.hidden)) // role_delete: a removed team is no choice
   .concat(all.filter((r) => !TK_OLD_IDS[r.id] && !r.hidden).sort((a, b) => (a.sort || 0) - (b.sort || 0)).map((r) => ({ label: r.name, role_id: r.id }))); };
 const tkRoleOk = (mock, label) => tkRolesOf(mock).some((x) => x.label === label);
 const TK_CUSTOMER = ['تأخير في التسليم', 'منتج تالف', 'منتج مختلف عن الطلب', 'مشكلة دفع أو استرجاع', 'العميل مش بيرد', 'أخرى'];

@@ -141,60 +141,6 @@ window.IB_DEMO = true;
     replaying: function (on) { replaying = !!on; },
   };
 
-  // --- single store: nothing about makers shows (the owner 20 Nov: «شيل اي حاجة ليها علاقة بالمبتكرين في وضع ال single store»).
-  // The app's own single-store mode hides the makers' page and columns; the rest (tabs, cards, columns, rows, explanations that
-  // speak of makers, Dokan or sub-orders) is hidden here, in the demo only: every visible text that names them hides the smallest
-  // unit around it — a tab, an option, a table column, a row, a card whose title it is, or the line itself.
-  var MAKER = /مبتكر|Dokan|دوكان|(?:أوردر|الأوردر|أوردرات|الأوردرات)\s*(?:ال)?فرعي/;
-  var KEEP = '#demo-bar, #demo-entry, #demo-toast, .ai-panel, .sidebar, .bottom-nav, script, style, title';
-  var BIG = /^(BODY|HTML|MAIN)$/;
-  var hide = function (n) { if (n && !BIG.test(n.tagName) && n.id !== 'root' && n.style.display !== 'none') { n.setAttribute('data-demo-hidden', ''); n.style.display = 'none'; } };
-  var short = function (n, max) { return (n.textContent || '').trim().length <= max; };
-  function unitOf(el) {
-    var tab = el.closest('[role="tab"], .tab, .chip, .seg-btn, [data-tab], [data-dtab]'); if (tab && short(tab, 60)) return tab;
-    var opt = el.closest('option'); if (opt) return opt;
-    var row = el.closest('tr, li, .set-row, .dn-item, .cv, .kv, .info-row, .row-item');
-    // the single-seller switch itself stays (it is what this model is); only its explanation's line about makers goes
-    if (row && row.querySelector('[data-store-single]')) return el;
-    if (row && short(row, 220) && !row.querySelector('input:focus, textarea:focus')) return row;
-    var head = el.closest('h1, h2, h3, h4, .kpi-label, .t-h3, .card-title, .sec-title, .cat-top, [class*="-title"], [class*="-hd"]');
-    if (head) { var card = head.closest('.acc-ov-tile, .kpi, .card, section'); if (card && !card.querySelector('main') && !card.contains(document.querySelector('#root main > *:only-child'))) return card; }
-    var u = el; while (u.parentElement && !BIG.test(u.parentElement.tagName) && short(u.parentElement, 60) && !u.parentElement.matches(KEEP)) u = u.parentElement;
-    return u.querySelector('input, select, textarea, table, button') && !short(u, 60) ? null : u;
-  }
-  function hideColumn(th) {
-    var tr = th.parentElement; var i = Array.prototype.indexOf.call(tr.children, th); var table = th.closest('table'); if (!table || i < 0) return;
-    table.querySelectorAll('tr').forEach(function (r) { var c = r.children[i]; if (c) hide(c); });
-  }
-  function sweep(root) {
-    var tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); var hits = []; var t;
-    while ((t = tw.nextNode())) if (MAKER.test(t.textContent) && t.parentElement && !t.parentElement.closest(KEEP) && !t.parentElement.closest('[data-demo-hidden]')) hits.push(t.parentElement);
-    hits.forEach(function (el) {
-      if (el.closest('select') && !el.closest('option')) return;
-      var th = el.closest('th'); if (th) { hideColumn(th); return; }
-      var u = unitOf(el); if (u) hide(u);
-    });
-    root.querySelectorAll('*').forEach(function (e) { if (e.shadowRoot) sweep(e.shadowRoot); });
-  }
-  if (mode === 'single') {
-    var brandLine = function () { document.querySelectorAll('.sidebar *, .bottom-nav *, .login-brand *').forEach(function (n) { if (n.children.length === 0 && MAKER.test(n.textContent)) hide(n); }); };
-    var safe = function (root) { try { sweep(root); } catch (e) { /* a page in the middle of drawing */ } };
-    // a MutationObserver's callback runs before the browser paints, so a new text is hidden before it is ever seen (no flash)
-    var seen = function (list) {
-      list.forEach(function (m) {
-        if (m.type === 'characterData') { if (m.target.parentNode) safe(m.target.parentNode); return; }
-        m.addedNodes.forEach(function (n) { if (n.nodeType === 1) safe(n); else if (n.nodeType === 3 && n.parentNode) safe(n.parentNode); });
-      });
-      brandLine();
-    };
-    var mo = new MutationObserver(seen);
-    mo.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
-    // the orders page draws inside a shadow root: each new one is watched the same way
-    var attach = Element.prototype.attachShadow;
-    Element.prototype.attachShadow = function (init) { var root = attach.call(this, init); try { mo.observe(root, { childList: true, subtree: true, characterData: true }); } catch (e) { /* closed */ } return root; };
-    setInterval(function () { safe(document.body); brandLine(); }, 1500); // a safety net
-  }
-
   var start = function () { if (mode) banner(); else entry(); };
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
 })();

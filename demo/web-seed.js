@@ -132,6 +132,14 @@ function singleStore(mock) {
   // words in the made-up messages and notes that name a maker read as the brand's own workshop
   if (mock.cs && Array.isArray(mock.cs.messages)) mock.cs.messages.forEach((m) => { if (typeof m.text === 'string') m.text = m.text.replace(/على واتساب 2/g, '').replace(/المبتكرين/g, 'الورشة').replace(/المبتكر/g, 'الورشة').replace(/\s+$/, ''); });
   if (Array.isArray(mock.tickets)) mock.tickets.forEach((t) => { ['title', 'description'].forEach((k) => { if (typeof t[k] === 'string') t[k] = t[k].replace(/المبتكرين/g, 'الورشة').replace(/المبتكر/g, 'الورشة'); }); });
+  // the site runs WooCommerce alone (no Dokan plugin), and the requests that went to the makers' team go to customer service
+  const wp = mock.mkt && Array.isArray(mock.mkt.siteChecks) ? mock.mkt.siteChecks.find((r) => r.kind === 'wp_updates') : null;
+  if (wp && wp.data && Array.isArray(wp.data.plugins)) wp.data.plugins = wp.data.plugins.filter((x) => !/dokan/i.test(x.name));
+  if (Array.isArray(mock.tickets)) mock.tickets.forEach((t) => { if (/المبتكرين|الموردين/.test(t.assignee_role || '')) t.assignee_role = 'خدمة العملاء'; });
+  // and that team itself is removed (role_delete marks a built-in hidden), so it is no choice anywhere
+  (mock.roles || []).forEach((r) => { if (r.id === 'vendors_followup') r.hidden = true; });
+  // the log has no makers' lines (vendor.* — makers' changes, Dokan syncs) in a store with no makers
+  if (Array.isArray(mock.activityRows)) mock.activityRows = mock.activityRows.filter((r) => !/^(vendor|suborder)\./.test(r.action || ''));
   addOrders(mock, true);
 }
 

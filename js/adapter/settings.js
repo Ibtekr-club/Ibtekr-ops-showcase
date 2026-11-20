@@ -533,11 +533,13 @@
     return out;
   };
   const listSrc = () => (data.public && data.public.lists && typeof data.public.lists === 'object' ? data.public.lists : null) || section('lists');
+  const ONE_SELLER_REASONS = { 'المبتكر مش هيقدر ينفذ': 'مش هنقدر ننفذه' };
   function lists() {
     const src = listSrc();
     const d = Object.assign(defaults(), EXTRA_DEF); const out = {};
     for (const k of LIST_KEYS.concat(EXTRA_KEYS)) {
-      const c = cleanList(src && src[k]); const base = c && c.length ? c : d[k].filter((x) => x !== OTHER);
+      // single-seller mode: a default reason about «the maker» is the seller's own (a list the admin saved stays as written)
+      const c = cleanList(src && src[k]); const base = c && c.length ? c : d[k].filter((x) => x !== OTHER).map((x) => (single() && ONE_SELLER_REASONS[x]) || x);
       out[k] = OTHER_KEYS.includes(k) ? withOther(base) : base.slice();
     }
     out.expenseKinds = cleanKinds(src && src.expenseKinds);
@@ -545,7 +547,16 @@
     return out;
   }
   // the shown name of a status (the value when nothing is set) — kind: order | confirm | sub | expense | priority (by its code)
-  function statusLabel(kind, value) { const src = listSrc() || {}; const L = cleanLabels(src.labels, src); return (L[kind] && L[kind][value]) || (SHOWN_DEF[kind] && SHOWN_DEF[kind][value]) || value; }
+  // single-seller mode: the seller makes its own products, so a status about «the maker» shows «the workshop» (the value stays the same)
+  function statusLabel(kind, value) { const src = listSrc() || {}; const L = cleanLabels(src.labels, src); const own = (L[kind] && L[kind][value]) || (SHOWN_DEF[kind] && SHOWN_DEF[kind][value]); if (own) return own; return single() && typeof value === 'string' ? workshop(value) : value; }
+  /** «المبتكر» → «الورشة» in a text shown in single-seller mode (statuses, reasons) */
+  function workshop(t) { return String(t).replace(/المبتكرين/g, 'الورش').replace(/المبتكر/g, 'الورشة').replace(/لمبتكر/g, 'لورشة').replace(/مبتكر/g, 'ورشة'); }
+  /** a text written for the marketplace, as single-seller mode says it: a sub-order is the order's product, a maker is the workshop.
+   *  The pages call it on their own texts (messages, labels) — never on data. Outside single mode it returns the text unchanged. */
+  function oneSeller(t) {
+    if (!single() || t == null) return t;
+    return workshop(String(t).replace(/ (?:هو )?وأوردراته الفرعية/g, '').replace(/الأوردرات الفرعية/g, 'المنتجات').replace(/الأوردر الفرعي/g, 'المنتج').replace(/أوردرات فرعية/g, 'منتجات').replace(/أوردر فرعي/g, 'منتج').replace(/فرعيات/g, 'منتجات').replace(/فرعي #/g, '#').replace(/ فرعي(?![؀-ۿ])/g, ''));
+  }
   // the expense types a new expense can take: the four base ones then the admin's (decision 1)
   const expenseKinds = () => STATUS_KINDS.expense.concat(cleanKinds((listSrc() || {}).expenseKinds));
   // decision 4: the first day of the week (settings «general».week, read with the sign-in) as a JS weekday — السبت 6 · الأحد 0 · الاتنين 1
@@ -708,7 +719,7 @@
     log('brand.menu', String(what || '').slice(0, 60), 'brand'); return { ok: true, menu: v };
   }
 
-  window.IBSettings = { MENU_ICONS, MENU_LOCKED, MENU_LABEL_MAX, cleanMenu, menuOf, menuNow, saveMenu, loginLocks, loginUnlock, load, ensure, loadPublic, clear, data, section, sections: () => Object.assign({}, data.sections), roles, liveRoles, public: () => data.public, can, PERMS, PERM_KEYS, lists, saveLists, statusLabel, STATUS_KINDS, setRoleLevelPerms, setMemberLevel, levelPermsOf, MEMBER_LEVELS: MLEVELS, quickList, quickSave, quickDelete, quickOrder, QUICK_SCOPES: Q_SCOPES, expenseKinds, statusList, addedStatuses, delayRules, fakeRule, saveFake, orderStatuses, orderStatusAdd, orderStatusSlug, orderStatusDelete, orderStatusOrder, ADDED_MAX, ADDED_LEN, weekStart, imageProvider, magnificOn, store, single, storeCaps, storeOf, STORE_PLATFORMS, STORE_READY, SINGLE_READY, STORE_CAPS, clock, dateFmt, KIND_MAX, KINDS_MAX,
+  window.IBSettings = { MENU_ICONS, MENU_LOCKED, MENU_LABEL_MAX, cleanMenu, menuOf, menuNow, saveMenu, loginLocks, loginUnlock, load, ensure, loadPublic, clear, data, section, sections: () => Object.assign({}, data.sections), roles, liveRoles, public: () => data.public, can, PERMS, PERM_KEYS, lists, saveLists, statusLabel, workshop, oneSeller, STATUS_KINDS, setRoleLevelPerms, setMemberLevel, levelPermsOf, MEMBER_LEVELS: MLEVELS, quickList, quickSave, quickDelete, quickOrder, QUICK_SCOPES: Q_SCOPES, expenseKinds, statusList, addedStatuses, delayRules, fakeRule, saveFake, orderStatuses, orderStatusAdd, orderStatusSlug, orderStatusDelete, orderStatusOrder, ADDED_MAX, ADDED_LEN, weekStart, imageProvider, magnificOn, store, single, storeCaps, storeOf, STORE_PLATFORMS, STORE_READY, SINGLE_READY, STORE_CAPS, clock, dateFmt, KIND_MAX, KINDS_MAX,
     save, setRolePerms, createRole, updateRole, deleteRole, setMemberRole, setMemberRoles, setMemberPerms, setMemberStatus, sessions, revokeSession, deviceOf,
     links, setSecret, wooSet, testSecret, unlink, connections, notifyStatus, notifyTick, activity, pageOf, docs, addDoc, updateDoc, removeDoc, docUrl, uploadLogo, logoUrl, LOGO_SLOTS, uploadFont, removeFont, loadFont, fontList, FONT_MAX, FONTS_MAX, wipe, WIPE_SECTIONS, teamWipe, filesWipe };
 })();

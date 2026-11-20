@@ -36,6 +36,8 @@
   }
   function set(tone, url) { if (!/^(color|reversed|mark)$/.test(tone)) return; if (url && /^(https:\/\/|blob:|data:image\/)/.test(String(url))) custom[tone] = String(url); else delete custom[tone]; refresh(); }
   function refresh() { document.querySelectorAll('.logo[data-tone]').forEach((el) => { try { el.replaceWith(Logo({ tone: el.dataset.tone, width: Number(el.dataset.width) || 160, mark: el.dataset.mark === '1' })); } catch (e) { /* detached */ } }); }
-  window.IBLogo = { Logo, set, get: (tone) => custom[tone] || null, refresh, TAGLINE: 'بيت لكل مبتكر' };
+  window.IBLogo = { Logo, set, get: (tone) => custom[tone] || null, refresh,
+    // single-seller mode (no makers) has no tagline about makers
+    get TAGLINE() { const S = window.IBSettings; return S && S.single && S.single() ? '' : 'بيت لكل مبتكر'; } };
 })();
 

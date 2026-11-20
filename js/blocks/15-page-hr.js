@@ -501,7 +501,7 @@
       return [h('div', { class: 'toolbar hr-mpick', 'data-hr-month-pick': mk }, tabs0, pick),
         h('div', { class: 'cards', 'data-hr-eval-cards': '' }, K.Stat('اتقيّموا', rated.length, 'من ' + tm.length, monLabel(mk)), K.Stat('متوسط الفريق', rated.length ? String(Math.round(rated.reduce((n, m) => n + ev(m).total, 0) / rated.length * 10) / 10) : '—', 'من 5', 'تقييم الشهر'), K.Stat('فوق حد البونص', rated.filter((m) => ev(m).total >= bar).length, 'عضو', 'التقييم ' + bar + ' من 5 أو أكتر')), cmp,
         K.Section('التقييم الشهري — ' + monLabel(mk), [U.Table({ cls: 'hr-evals', headers: ['العضو', 'الحضور', 'الأداء', 'التواصل', 'تقييم الشهر'].concat(can().salaries ? ['البونص'] : [], ['قيّمه', '']), rows }),
-          note('الحضور تلقائي من أيام الحضور على أيام الشغل (من غير الإجازات المتوافق عليها والعطلات). الأداء من المدير المباشر حسب المهام اللي خلصت واللي لأ، والتواصل حسب تعامله مع الفريق والعملاء والمبتكرين. تقييم الشهر = متوسط التلاتة.')], null, { when: monLabel(mk) })];
+          note('الحضور تلقائي من أيام الحضور على أيام الشغل (من غير الإجازات المتوافق عليها والعطلات). الأداء من المدير المباشر حسب المهام اللي خلصت واللي لأ، والتواصل حسب تعامله مع الفريق والعملاء' + (window.IBSettings && window.IBSettings.single && window.IBSettings.single() ? '' : ' والمبتكرين') + '. تقييم الشهر = متوسط التلاتة.')], null, { when: monLabel(mk) })];
     }
     const rows = tm.map((m) => { const x = H().quarterEval(m.id, q) || {}; return [mcell(m.id), score(x.att), score(x.perf), score(x.comm), scoreTag(x.total), K.Num((x.rated || 0) + ' / 3'), evalMenu(m, q, x.total, qLabel(q))]; });
     return [h('div', { class: 'toolbar hr-mpick', 'data-hr-quarter-pick': q }, tabs0, pick), cmp,
@@ -565,7 +565,7 @@
         return [head,
           h('div', { class: 'ev-grid' }, attBox,
             h('div', { class: 'ev-box' }, K.StarPicker({ id: 'ev-perf', label: 'الأداء', value: f.perf, onChange: (v) => set('perf', v, true), error: e.perf, required: true, help: 'حسب المهام اللي خلصت واللي لأ' })),
-            h('div', { class: 'ev-box' }, K.StarPicker({ id: 'ev-comm', label: 'التواصل', value: f.comm, onChange: (v) => set('comm', v, true), error: e.comm, required: true, help: 'مع الفريق والعملاء والمبتكرين' }))),
+            h('div', { class: 'ev-box' }, K.StarPicker({ id: 'ev-comm', label: 'التواصل', value: f.comm, onChange: (v) => set('comm', v, true), error: e.comm, required: true, help: 'مع الفريق والعملاء' + (window.IBSettings && window.IBSettings.single && window.IBSettings.single() ? '' : ' والمبتكرين') }))),
           h('div', { class: 'ev-box ev-task-box', 'data-hr-rate-tasks': '' }, h('span', { class: 'flabel' }, 'مهام ' + monLabel(mk)), h('div', { class: 'ev-task-cols' }, list('مهام خلصت', tasks.done, 'success'), list('مهام لسه مفتوحة', tasks.open, tasks.open.length ? 'orange' : 'neutral'))),
           h('div', { class: 'ev-total' + (total == null ? '' : over ? ' over' : ' under'), 'data-hr-rate-total': total == null ? '' : String(total), 'aria-live': 'polite' }, h('span', { class: 'ev-total-l' }, 'تقييم الشهر'),
             total == null ? h('span', { class: 't-small help' }, 'اختار الأداء والتواصل — التقييم = متوسط التلاتة')

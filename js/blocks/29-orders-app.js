@@ -128,10 +128,10 @@ function dstate(o){return ostate(o)}
 function slead(s){return s.leadSrc==='default'||!Number(s.lead)?RULES().lead:Number(s.lead)}
 function sel(o,s){return RULES().start==='notify'?(s.exp?daysSince(s.exp):null):cage(o)}
 function sstate(o,s){return lineOpen(s)?XO().lineDelayOf(sel(o,s),slead(s),true,RULES()):'ok'}
-function sbadge(s,sl){return lineOpen(s)?dbadge(sl):'<span class="badge s-proc" data-closed title="'+(s.ss==='ملغي'?'المنتج ملغي':'الأوردر الفرعي مقفول على الموقع ('+esc(SITE_ST[s.raw]||s.raw||'—')+')')+' — مالوش عدّاد تأخير">مقفول'+ic('xc')+'</span>'}
+function sbadge(s,sl){return lineOpen(s)?dbadge(sl):'<span class="badge s-proc" data-closed title="'+(s.ss==='ملغي'?'المنتج ملغي':WK('الأوردر الفرعي مقفول على الموقع (')+esc(SITE_ST[s.raw]||s.raw||'—')+')')+' — مالوش عدّاد تأخير">مقفول'+ic('xc')+'</span>'}
 var SITE_ST={completed:'مكتمل',cancelled:'ملغي',refunded:'مسترجع',failed:'فشل',trash:'المهملات','checkout-draft':'مسودة'};
-function startTxt(){var st=RULES().start;return st==='notify'?'العدّاد بيحسب الأيام من تاريخ تبليغ المبتكر على مدة التصنيع (بتاعة المنتج، وإلا بتاعة المبتكر) · من غير تاريخ تبليغ مالوش عدّاد':'العدّاد بيحسب الأيام من '+(st==='order'?'تاريخ الأوردر':'تاريخ تأكيد الأوردر')+' على مدة التصنيع (بتاعة المنتج، وإلا بتاعة المبتكر) · نقطة البداية من الإعدادات › المبتكرين'}
-function leadTxt(s){return'مدة التصنيع: '+slead(s)+' يوم'+(s.leadSrc==='product'?' (المنتج)':s.leadSrc==='maker'?' (المبتكر)':'')}
+function startTxt(){var st=RULES().start;return st==='notify'?'العدّاد بيحسب الأيام من تاريخ تبليغ المبتكر على مدة التصنيع (بتاعة المنتج، وإلا بتاعة المبتكر) · من غير تاريخ تبليغ مالوش عدّاد':'العدّاد بيحسب الأيام من '+(st==='order'?'تاريخ الأوردر':'تاريخ تأكيد الأوردر')+(SG()?' على مدة التصنيع (بتاعة المنتج، وإلا الافتراضية) · نقطة البداية من الإعدادات › التصنيع والتأخير':' على مدة التصنيع (بتاعة المنتج، وإلا بتاعة المبتكر) · نقطة البداية من الإعدادات › المبتكرين')}
+function leadTxt(s){return'مدة التصنيع: '+slead(s)+' يوم'+(s.leadSrc==='product'?' (المنتج)':s.leadSrc==='maker'?WK(' (المبتكر)'):'')}
 function scount(o,s){var e=lineOpen(s)?sel(o,s):null,n=slead(s);return{e:e,n:n,t:e==null?'—':Math.min(e,99)+'/'+n,pct:e==null?0:Math.min(e/n,1)*100}}
 var DB={risk:['s-warn','قابل للتأخير','clock','#f08a1c'],late:['s-err','متأخر','alert','#da0001'],ok:['s-ok','غير متأخر','check','#39ac00']};
 function dbadge(k){var d=DB[k];return'<span class="badge '+d[0]+'">'+d[1]+ic(d[2])+'</span>'}
@@ -168,7 +168,7 @@ function header(o,l,open){
  return'<div class="oh">'+ocb(o)
  +field('رقم الأوردر','tag','<div class="vv"><span class="oid">IB-'+o.id+'</span>'+tkChip(o)+'</div>',88)
  +field('تاريخ الأوردر','cal','<div class="vv"><b style="font-weight:600">'+dt(o.date)+'</b></div>',100)
- +field('الأوردرات الفرعية','box','<div class="vv">'+o.subs.length+(o.subs.length>2?' أوردرات':' أوردر')+'</div>',115)
+ +field(LBX('subs'),'box','<div class="vv">'+o.subs.length+(SG()?(o.subs.length>2?' منتجات':' منتج'):(o.subs.length>2?' أوردرات':' أوردر'))+'</div>',115)
  +field('إجمالي القيمة','coins','<div class="vv"><b style="font-weight:600">'+fmt(o.tot)+' ج.م</b></div>',104)
  +field('حالة التأكيد','check','<label class="in dd" style="justify-content:flex-start;width:100%;padding-inline:8px;gap:8px">'+ic('down')+'<span style="flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis"'+(o.cf==='غير مؤكد'?' class="unconf"':'')+'>'+esc(LB('confirm',o.cf))+'</span><select data-cf="'+o.id+'" aria-label="حالة التأكيد">'+opts(CF,o.cf,'','confirm')+'</select></label>',148)
  +field('تاريخ التأكيد','cal',''+dfield('cd:'+o.id,cd,'تاريخ التأكيد',0,'أضف تاريخ التأكيد')+'',134)
@@ -193,6 +193,8 @@ function notes(o){
 // the plan 2026-11-17-stores-single.md decision 3: single-seller mode (IBSettings.single — a factory or a brand owner) — the order's lines
 // are its products: no sub-order number, no maker, «التصنيع» from the start date, the comment is the workshop's
 function SG(){return!!(window.IBSettings&&window.IBSettings.single&&window.IBSettings.single())}
+/* single-seller mode: a text written for the marketplace said without makers / sub-orders (IBSettings.oneSeller) */
+function WK(t){var S0=window.IBSettings;return S0&&S0.oneSeller?S0.oneSeller(t):t}
 function LBX(k){var sg=SG();return({subs:sg?'المنتجات':'الأوردرات الفرعية',sub:sg?'':'الأوردر الفرعي',maker:sg?'المخزن':'المبتكر',make:sg?'التصنيع · تاريخ بدء التصنيع':'التصنيع · تاريخ تبليغ المبتكر',cm:sg?'تعليق التصنيع':'تعليق المبتكر'})[k]}
 function subrow(o,s,l){
  var sc=scount(o,s),pct=sc.pct,sl=sstate(o,s);
@@ -203,7 +205,7 @@ function subrow(o,s,l){
  +'<div class="c c4" data-l="حالة المنتج">'+sdd(SSTY,s.ss,'data-ss="'+s.n+'"',110,SS,1)+'</div>'
  +'<div class="c c5" data-l="القيمة"><b style="font-weight:600">'+fmt(s.tot)+' ج.م</b></div>'
  +'<div class="c c6" data-l="'+LBX('make')+'">'+(s.pulled?pullNote(s)+'</div>':'<div class="dc"><div class="dcr">'+sbadge(s,sl)+'<div class="cnt"><s>يوم</s><b>'+sc.t+'</b></div></div><div class="btrk"><div class="fil" style="width:'+pct+'%;background:'+DB[sl][3]+'"></div></div></div>'
- +''+dfield('ex:'+s.n,s.exp,'تاريخ تبليغ المبتكر',1,'أضف تاريخ الإبلاغ')+'<span class="lead" data-lead="'+s.n+'">'+leadTxt(s)+'</span></div>')
+ +''+dfield('ex:'+s.n,s.exp,WK('تاريخ تبليغ المبتكر'),1,'أضف تاريخ الإبلاغ')+'<span class="lead" data-lead="'+s.n+'">'+leadTxt(s)+'</span></div>')
  +'<div class="c c7" data-l="'+LBX('cm')+'"><div class="cm inl" data-cm="'+s.n+'"><textarea data-ce="'+s.n+'" data-orig="'+esc(s.cm)+'" rows="2" placeholder="اكتب تعليقك هنا" aria-label="'+LBX('cm')+' #'+s.sid+'">'+esc(s.cm)+'</textarea><button type="button" class="csv" data-cs="'+s.n+'" hidden>حفظ</button></div></div>'
  +'<div class="c c8" data-l=""><button class="ibtn" data-more="s:'+s.n+'" aria-haspopup="menu" aria-expanded="false" aria-label="المزيد">'+ic('more')+'</button></div></div>'}
 function subs(o,l){if(MODE!=='d')return subsM(o,l,MODE==='m');
@@ -256,7 +258,7 @@ function notesM(o){
 function subcard(o,s,l,m){
  var sc=scount(o,s),pct=sc.pct,sl=sstate(o,s),ce=S.edit==='c'+s.n;
  var thumb=pthumb(s);
- var pt='<div class="pt"><b>'+pname(s)+' × '+s.qty+'</b><span dir="ltr" style="text-align:right">'+esc(s.sku)+'</span><div class="vrow">'+(s.pulled?'<span class="vchip pull" title="مخزن ابتكر">مخزن ابتكر</span><small>سحب تلقائي · فرعي #'+s.sid+'</small>':SG()?hubChip(s):'<span class="vchip" title="'+esc(s.vendor)+'">'+esc(s.vendor)+'</span>'+hubChip(s)+'<small>فرعي #'+s.sid+'</small>')+'</div></div>';
+ var pt='<div class="pt"><b>'+pname(s)+' × '+s.qty+'</b><span dir="ltr" style="text-align:right">'+esc(s.sku)+'</span><div class="vrow">'+(s.pulled?WK('<span class="vchip pull" title="مخزن ابتكر">مخزن ابتكر</span><small>سحب تلقائي · فرعي #')+s.sid+'</small>':SG()?hubChip(s):'<span class="vchip" title="'+esc(s.vendor)+'">'+esc(s.vendor)+'</span>'+hubChip(s)+WK('<small>فرعي #')+s.sid+'</small>')+'</div></div>';
  var st='<div class="fld">'+lbl('check','حالة المنتج')+sdd(SSTY,s.ss,'data-ss="'+s.n+'"',110,SS,1)+'</div>';
  var val='<div class="fld val">'+lbl('coins','القيمة')+'<div class="vv"><b>'+fmt(s.tot)+' ج.م</b></div></div>';
  var cnt=s.pulled?pullNote(s):'<div class="scnt"><div class="dcr"><div class="cnt"><s>يوم</s><b>'+sc.t+'</b></div>'+sbadge(s,sl)+'<span class="lead" data-lead="'+s.n+'">'+leadTxt(s)+'</span></div><div class="btrk"><div class="fil" style="width:'+pct+'%;background:'+DB[sl][3]+'"></div></div></div>';
@@ -358,10 +360,10 @@ function shipReady(o,s,v){var OPS=window.IbtekrOps;if(!OPS||!OPS.isShipReady||!O
 function setCf(o,v,changes){var old=o.cf;if(old===v)return [];o.cf=v;var OPS=window.IbtekrOps;if(!OPS||!OPS.subsOnConfirm)return [];
  if(!OPS.isConfirmed(old)&&OPS.isConfirmed(v)){o.confAt=(window.IBOrders?window.IBOrders.today():window.IBKit&&window.IBKit.TODAY)||o.date;if(!o.cdate)o.cdate=o.confAt}
  var ch=OPS.subsOnConfirm(o.subs,old,v);ch.forEach(function(c){o.subs.forEach(function(s){if(String(s.sid)===c.sid&&(s.ss||'')===c.from){var b=snapS(s);s.ss=c.to;subW(s,b)}})});
- if(ch.length){var msg=(OPS.isConfirmed(v)?'اتأكد ':'رجع غير مؤكد ')+ch.length+' أوردر فرعي تلقائي';if(changes)changes.push('الأوردرات الفرعية: '+ch.map(function(c){return '#'+c.sid+' «'+(c.from||'—')+'» ← «'+c.to+'»'}).join(' · '));
-  if(window.IbtekrApp&&window.IbtekrApp.logEvent)window.IbtekrApp.logEvent({action:'suborder.autoconfirm',newValue:'IB-'+o.id+' · '+old+' ← '+v+' · '+ch.length+' فرعي ← '+ch[0].to});toast(msg)}
+ if(ch.length){var msg=(OPS.isConfirmed(v)?'اتأكد ':'رجع غير مؤكد ')+ch.length+WK(' أوردر فرعي تلقائي');if(changes)changes.push(WK('الأوردرات الفرعية: ')+ch.map(function(c){return '#'+c.sid+' «'+(c.from||'—')+'» ← «'+c.to+'»'}).join(' · '));
+  if(window.IbtekrApp&&window.IbtekrApp.logEvent)window.IbtekrApp.logEvent({action:'suborder.autoconfirm',newValue:'IB-'+o.id+' · '+old+' ← '+v+' · '+ch.length+WK(' فرعي ← ')+ch[0].to});toast(msg)}
  return ch}
-function toast(t){var e=$('toast');e.textContent=t;e.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(function(){e.hidden=true},2200)}
+function toast(t){var e=$('toast');e.textContent=WK(t);e.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(function(){e.hidden=true},2200)}
 /* ---- write-through (phase 2): every edit changes the page's copy first, then IBOrdersStore (= IBOrders); a refused write
    puts the old values back (while they still hold what was written) and says why. No store: the local change stays.
    «stale» (the owner 15 Nov — 2026-11-15-live-sync.md decision 3): a teammate saved the same thing first — nothing was written,
@@ -391,7 +393,7 @@ function hubChip(s){return !s.pulled&&window.IBOrdersOps&&window.IBOrdersOps.hub
 // phase 8 decision 3: the open tickets on the order (IBTickets.forOrder — what the member sees); a press opens them in «تذاكر الفريق»
 function tkChip(o){var T=window.IBTickets,n=T&&T.forOrder?T.forOrder(o.id).length:0;return n?' <button type="button" class="vchip tk" data-tk-order="'+esc(o.id)+'" title="طلبات مفتوحة على الأوردر — اضغط تشوفها">'+n+(n>2&&n<11?' طلبات':' طلب')+'</button>':''}
 function vcell(s){return s.pulled?'<span class="vchip pull">مخزن ابتكر</span><small class="pullsub">سحب تلقائي</small>':(SG()?'':esc(s.vendor))+hubChip(s)}
-function pullNote(s){return'<div class="pulln">'+ic('box')+'<span>من مخزن ابتكر — مفيش تبليغ مبتكر ولا عدّاد</span></div>'}
+function pullNote(s){return'<div class="pulln">'+ic('box')+WK('<span>من مخزن ابتكر — مفيش تبليغ مبتكر ولا عدّاد</span></div>')}
 function consBar(o){var c=window.IBOrdersOps&&window.IBOrdersOps.cons(o.id);if(!c)return'';var a=c.subs.filter(function(x){return x[2]==='وصل المخزن'}).length,rd=a===c.subs.length;
  return'<div class="consbar'+(rd?' rdy':'')+'">'+ic('box')+'<b>بيتجمع في المخزن · '+a+' من '+c.subs.length+' وصلوا</b><span>منطقة '+esc(c.zone)+'</span>'+(rd?'<span class="tagok">جاهز يطلع كامل</span>':'')+'<div class="cbar"><i style="width:'+Math.round(a/c.subs.length*100)+'%"></i></div></div>'}
 function orderSnap(o){return{id:o.id,name:o.name,subs:o.subs.map(function(s){return{sid:s.sid,itemId:s.itemId,qty:s.qty,vendor:s.vendor,ss:s.ss,prod:s.prod,sku:s.sku,tot:s.tot,pulled:!!s.pulled}})}}
@@ -421,7 +423,7 @@ function mpOpen(btn){var key=btn.dataset.more;if(MP&&MP.key===key){mpClose(1);re
   var sws=WS(),stItem=ls&&po&&String(ls.sid)!==String(po.id)&&sws&&sws.setSubSiteStatus&&sws.siteStatuses&&sws.siteStatuses().length?'<button type="button" role="menuitem" data-ma="sitest">'+ic('tag')+'<span>تعديل الحالة على الموقع</span></button>':'';
   var tk=window.IbtekrApp&&window.IbtekrApp.newTicket&&window.IBTickets&&window.IBTickets.can().manage?'<button type="button" role="menuitem" data-ma="ticket">'+ic('edit')+'<span>افتح طلب</span></button>':''; // phase 8 decision 3
   // 0144 (the owner 19 Nov): «اطبع بوليصة بوسطة» for an order on Bosta; «بيك أب من المبتكر» on a product's line (its maker → the warehouse)
-  var bship=!!(window.IBDirectory&&window.IBDirectory.perm&&window.IBDirectory.perm('orders.status')==='F'),bz=window.IBBosta&&bship?(oo&&oo.bdl?'<button type="button" role="menuitem" data-ma="awb">'+ic('ext')+'<span>اطبع بوليصة بوسطة</span></button>':'')+(ls&&(ls.vendorId||ls.vendor)?'<button type="button" role="menuitem" data-ma="pickup">'+ic('truck')+'<span>بيك أب من المبتكر (بوسطة)</span></button>':''):'';
+  var bship=!!(window.IBDirectory&&window.IBDirectory.perm&&window.IBDirectory.perm('orders.status')==='F'),bz=window.IBBosta&&bship?(oo&&oo.bdl?'<button type="button" role="menuitem" data-ma="awb">'+ic('ext')+'<span>اطبع بوليصة بوسطة</span></button>':'')+(ls&&!SG()&&(ls.vendorId||ls.vendor)?'<button type="button" role="menuitem" data-ma="pickup">'+ic('truck')+'<span>بيك أب من المبتكر (بوسطة)</span></button>':''):'';
   w.innerHTML='<button type="button" role="menuitem" data-ma="edit">'+ic('edit')+'<span>تعديل</span></button>'+(stItem||'')+tk+bz+extra+del;
  R.appendChild(w);
  MP={key:key,btn:btn};popPlace(w,btn);btn.setAttribute('aria-expanded','true');w.querySelector('button').focus()}
@@ -443,17 +445,17 @@ function mpAct(a){var k=MP.key.split(':'),kind=k[0],id=k[1];mpClose(0);
    piece moves with it; the team's «الحالة» beside each product stays; a single-maker order has no sub-order (its status = the order's) */
 function siteLbl(slug){var ws=WS(),L=ws&&ws.siteStatuses?ws.siteStatuses():[],m=L.filter(function(x){return x.slug===slug})[0];return m?m.label:slug}
 function nCount(n,one,many){return n+(n>2&&n<11?' '+many:' '+one)}
-function siteFail(r){return r&&r.reason==='forbidden'?'مش مسموح لك تغيّر حالة الأوردرات':r&&r.reason==='push_disabled'?'الكتابة على الموقع متقفلة — الحالة ماتغيّرتش':r&&r.reason==='missing'?'الأوردر الفرعي مش موجود على الموقع':r&&r.reason==='site'?'الموقع ماقبلش الحالة دي — ماتغيّرتش':'مافيش اتصال — الحالة ماتغيّرتش'}
+function siteFail(r){return r&&r.reason==='forbidden'?'مش مسموح لك تغيّر حالة الأوردرات':r&&r.reason==='push_disabled'?'الكتابة على الموقع متقفلة — الحالة ماتغيّرتش':r&&r.reason==='missing'?WK('الأوردر الفرعي مش موجود على الموقع'):r&&r.reason==='site'?'الموقع ماقبلش الحالة دي — ماتغيّرتش':'مافيش اتصال — الحالة ماتغيّرتش'}
 function siteStatusDialog(n){var s=allSub(n);if(!s)return;var o=OM[s.oid],ws=WS();if(!o||String(s.sid)===String(o.id)||!ws||!ws.siteStatuses||!ws.setSubSiteStatus)return;
  var L=ws.siteStatuses(),mine=o.subs.filter(function(x){return String(x.sid)===String(s.sid)}),pcs=mine.reduce(function(a,x){return a+(Number(x.qty)||1)},0);
  var cnt=nCount(mine.length,'منتج','منتجات')+(pcs!==mine.length?' ('+nCount(pcs,'قطعة','قطع')+')':'');
  var w=document.createElement('div');w.id='cscrim';
- w.innerHTML='<div id="cdlg" role="dialog" aria-modal="true" aria-labelledby="cdt"><div class="ch"><h2 id="cdt">تعديل الحالة على الموقع — الأوردر الفرعي #'+esc(s.sid)+'</h2><button type="button" class="ibtn" data-cc aria-label="إغلاق">'+ic('xx')+'</button></div>'
+ w.innerHTML=WK('<div id="cdlg" role="dialog" aria-modal="true" aria-labelledby="cdt"><div class="ch"><h2 id="cdt">تعديل الحالة على الموقع — الأوردر الفرعي #')+esc(s.sid)+'</h2><button type="button" class="ibtn" data-cc aria-label="إغلاق">'+ic('xx')+'</button></div>'
   +'<div class="cb"><div class="lb">الحالة دلوقتي على الموقع: <span class="now" data-site-now>'+esc(s.raw?siteLbl(s.raw):'—')+'</span></div>'
   +'<div><label class="lb" for="cwst">الحالة الجديدة على الموقع</label><select id="cwst" class="sel2">'+L.map(function(x){return'<option value="'+esc(x.slug)+'"'+(x.slug===s.raw?' selected':'')+'>'+esc(x.label)+'</option>'}).join('')+'</select></div>'
-  +(pcs>1?'<div class="nt warn" role="note" data-sub-many>الأوردر الفرعي #'+esc(s.sid)+' فيه '+esc(cnt)+' — الحالة هتتغيّر '+(mine.length>1?'لكل المنتجات دي':'للقطع كلها')+' مع بعض على الموقع.</div>':'')
+  +(pcs>1?WK('<div class="nt warn" role="note" data-sub-many>الأوردر الفرعي #')+esc(s.sid)+' فيه '+esc(cnt)+' — الحالة هتتغيّر '+(mine.length>1?'لكل المنتجات دي':'للقطع كلها')+' مع بعض على الموقع.</div>':'')
   +'<div class="nt"><b data-sub-count>'+esc(cnt)+' · '+esc(s.vendor||'')+'</b><ul class="dlist">'+mine.map(function(x){return'<li>'+esc(x.prod)+' × '+(Number(x.qty)||1)+'</li>'}).join('')+'</ul>'
-  +'الموقع فيه حالة واحدة للأوردر الفرعي كله. «حالة المنتج» جنب كل منتج مش هتتغيّر — إلا «ملغي» على الموقع: منتجاته بتبقى «ملغي» هنا كمان (غير المرتجع).</div></div>'
+  +WK('الموقع فيه حالة واحدة للأوردر الفرعي كله. «حالة المنتج» جنب كل منتج مش هتتغيّر — إلا «ملغي» على الموقع: منتجاته بتبقى «ملغي» هنا كمان (غير المرتجع).</div></div>')
   +'<div class="cf"><button type="button" class="btn pri" data-cok>غيّر الحالة على الموقع</button><button type="button" class="btn" data-cc>إلغاء</button></div></div>';
  R.appendChild(w);var prev=R.activeElement;w.querySelector('#cwst').focus();
  function close(){w.remove();R.removeEventListener('keydown',keys,true);if(prev&&prev.focus&&prev.isConnected)prev.focus()}
@@ -462,7 +464,7 @@ function siteStatusDialog(n){var s=allSub(n);if(!s)return;var o=OM[s.oid],ws=WS(
  w.addEventListener('click',function(e){if(e.target.closest('[data-cc]')){close();return}
   var ok=e.target.closest('[data-cok]');if(!ok)return;var v=w.querySelector('#cwst').value;if(v===s.raw){close();toast('دي نفس الحالة على الموقع');return}busy(ok,1,'بيتغيّر على الموقع…');
   ws.setSubSiteStatus(o.id,s.sid,v).then(function(r){
-   if(r&&r.ok){close();o.subs.forEach(function(x){if(String(x.sid)===String(s.sid))x.raw=r.status});if(r.status==='cancelled')cancelLocal(mine);draw(1);toast('الأوردر الفرعي #'+s.sid+' بقى «'+siteLbl(r.status)+'» على الموقع'+(mine.length>1?' — '+nCount(mine.length,'منتج','منتجات')+' مع بعض':''));return}
+   if(r&&r.ok){close();o.subs.forEach(function(x){if(String(x.sid)===String(s.sid))x.raw=r.status});if(r.status==='cancelled')cancelLocal(mine);draw(1);toast(WK('الأوردر الفرعي #')+s.sid+' بقى «'+siteLbl(r.status)+'» على الموقع'+(mine.length>1?' — '+nCount(mine.length,'منتج','منتجات')+' مع بعض':''));return}
    busy(ok,0);toast(siteFail(r))},
    function(){busy(ok,0);toast('مافيش اتصال — الحالة ماتغيّرتش')})})}
 /* the owner 11 Nov («امسح منتج بعينه من الاوردر»): «مسح المنتج» — the product off its maker's sub-order on the site (woo-sync
@@ -472,16 +474,16 @@ function siteStatusDialog(n){var s=allSub(n);if(!s)return;var o=OM[s.oid],ws=WS(
 function confirmLineDelete(n){var s=allSub(n);if(!s)return;var o=OM[s.oid];if(!o||o.st==='مكتمل'||o.st==='استرجاع')return;
  if(o.subs.length===1){toast('ده المنتج الوحيد في الأوردر — هيتمسح الأوردر كله');confirmDelete(o.id);return}
  var mine=o.subs.filter(function(x){return String(x.sid)===String(s.sid)});
- if(String(s.sid)!==String(o.id)&&mine.length===1){toast('ده المنتج الوحيد في الأوردر الفرعي #'+s.sid+' — هيتمسح الأوردر الفرعي كله');confirmSubDelete(n);return}
+ if(String(s.sid)!==String(o.id)&&mine.length===1){toast(WK('ده المنتج الوحيد في الأوردر الفرعي #')+s.sid+WK(' — هيتمسح الأوردر الفرعي كله'));confirmSubDelete(n);return}
  var t=Number(s.tot)||0,multi=String(s.sid)!==String(o.id);
- var note='<div class="nt"><b data-line-del>'+esc(s.prod)+' × '+(Number(s.qty)||1)+' · '+esc(fmt(t))+' ج.م · '+esc(s.vendor||'')+'</b><br>'+(multi?'المنتج هيتشال من الأوردر الفرعي #'+esc(s.sid)+' على الموقع، والأوردر الأصلي IB-'+esc(o.id)+' على الموقع هيفضل زي ما هو بإجماليه':'المنتج هيتشال من الأوردر IB-'+esc(o.id)+' على الموقع (إجماليه هيقل '+esc(fmt(t))+' ج.م)')+'، وهيختفي من الأوردرات والحسابات والتقارير هنا، وأي حجز ليه في المخزن هيتفك.</div>';
+ var note='<div class="nt"><b data-line-del>'+esc(s.prod)+' × '+(Number(s.qty)||1)+' · '+esc(fmt(t))+' ج.م · '+esc(s.vendor||'')+'</b><br>'+(multi?WK('المنتج هيتشال من الأوردر الفرعي #')+esc(s.sid)+' على الموقع، والأوردر الأصلي IB-'+esc(o.id)+' على الموقع هيفضل زي ما هو بإجماليه':'المنتج هيتشال من الأوردر IB-'+esc(o.id)+' على الموقع (إجماليه هيقل '+esc(fmt(t))+' ج.م)')+'، وهيختفي من الأوردرات والحسابات والتقارير هنا، وأي حجز ليه في المخزن هيتفك.</div>';
  delDialog('مسح المنتج من IB-'+o.id+'؟',note,'مسح المنتج',function(reason,ok,close){var ws=WS();
   if(!ws||!ws.deleteLine){close();o.subs=o.subs.filter(function(x){return x!==s});o.tot=Math.max(0,(Number(o.tot)||0)-t);draw(1);toast('اتمسح المنتج من IB-'+o.id);return}
   ws.deleteLine(o.id,s.itemId,reason).then(function(r){
-   if(r&&r.ok){close();o.subs=o.subs.filter(function(x){return x!==s});if(r.total!=null)o.tot=r.total;draw(1);toast(r.total!=null?'اتمسح المنتج — إجمالي IB-'+o.id+' بقى '+fmt(Number(o.tot)||0)+' ج.م':'اتمسح المنتج من الأوردر الفرعي #'+s.sid+' — الأوردر الأصلي على الموقع زي ما هو');return}
+   if(r&&r.ok){close();o.subs=o.subs.filter(function(x){return x!==s});if(r.total!=null)o.tot=r.total;draw(1);toast(r.total!=null?'اتمسح المنتج — إجمالي IB-'+o.id+' بقى '+fmt(Number(o.tot)||0)+' ج.م':WK('اتمسح المنتج من الأوردر الفرعي #')+s.sid+' — الأوردر الأصلي على الموقع زي ما هو');return}
    if(r&&r.reason==='only_in_sub'){close();confirmSubDelete(n);return}
    if(r&&r.reason==='only_line'){close();confirmDelete(o.id);return}
-   busy(ok,0);toast(r&&r.reason==='forbidden'?'مش مسموح لك تمسح من الأوردرات':r&&r.reason==='push_disabled'?'الكتابة على الموقع متقفلة — المنتج ماتمسحش':r&&r.reason==='closed'?'الأوردر مكتمل أو مسترجع — مايتمسحش منه':r&&r.reason==='sub_line'?'مش لاقيين المنتج ده بالظبط في الأوردر الفرعي على الموقع — ماتمسحش':r&&r.reason==='missing'?'المنتج مش موجود — يمكن اتمسح قبل كده':r&&r.reason==='site'?'الموقع ماردش — المنتج ماتمسحش':'مافيش اتصال — المنتج ماتمسحش')},
+   busy(ok,0);toast(r&&r.reason==='forbidden'?'مش مسموح لك تمسح من الأوردرات':r&&r.reason==='push_disabled'?'الكتابة على الموقع متقفلة — المنتج ماتمسحش':r&&r.reason==='closed'?'الأوردر مكتمل أو مسترجع — مايتمسحش منه':r&&r.reason==='sub_line'?WK('مش لاقيين المنتج ده بالظبط في الأوردر الفرعي على الموقع — ماتمسحش'):r&&r.reason==='missing'?'المنتج مش موجود — يمكن اتمسح قبل كده':r&&r.reason==='site'?'الموقع ماردش — المنتج ماتمسحش':'مافيش اتصال — المنتج ماتمسحش')},
    function(){busy(ok,0);toast('مافيش اتصال — المنتج ماتمسحش')})})}
 /* ---- «مسح» (5.5 decision 10, owner 2 Nov): an order leaves the list with a reason — one that is not «ملغي» is cancelled first with that reason,
    then the order and its sub-orders go to the site's trash (woo-sync order_trash), then the row is marked deleted (order_delete; it stays in the
@@ -512,7 +514,7 @@ function busy(ok,on,label){if(!ok)return;var d=ok.closest('#cdlg');if(on){if(!ok
  else{ok.disabled=false;ok.removeAttribute('aria-busy');if(ok.dataset.lb){ok.textContent=ok.dataset.lb;delete ok.dataset.lb}if(d)d.querySelectorAll('[data-cc]').forEach(function(b){b.disabled=false})}}
 function delFail(r){return r&&r.reason==='forbidden'?'مش مسموح لك تمسح أوردرات':r&&r.reason==='invalid'?'المسح للأوردرات الملغية بس':r&&r.reason==='site'?'الموقع ماردش — الأوردر ماتمسحش':'مافيش اتصال — الأوردر ماتمسحش'}
 function confirmDelete(id){var o=OM[id];if(!o||o.st==='مكتمل'||o.st==='استرجاع')return;var cancelFirst=o.st!=='ملغي';
- delDialog('مسح الأوردر IB-'+id+'؟','<div class="nt">'+(cancelFirst?'الأوردر لسه «'+esc(LB('order',SV(o)))+'» — هيتلغي الأول بالسبب ده (وبيتبعت للموقع زي أي إلغاء) وبعدين يتمسح. ':'')+'الأوردر هيتحط في سلة مهملات الموقع هو وأوردراته الفرعية، وهيختفي من القائمة هنا وهيفضل في سجل النشاط (مين / إمتى / السبب) للمراجعة.</div>',cancelFirst?'إلغاء ومسح الأوردر':'مسح الأوردر',function(reason,ok,close){var ws=WS();
+ delDialog('مسح الأوردر IB-'+id+'؟','<div class="nt">'+(cancelFirst?'الأوردر لسه «'+esc(LB('order',SV(o)))+'» — هيتلغي الأول بالسبب ده (وبيتبعت للموقع زي أي إلغاء) وبعدين يتمسح. ':'')+WK('الأوردر هيتحط في سلة مهملات الموقع هو وأوردراته الفرعية، وهيختفي من القائمة هنا وهيفضل في سجل النشاط (مين / إمتى / السبب) للمراجعة.</div>'),cancelFirst?'إلغاء ومسح الأوردر':'مسح الأوردر',function(reason,ok,close){var ws=WS();
   if(!ws||!ws.deleteOrder){close();removeOrder(id);toast('اتمسح الأوردر IB-'+id);return}
   ws.deleteOrder(id,reason,{cancel:cancelFirst}).then(function(r){if(r&&r.ok){close();removeOrder(id);toast('اتمسح الأوردر IB-'+id+(r.site==='ok'?' واتحط في مهملات الموقع':r.site==='push_disabled'?' — الموقع ماتلمسش (الدفع متقفل)':''));return}busy(ok,0);toast(delFail(r))},function(){busy(ok,0);toast('مافيش اتصال — الأوردر ماتمسحش')})})}
 /* decision 54 (owner 10 Nov — «مسح الأوردر الفرعي»): the sub-order's lines (one Dokan sub-order may hold several) in a popup with one
@@ -521,17 +523,17 @@ function confirmDelete(id){var o=OM[id];if(!o||o.st==='مكتمل'||o.st==='اس
    automation»: Dokan recreates the sub-orders of an order edited through the API). The order's only sub-order → the order's own «مسح». */
 function confirmSubDelete(n){var s=allSub(n);if(!s)return;var o=OM[s.oid];if(!o||o.st==='مكتمل'||o.st==='استرجاع')return;
  var mine=o.subs.filter(function(x){return String(x.sid)===String(s.sid)}),rest=o.subs.filter(function(x){return String(x.sid)!==String(s.sid)});
- if(!rest.length){toast('ده الأوردر الفرعي الوحيد — هيتمسح الأوردر كله');confirmDelete(o.id);return}
+ if(!rest.length){toast(WK('ده الأوردر الفرعي الوحيد — هيتمسح الأوردر كله'));confirmDelete(o.id);return}
  var sum=mine.reduce(function(a,x){return a+(Number(x.tot)||0)},0);
  var note='<div class="nt"><b data-sub-count>'+mine.length+(mine.length>2&&mine.length<11?' سطور':' سطر')+' · '+esc(s.vendor||'')+'</b><ul class="dlist">'+mine.map(function(x){return'<li>'+esc(x.prod)+' × '+(Number(x.qty)||1)+' · '+esc(fmt(Number(x.tot)||0))+' ج.م</li>'}).join('')+'</ul>'
-  +'الأوردر الفرعي هيتحط في سلة مهملات الموقع، والأوردر الأصلي IB-'+esc(o.id)+' على الموقع هيفضل زي ما هو بمنتجاته وإجماليه. سطوره هتختفي من الأوردرات والحسابات والتقارير هنا، وأي حجز ليه في المخزن هيتفك.</div>';
- delDialog('مسح الأوردر الفرعي #'+s.sid+'؟',note,'مسح الأوردر الفرعي',function(reason,ok,close){var ws=WS();
-  if(!ws||!ws.deleteSub){close();o.subs=rest;o.tot=Math.max(0,(Number(o.tot)||0)-sum);draw(1);toast('اتمسح الأوردر الفرعي #'+s.sid);return}
+  +WK('الأوردر الفرعي هيتحط في سلة مهملات الموقع، والأوردر الأصلي IB-')+esc(o.id)+' على الموقع هيفضل زي ما هو بمنتجاته وإجماليه. سطوره هتختفي من الأوردرات والحسابات والتقارير هنا، وأي حجز ليه في المخزن هيتفك.</div>';
+ delDialog(WK('مسح الأوردر الفرعي #')+s.sid+'؟',note,WK('مسح الأوردر الفرعي'),function(reason,ok,close){var ws=WS();
+  if(!ws||!ws.deleteSub){close();o.subs=rest;o.tot=Math.max(0,(Number(o.tot)||0)-sum);draw(1);toast(WK('اتمسح الأوردر الفرعي #')+s.sid);return}
   ws.deleteSub(o.id,s.sid,reason).then(function(r){
-   if(r&&r.ok){close();o.subs=rest;if(r.total!=null)o.tot=r.total;draw(1);toast('اتمسح الأوردر الفرعي #'+s.sid+(r.total!=null?' — إجمالي IB-'+o.id+' بقى '+fmt(Number(o.tot)||0)+' ج.م':' — الأوردر الأصلي على الموقع زي ما هو'));return}
+   if(r&&r.ok){close();o.subs=rest;if(r.total!=null)o.tot=r.total;draw(1);toast(WK('اتمسح الأوردر الفرعي #')+s.sid+(r.total!=null?' — إجمالي IB-'+o.id+' بقى '+fmt(Number(o.tot)||0)+' ج.م':' — الأوردر الأصلي على الموقع زي ما هو'));return}
    if(r&&r.reason==='only'){close();confirmDelete(o.id);return}
-   busy(ok,0);toast(r&&r.reason==='forbidden'?'مش مسموح لك تمسح أوردرات':r&&r.reason==='push_disabled'?'الكتابة على الموقع متقفلة — الأوردر الفرعي ماتمسحش':r&&r.reason==='closed'?'الأوردر مكتمل أو مسترجع — مايتمسحش منه':r&&r.reason==='missing'?'الأوردر الفرعي مش موجود — يمكن اتمسح قبل كده':r&&r.reason==='site'?'الموقع ماردش — الأوردر الفرعي ماتمسحش':'مافيش اتصال — الأوردر الفرعي ماتمسحش')},
-   function(){busy(ok,0);toast('مافيش اتصال — الأوردر الفرعي ماتمسحش')})})}
+   busy(ok,0);toast(r&&r.reason==='forbidden'?'مش مسموح لك تمسح أوردرات':r&&r.reason==='push_disabled'?WK('الكتابة على الموقع متقفلة — الأوردر الفرعي ماتمسحش'):r&&r.reason==='closed'?'الأوردر مكتمل أو مسترجع — مايتمسحش منه':r&&r.reason==='missing'?WK('الأوردر الفرعي مش موجود — يمكن اتمسح قبل كده'):r&&r.reason==='site'?WK('الموقع ماردش — الأوردر الفرعي ماتمسحش'):WK('مافيش اتصال — الأوردر الفرعي ماتمسحش'))},
+   function(){busy(ok,0);toast(WK('مافيش اتصال — الأوردر الفرعي ماتمسحش'))})})}
 /* decision 53 (owner 10 Nov — «مسح جماعي … popup فيه عدد الأوردرات وعدد الأوردرات الفرعية في كل واحد … سبب واحد للكل»): the selection's
    «مسح المحدد» — the popup lists every order with its sub-order count (a completed / returned order is left out and said so), one reason
    for all, then each order goes exactly like its own «مسح» (cancelled first when open, the site's trash, order_delete), one after the
@@ -539,8 +541,8 @@ function confirmSubDelete(n){var s=allSub(n);if(!s)return;var o=OM[s.oid];if(!o|
 function bulkDelete(ids){var all=ids.map(function(id){return OM[id]}).filter(Boolean);var L=all.filter(function(o){return o.st!=='مكتمل'&&o.st!=='استرجاع'}),skip=all.length-L.length;
  if(!L.length){toast('المكتمل والاسترجاع مايتمسحوش');return}
  var subs=L.reduce(function(a,o){return a+o.subs.length},0),open=L.filter(function(o){return o.st!=='ملغي'}).length;
- var list='<ul class="dlist" data-del-list>'+L.map(function(o){return'<li data-del-row="'+esc(o.id)+'"><b>IB-'+esc(o.id)+'</b> · '+esc(o.name||'')+' · '+o.subs.length+' أوردر فرعي'+(o.st!=='ملغي'?' · هيتلغي الأول':'')+'</li>'}).join('')+'</ul>';
- var note='<div class="nt"><b data-del-count>'+L.length+' أوردر · '+subs+' أوردر فرعي</b>'+list+(open?open+' منهم لسه مفتوح — هيتلغي الأول بالسبب ده (وبيتبعت للموقع) وبعدين يتمسح. ':'')+'كل أوردر هيتحط في سلة مهملات الموقع هو وأوردراته الفرعية، وهيختفي من هنا وهيفضل في سجل النشاط.'+(skip?' <span data-del-skip>'+skip+' مكتمل/استرجاع في المحدد مش هيتمسحوا.</span>':'')+'</div>';
+ var list='<ul class="dlist" data-del-list>'+L.map(function(o){return'<li data-del-row="'+esc(o.id)+'"><b>IB-'+esc(o.id)+'</b> · '+esc(o.name||'')+' · '+o.subs.length+WK(' أوردر فرعي')+(o.st!=='ملغي'?' · هيتلغي الأول':'')+'</li>'}).join('')+'</ul>';
+ var note='<div class="nt"><b data-del-count>'+L.length+' أوردر · '+subs+WK(' أوردر فرعي</b>')+list+(open?open+' منهم لسه مفتوح — هيتلغي الأول بالسبب ده (وبيتبعت للموقع) وبعدين يتمسح. ':'')+WK('كل أوردر هيتحط في سلة مهملات الموقع هو وأوردراته الفرعية، وهيختفي من هنا وهيفضل في سجل النشاط.')+(skip?' <span data-del-skip>'+skip+' مكتمل/استرجاع في المحدد مش هيتمسحوا.</span>':'')+'</div>';
  delDialog('مسح '+L.length+' أوردر؟',note,'مسح '+L.length+' أوردر',function(reason,ok,close){var ws=WS(),i=0,done=0,fail=null;
   function next(){if(i>=L.length){close();SEL={};draw(1);toast('اتمسح '+done+' من '+L.length+' أوردر'+(fail?' — الباقي: '+delFail(fail):''));return}var o=L[i++];busy(ok,1,'بيتمسح '+i+' من '+L.length+'…');
    if(!ws||!ws.deleteOrder){removeOrder(o.id);done++;next();return}
@@ -629,7 +631,7 @@ function fbAiSubmit(e){if(!e.target||e.target.id!=='fbaiform')return;e.preventDe
 function fbRow(c,path,i,parentOp){var f=fbField(c.f),t=f[2],ops=FB_OPS[t],noVal=c.op==='empty'||c.op==='nempty';
  var conj=i===0?'<span class="w">حيث</span>':'<select class="sel2 conj" data-fbop="'+path+'" aria-label="الربط">'+[['and','و'],['or','أو']].map(function(x){return'<option value="'+x[0]+'"'+(parentOp===x[0]?' selected':'')+'>'+x[1]+'</option>'}).join('')+'</select>';
  var val=noVal?'<span class="val"></span>':t==='enum'?'<select class="sel2 val" data-fbv="'+path+'.'+i+'" aria-label="القيمة"><option value="">— اختار —</option>'+f[3]().map(function(x){return'<option'+(x===c.v?' selected':'')+'>'+esc(x)+'</option>'}).join('')+'</select>':'<input class="sel2 val" data-fbv="'+path+'.'+i+'" value="'+esc(c.v||'')+'" placeholder="'+(t==='date'?'dd/mm/yyyy':t==='num'?'اكتب رقم':'اكتب قيمة')+'" aria-label="القيمة"'+(t==='date'||t==='num'?' dir="ltr"':'')+'>';
- return'<div class="fr">'+conj+'<select class="sel2 fld" data-fbf="'+path+'.'+i+'" aria-label="الحقل">'+FB_FIELDS.map(function(x){return'<option value="'+x[0]+'"'+(x[0]===c.f?' selected':'')+'>'+x[1]+'</option>'}).join('')+'</select><select class="sel2 opr" data-fbo="'+path+'.'+i+'" aria-label="الشرط">'+ops.map(function(x){return'<option value="'+x[0]+'"'+(x[0]===c.op?' selected':'')+'>'+x[1]+'</option>'}).join('')+'</select>'+val+'<button type="button" class="ibtn" data-fbx="'+path+'.'+i+'" aria-label="حذف الشرط">'+ic('xx')+'</button></div>'}
+ return'<div class="fr">'+conj+'<select class="sel2 fld" data-fbf="'+path+'.'+i+'" aria-label="الحقل">'+FB_FIELDS.filter(function(x){return!(SG()&&(x[0]==='vendor'||x[0]==='makers'))}).map(function(x){return'<option value="'+x[0]+'"'+(x[0]===c.f?' selected':'')+'>'+x[1]+'</option>'}).join('')+'</select><select class="sel2 opr" data-fbo="'+path+'.'+i+'" aria-label="الشرط">'+ops.map(function(x){return'<option value="'+x[0]+'"'+(x[0]===c.op?' selected':'')+'>'+x[1]+'</option>'}).join('')+'</select>'+val+'<button type="button" class="ibtn" data-fbx="'+path+'.'+i+'" aria-label="حذف الشرط">'+ic('xx')+'</button></div>'}
 function fbGroup(g,path){return g.items.map(function(it,i){if(it.items){return'<div class="fr">'+(i===0?'<span class="w">حيث</span>':'<select class="sel2 conj" data-fbop="'+path+'" aria-label="الربط"><option value="and"'+(g.op==='and'?' selected':'')+'>و</option><option value="or"'+(g.op==='or'?' selected':'')+'>أو</option></select>')+'<div class="grp">'+fbGroup(it,path+'.'+i)+'<div class="acts"><button type="button" class="lnk" data-fbadd="'+path+'.'+i+'">+ إضافة شرط</button><button type="button" class="lnk" data-fbx="'+path+'.'+i+'" style="color:var(--err-text)">حذف المجموعة</button></div></div></div>'}return fbRow(it,path,i,g.op)}).join('')}
 var FBAI='';var FBMSG='';
 function fbRender(){var w=R.getElementById('fbpop');if(!w)return;var cur=w.querySelector('#fbai');if(cur)FBAI=cur.value;
@@ -719,7 +721,7 @@ function custHtml(o){return'<div class="sec"><h3>معلومات العميل</h3
 function detHtml(o,id,withSubs){return'<div class="sec"><h3>تفاصيل الأوردر</h3><div class="g2">'+ifd('رقم الأوردر','<div class="ro" dir="ltr">IB-'+esc(id)+'</div>')+ifd('تاريخ الأوردر','<div class="ro">'+dt(o.date)+' · عمره '+o.age+' يوم</div>')+'</div>'
   +'<div class="g2">'+ifd('حالة الأوردر',isel('st',ST,SV(o),'حالة الأوردر'))+ifd('حالة التأكيد',isel('cf',CF,o.cf,'حالة التأكيد'))+'</div>'
   +'<div class="g2">'+ifd('تاريخ التأكيد','<input class="sel2" data-f="cdate" dir="ltr" placeholder="dd/mm/yyyy" value="'+(o.cdate?numFmt(o.cdate):'')+'">')+ifd('قيمة العربون (ج.م)','<input class="sel2" data-f="dep" dir="ltr" inputmode="numeric" value="'+(o.dep||0)+'">')+'</div>'
-  +'<div class="g2 dsum-dup">'+ifd('إجمالي القيمة','<div class="ro">'+fmt(o.tot)+' ج.م · المتبقي بعد العربون '+fmt(Math.max(0,o.tot-o.dep))+' ج.م</div>')+ifd('الأوردرات الفرعية','<div class="ro">'+o.subs.length+(withSubs?' · التفاصيل من الكارت':' · في تاب «الأوردرات الفرعية»')+'</div>')+'</div>'
+  +'<div class="g2 dsum-dup">'+ifd('إجمالي القيمة','<div class="ro">'+fmt(o.tot)+' ج.م · المتبقي بعد العربون '+fmt(Math.max(0,o.tot-o.dep))+' ج.م</div>')+ifd(LBX('subs'),'<div class="ro">'+o.subs.length+(withSubs?' · التفاصيل من الكارت':' · في تاب «'+LBX('subs')+'»')+'</div>')+'</div>'
   +ifd('تعليق خدمة العملاء','<textarea class="sel2" data-f="note" rows="3">'+esc(o.note)+'</textarea>')
   +'<div class="err" id="eerr" role="alert" hidden></div>'
   +(withSubs?'<div class="subs">'+o.subs.map(function(x){return'<div class="sr"><span>#'+esc(x.sid)+' · '+esc(x.prod)+' × '+x.qty+'</span><span>'+esc(x.vendor)+' · '+esc(x.ss?LB('sub',x.ss):'—')+' · '+fmt(x.tot)+' ج.م</span></div>'}).join('')+'</div>':'')+'</div>'}
@@ -745,7 +747,7 @@ function subGroups(o){var G=[],M={};o.subs.forEach(function(s){var k=String(s.si
 function subsTab(o){var ws=WS(),shut=o.st==='مكتمل'||o.st==='استرجاع',addOk=!shut&&o.st!=='ملغي'&&o.st!=='فشل'&&ws&&ws.addLine&&ws.makerProducts,siteOk=ws&&ws.setSubSiteStatus&&ws.siteStatuses&&ws.siteStatuses().length;
  var G=subGroups(o);if(!G.length)return'<div class="nt">مفيش منتجات على الأوردر ده.</div>';
  return G.map(function(g){var one=g.sid===String(o.id),f=g.lines[0],mk=g.lines.filter(function(x){return x.vendorId})[0],pcs=g.lines.reduce(function(a,x){return a+(Number(x.qty)||1)},0),sum=g.lines.reduce(function(a,x){return a+(Number(x.tot)||0)},0);
-  return'<section class="esub" data-esub="'+esc(g.sid)+'"><div class="esh"><div class="est"><b>'+(one?'الأوردر IB-'+esc(o.id):'الأوردر الفرعي #'+esc(g.sid))+'</b><small>'+esc(f.vendor||'—')+' · '+esc(nCount(g.lines.length,'منتج','منتجات'))+(pcs!==g.lines.length?' ('+esc(nCount(pcs,'قطعة','قطع'))+')':'')+' · '+fmt(sum)+' ج.م</small>'
+  return'<section class="esub" data-esub="'+esc(g.sid)+'"><div class="esh"><div class="est"><b>'+(one?'الأوردر IB-'+esc(o.id):WK('الأوردر الفرعي #')+esc(g.sid))+'</b><small>'+esc(f.vendor||'—')+' · '+esc(nCount(g.lines.length,'منتج','منتجات'))+(pcs!==g.lines.length?' ('+esc(nCount(pcs,'قطعة','قطع'))+')':'')+' · '+fmt(sum)+' ج.م</small>'
    +(one?'':'<span class="esite">الحالة على الموقع: <b data-site-now>'+esc(f.raw?siteLbl(f.raw):'—')+'</b></span>')+'</div>'
    +'<div class="esa">'+(!one&&siteOk?'<button type="button" class="btn" data-esite="'+f.n+'">'+ic('tag')+'<span>تعديل الحالة على الموقع</span></button>':'')
    +(addOk&&mk&&(one||SUB_SHUT.indexOf(f.raw)<0)?'<button type="button" class="btn add" data-eadd="'+esc(g.sid)+'">+ إضافة منتج</button>':'')+'</div></div>'
@@ -754,7 +756,7 @@ function subsTab(o){var ws=WS(),shut=o.st==='مكتمل'||o.st==='استرجاع
     +'<div class="els"><label class="lb" for="ess'+x.n+'">حالة المنتج</label><select id="ess'+x.n+'" class="sel2" data-ss="'+x.n+'">'+opts(SS,x.ss,x.ss?'':'— اختر الحالة —','sub')+'</select></div>'
     +(!shut&&x.itemId?'<button type="button" class="btn del" data-edel="'+x.n+'">'+ic('xx')+'<span>مسح المنتج</span></button>':'<span></span>')+'</div>'}).join('')+'</div></section>'}).join('')}
 function editOrder(id,tab){var o=OM[id];if(!o)return;if(EDT)EDT.close();
- var T=[['cust','بيانات العميل'],['det','تفاصيل الأوردر'],['subs','الأوردرات الفرعية']],cur=tab==='det'||tab==='subs'?tab:'cust';
+ var T=[['cust','بيانات العميل'],['det','تفاصيل الأوردر'],['subs',LBX('subs')]],cur=tab==='det'||tab==='subs'?tab:'cust';
  var w=document.createElement('div');w.id='cscrim';
  w.innerHTML='<div id="cdlg" class="edlg etab" role="dialog" aria-modal="true" aria-labelledby="edt"><div class="ch"><h2 id="edt">تعديل الأوردر IB-'+esc(id)+'</h2><button type="button" class="ibtn" data-cc aria-label="إغلاق">'+ic('xx')+'</button></div>'
   +'<div class="dtabs" role="tablist" aria-label="أقسام الأوردر">'+T.map(function(t){return'<button type="button" class="tab" role="tab" id="et-'+t[0]+'" data-etab="'+t[0]+'" aria-controls="ep-'+t[0]+'">'+t[1]+(t[0]==='subs'?' (<span data-esn>'+subGroups(o).length+'</span>)':'')+'</button>'}).join('')+'</div>'
@@ -785,27 +787,27 @@ function editOrder(id,tab){var o=OM[id];if(!o)return;if(EDT)EDT.close();
    maker only (the mirror), its quantity and the piece price (the site's price at first, changed by hand); a variable product asks for its
    variation (the site's, from woo-sync's answer). woo-sync line_add writes the maker's sub-order only — the parent of an order with
    sub-orders is never written (0079) — or the order itself when it has one maker; the order is read again after */
-function addFail(r){return r&&r.reason==='forbidden'?'مش مسموح لك تعدّل الأوردرات':r&&r.reason==='push_disabled'?'الكتابة على الموقع متقفلة — المنتج ماتضافش':r&&r.reason==='closed'?'الأوردر أو الأوردر الفرعي مقفول (مكتمل / ملغي / مسترجع) — مايتضافش عليه':r&&r.reason==='other_maker'?'المنتج ده مش من منتجات المبتكر ده':r&&r.reason==='missing'?'الأوردر الفرعي مش موجود على الموقع':r&&r.reason==='invalid'?'البيانات مش مظبوطة — راجع المنتج والكمية والسعر':r&&r.reason==='site'?'الموقع ماقبلش الإضافة — المنتج ماتضافش':'مافيش اتصال — المنتج ماتضافش'}
+function addFail(r){return r&&r.reason==='forbidden'?'مش مسموح لك تعدّل الأوردرات':r&&r.reason==='push_disabled'?'الكتابة على الموقع متقفلة — المنتج ماتضافش':r&&r.reason==='closed'?WK('الأوردر أو الأوردر الفرعي مقفول (مكتمل / ملغي / مسترجع) — مايتضافش عليه'):r&&r.reason==='other_maker'?WK('المنتج ده مش من منتجات المبتكر ده'):r&&r.reason==='missing'?WK('الأوردر الفرعي مش موجود على الموقع'):r&&r.reason==='invalid'?'البيانات مش مظبوطة — راجع المنتج والكمية والسعر':r&&r.reason==='site'?'الموقع ماقبلش الإضافة — المنتج ماتضافش':'مافيش اتصال — المنتج ماتضافش'}
 function addLineDialog(oid,sid,vid,vname){var o=OM[oid],ws=WS();if(!o||!ws||!ws.addLine||!ws.makerProducts)return;
  var multi=String(sid)!==String(o.id),items=null,pick=null,vars=null,touched=false,MAXQ=99;
  var money=function(v){return fmt(Math.round(v*100)/100)+' ج.م'};
  var w=document.createElement('div');w.id='cscrim';
- w.innerHTML='<div id="cdlg" class="adlg" role="dialog" aria-modal="true" aria-labelledby="cdt"><div class="ch"><h2 id="cdt">إضافة منتج — '+(multi?'الأوردر الفرعي #'+esc(sid):'IB-'+esc(o.id))+'</h2><button type="button" class="ibtn" data-cc aria-label="إغلاق">'+ic('xx')+'</button></div>'
-  +'<div class="cb"><div><label class="lb" for="aq">المنتج — من منتجات '+esc(vname||'المبتكر')+' بس</label><input id="aq" class="sel2" placeholder="دوّر بالاسم أو الـ SKU" autocomplete="off"><div class="aplist" role="listbox" aria-label="منتجات المبتكر" data-aplist><div class="ld">بيحمّل منتجات المبتكر…</div></div></div>'
+ w.innerHTML='<div id="cdlg" class="adlg" role="dialog" aria-modal="true" aria-labelledby="cdt"><div class="ch"><h2 id="cdt">إضافة منتج — '+(multi?WK('الأوردر الفرعي #')+esc(sid):'IB-'+esc(o.id))+'</h2><button type="button" class="ibtn" data-cc aria-label="إغلاق">'+ic('xx')+'</button></div>'
+  +'<div class="cb"><div><label class="lb" for="aq">المنتج — من منتجات '+esc(vname||WK('المبتكر'))+WK(' بس</label><input id="aq" class="sel2" placeholder="دوّر بالاسم أو الـ SKU" autocomplete="off"><div class="aplist" role="listbox" aria-label="منتجات المبتكر" data-aplist><div class="ld">بيحمّل منتجات المبتكر…</div></div></div>')
   +'<div data-avar hidden><label class="lb" for="avar">التركيبة</label><select id="avar" class="sel2"></select></div>'
   +'<div class="qrow"><div><label class="lb" for="cqty">الكمية</label><div class="qst"><button type="button" data-q="-1" aria-label="شيل قطعة">−</button><input id="cqty" inputmode="numeric" dir="ltr" maxlength="2" value="1" aria-label="الكمية"><button type="button" data-q="1" aria-label="زوّد قطعة">+</button></div></div>'
   +'<div><label class="lb" for="aprice">سعر القطعة (ج.م)</label><input id="aprice" class="sel2" inputmode="decimal" dir="ltr" placeholder="سعر الموقع"></div>'
   +'<div><span class="lb">الإجمالي</span><div class="qv" data-qv>—</div></div></div>'
   +'<div class="err" id="aerr" role="alert" hidden></div>'
-  +'<div class="nt">'+(multi?'المنتج هيتضاف على الأوردر الفرعي #'+esc(sid)+' على الموقع بس، والأوردر الأصلي IB-'+esc(o.id)+' على الموقع هيفضل زي ما هو بإجماليه':'المنتج هيتضاف على الأوردر IB-'+esc(o.id)+' على الموقع وإجماليه هيتحسب من جديد')+'. السعر اللي هتكتبه هو سعر القطعة على الأوردر.</div></div>'
+  +'<div class="nt">'+(multi?WK('المنتج هيتضاف على الأوردر الفرعي #')+esc(sid)+' على الموقع بس، والأوردر الأصلي IB-'+esc(o.id)+' على الموقع هيفضل زي ما هو بإجماليه':'المنتج هيتضاف على الأوردر IB-'+esc(o.id)+' على الموقع وإجماليه هيتحسب من جديد')+'. السعر اللي هتكتبه هو سعر القطعة على الأوردر.</div></div>'
   +'<div class="cf"><button type="button" class="btn pri" data-cok>أضف على الموقع</button><button type="button" class="btn" data-cc>إلغاء</button></div></div>';
  R.appendChild(w);var prev=R.activeElement,q=w.querySelector('#aq'),list=w.querySelector('[data-aplist]'),inp=w.querySelector('#cqty'),pr=w.querySelector('#aprice'),err=w.querySelector('#aerr'),vs=w.querySelector('#avar');q.focus();
  function num(t){t=String(t==null?'':t).replace(/[٠-٩]/g,function(d){return String(d.charCodeAt(0)-1632)}).replace('٫','.').trim();return /^\d{1,7}(\.\d{1,2})?$/.test(t)?Number(t):NaN}
  function qty(){var v=num(inp.value);return Number.isInteger(v)?v:NaN}
  function sync(){var v=qty(),p=num(pr.value);w.querySelector('[data-q="-1"]').disabled=!(v>1);w.querySelector('[data-q="1"]').disabled=!(v<MAXQ);w.querySelector('[data-qv]').textContent=v>=1&&v<=MAXQ&&p>=0?money(v*p):'—';err.hidden=true}
  function drawList(){if(!items)return;var t=q.value.trim().toLowerCase(),L=items.filter(function(p){return!t||p.name.toLowerCase().indexOf(t)>=0||p.sku.toLowerCase().indexOf(t)>=0});
-  list.innerHTML=L.length?L.slice(0,40).map(function(p){return'<button type="button" role="option" data-ap="'+p.id+'" aria-selected="'+!!(pick&&pick.id===p.id)+'"><b>'+esc(p.name)+'</b><small><span dir="ltr">'+esc(p.sku||'—')+'</span>'+(p.type==='variable'?' · بتركيبات':'')+(p.price!=null?' · '+esc(money(p.price)):'')+'</small></button>'}).join('')+(L.length>40?'<div class="ld">'+L.length+' منتج — اكتب أكتر عشان تضيّق</div>':''):'<div class="ld">'+(items.length?'مفيش منتج بالاسم ده عند المبتكر':'المبتكر ده مالوش منتجات على الموقع')+'</div>'}
- ws.makerProducts(vid).then(function(r){if(!w.isConnected)return;if(r&&r.ok){items=r.items;drawList()}else list.innerHTML='<div class="ld">مش قادرين نجيب منتجات المبتكر — اقفل وجرّب تاني</div>'},function(){if(w.isConnected)list.innerHTML='<div class="ld">مش قادرين نجيب منتجات المبتكر — اقفل وجرّب تاني</div>'});
+  list.innerHTML=L.length?L.slice(0,40).map(function(p){return'<button type="button" role="option" data-ap="'+p.id+'" aria-selected="'+!!(pick&&pick.id===p.id)+'"><b>'+esc(p.name)+'</b><small><span dir="ltr">'+esc(p.sku||'—')+'</span>'+(p.type==='variable'?' · بتركيبات':'')+(p.price!=null?' · '+esc(money(p.price)):'')+'</small></button>'}).join('')+(L.length>40?'<div class="ld">'+L.length+' منتج — اكتب أكتر عشان تضيّق</div>':''):'<div class="ld">'+(items.length?WK('مفيش منتج بالاسم ده عند المبتكر'):WK('المبتكر ده مالوش منتجات على الموقع'))+'</div>'}
+ ws.makerProducts(vid).then(function(r){if(!w.isConnected)return;if(r&&r.ok){items=r.items;drawList()}else list.innerHTML=WK('<div class="ld">مش قادرين نجيب منتجات المبتكر — اقفل وجرّب تاني</div>')},function(){if(w.isConnected)list.innerHTML=WK('<div class="ld">مش قادرين نجيب منتجات المبتكر — اقفل وجرّب تاني</div>')});
  sync();
  function close(){w.remove();R.removeEventListener('keydown',keys,true);if(prev&&prev.focus&&prev.isConnected)prev.focus()}
  var keys=dlgKeys(w,close);R.addEventListener('keydown',keys,true);
@@ -820,7 +822,7 @@ function addLineDialog(oid,sid,vid,vname){var o=OM[oid],ws=WS();if(!o||!ws||!ws.
   if(bad){err.textContent=bad;err.hidden=false;return}
   busy(ok,1,'بيتضاف على الموقع…');
   ws.addLine(oid,sid,pick.id,{qty:n,price:p,variationId:vars?Number(vs.value):null}).then(function(r){
-   if(r&&r.ok){close();toast('اتضاف «'+pick.name+'» × '+n+(multi?' على الأوردر الفرعي #'+sid+' — الأوردر الأصلي على الموقع زي ما هو':' على IB-'+oid));return}
+   if(r&&r.ok){close();toast('اتضاف «'+pick.name+'» × '+n+(multi?WK(' على الأوردر الفرعي #')+sid+' — الأوردر الأصلي على الموقع زي ما هو':' على IB-'+oid));return}
    busy(ok,0);
    if(r&&r.reason==='need_variation'){vars=r.variations||[];w.querySelector('[data-avar]').hidden=false;vs.innerHTML='<option value="">— اختار التركيبة —</option>'+vars.map(function(v){return'<option value="'+v.id+'">'+esc(v.label)+(v.price!=null?' · '+esc(money(v.price)):'')+'</option>'}).join('');vs.focus();err.textContent=vars.length?'المنتج ده ليه تركيبات — اختار التركيبة وبعدين «أضف على الموقع»':'المنتج ده ليه تركيبات بس مفيش ولا تركيبة على الموقع';err.hidden=false;return}
    toast(addFail(r))},function(){busy(ok,0);toast('مافيش اتصال — المنتج ماتضافش')})})}
@@ -830,12 +832,12 @@ function subSnap(o){return JSON.stringify(o.subs.map(function(s){return[s.ss,s.e
 function orderDetails(id,tab){var o=OM[id];if(!o)return;if(DET)DET.close();
  var snap=subSnap(o),cur=tab==='subs'?'subs':'info';
  var w=document.createElement('div');w.id='cscrim';
- function tabsHtml(){return'<div class="dtabs" role="tablist" aria-label="أقسام الأوردر"><button type="button" class="tab" role="tab" data-dtab="info" aria-selected="'+(cur==='info')+'" tabindex="'+(cur==='info'?0:-1)+'">بيانات الأوردر</button><button type="button" class="tab" role="tab" data-dtab="subs" aria-selected="'+(cur==='subs')+'" tabindex="'+(cur==='subs'?0:-1)+'">الأوردرات الفرعية ('+o.subs.length+')</button></div>'}
+ function tabsHtml(){return'<div class="dtabs" role="tablist" aria-label="أقسام الأوردر"><button type="button" class="tab" role="tab" data-dtab="info" aria-selected="'+(cur==='info')+'" tabindex="'+(cur==='info'?0:-1)+'">بيانات الأوردر</button><button type="button" class="tab" role="tab" data-dtab="subs" aria-selected="'+(cur==='subs')+'" tabindex="'+(cur==='subs'?0:-1)+WK('">الأوردرات الفرعية (')+o.subs.length+')</button></div>'}
  // the owner 16 Nov («اظبط ال ui بتاع البوب اب ده بشكل احترافي و منظم و كمان زود زر اني افتح الاوردر في صفحة الاوردارات»): the head
  // carries the order's number, its customer and its states as pills, and «افتح في صفحة الأوردرات»; the info tab opens on a money strip and
  // puts the customer and the order side by side (one WooCommerce note on the customer's card instead of one under each field)
  function metaHtml(){return'<span class="dpill st">'+esc(LB('order',SV(o)))+'</span><span class="dpill'+(o.cf==='غير مؤكد'?' warn':'')+'">'+esc(LB('confirm',o.cf))+'</span><span class="dpill mut">عمره '+o.age+' يوم</span>'}
- function sumHtml(){var rest=Math.max(0,(o.tot||0)-(o.dep||0));return'<div class="dsum" data-dsum>'+[['الإجمالي',fmt(o.tot)+' ج.م',''],['العربون',fmt(o.dep||0)+' ج.م',''],['المتبقي بعد العربون',fmt(rest)+' ج.م',' hi'],['الأوردرات الفرعية',String(o.subs.length),'']].map(function(x){return'<div class="ds'+x[2]+'"><span>'+x[0]+'</span><b>'+x[1]+'</b></div>'}).join('')+'</div>'}
+ function sumHtml(){var rest=Math.max(0,(o.tot||0)-(o.dep||0));return'<div class="dsum" data-dsum>'+[['الإجمالي',fmt(o.tot)+' ج.م',''],['العربون',fmt(o.dep||0)+' ج.م',''],['المتبقي بعد العربون',fmt(rest)+' ج.م',' hi'],[WK('الأوردرات الفرعية'),String(o.subs.length),'']].map(function(x){return'<div class="ds'+x[2]+'"><span>'+x[0]+'</span><b>'+x[1]+'</b></div>'}).join('')+'</div>'}
  w.innerHTML='<div id="cdlg" class="ddlg" role="dialog" aria-modal="true" aria-labelledby="ddt"><div class="ch dch"><div class="dhd"><h2 id="ddt">الأوردر <span dir="ltr">IB-'+esc(id)+'</span> — '+esc(o.name)+'</h2><div class="dmeta" id="dmeta">'+metaHtml()+'</div></div><div class="dact"><button type="button" class="btn dopen" data-dopen>'+ic('ext')+'<span>افتح في صفحة الأوردرات</span></button><button type="button" class="ibtn" data-cc aria-label="إغلاق">'+ic('xx')+'</button></div></div>'
   +tabsHtml()+'<div class="cb" id="dbody" role="tabpanel"></div><div class="cf"><button type="button" class="btn pri" data-eok>حفظ التعديلات</button><button type="button" class="btn" data-cc>إغلاق</button></div></div>';
  R.appendChild(w);var prev=R.activeElement;var DG=dirtyGuard(w,'[data-eok]');var infoDirty=false,stash=null; // stash: the info form while the lines tab shows
@@ -849,7 +851,7 @@ function orderDetails(id,tab){var o=OM[id];if(!o)return;if(DET)DET.close();
  w.addEventListener('change',function(e){if(e.target.closest('#dbody')&&cur==='info')infoDirty=true});
  function close(){w.remove();R.removeEventListener('keydown',keys,true);DET=null;if(prev&&prev.focus)prev.focus();setTimeout(flush,0)}
  function save(){var r=applyOrderInfo(w,o,cur==='info'?null:stash);if(!r.ok){if(cur!=='info'){cur='info';render();r=applyOrderInfo(w,o)}if(!r.ok)return false}stash=null;
-  var ch=r.changes.slice();if(subSnap(o)!==snap)ch.push('تعديلات في الأوردرات الفرعية');
+  var ch=r.changes.slice();if(subSnap(o)!==snap)ch.push(WK('تعديلات في الأوردرات الفرعية'));
   if(ch.length&&window.IbtekrApp&&window.IbtekrApp.logEvent)window.IbtekrApp.logEvent({action:'order.edit',newValue:'IB-'+id+' · '+ch.join(' · ')});
   snap=subSnap(o);infoDirty=false;syncDirty();draw(1);if(o._pendingRet){var pv=o._pendingRet;delete o._pendingRet;close();orderStatus(o,pv)}toast(ch.length?'تم حفظ التعديلات':'مفيش تعديلات');return true}
  function discard(){var old=JSON.parse(snap);o.subs.forEach(function(s,i){var v=old[i];if(!v)return;var b=snapS(s);s.ss=v[0];s.exp=v[1];s.cm=v[2];subW(s,b)});draw(1);close()} // the stashed info form goes with the popup
@@ -875,17 +877,17 @@ function editSub(n){var s=allSub(n);if(!s)return;var o=OM[s.oid];if(!o)return;
  function fd(label,ctl,id){return'<div class="fd"><label class="lb"'+(id?' for="'+id+'"':'')+'>'+label+'</label>'+ctl+'</div>'}
  var ws=WS(),multi=String(s.sid)!==String(o.id),SL=multi&&ws&&ws.setSubSiteStatus&&ws.siteStatuses?ws.siteStatuses():[],mine=o.subs.filter(function(x){return String(x.sid)===String(s.sid)}),pcs=mine.reduce(function(a,x){return a+(Number(x.qty)||1)},0);
  var cnt=nCount(mine.length,'منتج','منتجات')+(pcs!==mine.length?' ('+nCount(pcs,'قطعة','قطع')+')':'');
- var site=SL.length?'<div class="g2">'+fd('الحالة على الموقع','<select class="sel2" id="esite" data-f="site" aria-label="الحالة على الموقع">'+(s.raw&&!SL.some(function(x){return x.slug===s.raw})?'<option value="'+esc(s.raw)+'" selected>'+esc(siteLbl(s.raw))+'</option>':'')+SL.map(function(x){return'<option value="'+esc(x.slug)+'"'+(x.slug===s.raw?' selected':'')+'>'+esc(x.label)+'</option>'}).join('')+'</select>','esite')+fd('بتتغيّر لـ','<div class="ro" data-sub-count>'+esc(cnt)+' · الأوردر الفرعي كله</div>')+'</div>'
-  +(pcs>1?'<div class="nt warn" role="note" data-sub-many>الأوردر الفرعي #'+esc(s.sid)+' فيه '+esc(cnt)+' — الحالة على الموقع بتتغيّر '+(mine.length>1?'لكل المنتجات دي':'للقطع كلها')+' مع بعض.</div>':''):'';
+ var site=SL.length?'<div class="g2">'+fd('الحالة على الموقع','<select class="sel2" id="esite" data-f="site" aria-label="الحالة على الموقع">'+(s.raw&&!SL.some(function(x){return x.slug===s.raw})?'<option value="'+esc(s.raw)+'" selected>'+esc(siteLbl(s.raw))+'</option>':'')+SL.map(function(x){return'<option value="'+esc(x.slug)+'"'+(x.slug===s.raw?' selected':'')+'>'+esc(x.label)+'</option>'}).join('')+'</select>','esite')+fd('بتتغيّر لـ','<div class="ro" data-sub-count>'+esc(cnt)+WK(' · الأوردر الفرعي كله</div>'))+'</div>'
+  +(pcs>1?WK('<div class="nt warn" role="note" data-sub-many>الأوردر الفرعي #')+esc(s.sid)+' فيه '+esc(cnt)+' — الحالة على الموقع بتتغيّر '+(mine.length>1?'لكل المنتجات دي':'للقطع كلها')+' مع بعض.</div>':''):'';
  var w=document.createElement('div');w.id='cscrim';
- w.innerHTML='<div id="cdlg" class="edlg" role="dialog" aria-modal="true" aria-labelledby="edt"><div class="ch"><h2 id="edt">تعديل المنتج — '+(multi?'الأوردر الفرعي #'+esc(s.sid):'IB-'+esc(o.id))+'</h2><button type="button" class="ibtn" data-cc aria-label="إغلاق">'+ic('xx')+'</button></div>'
+ w.innerHTML='<div id="cdlg" class="edlg" role="dialog" aria-modal="true" aria-labelledby="edt"><div class="ch"><h2 id="edt">تعديل المنتج — '+(multi?WK('الأوردر الفرعي #')+esc(s.sid):'IB-'+esc(o.id))+'</h2><button type="button" class="ibtn" data-cc aria-label="إغلاق">'+ic('xx')+'</button></div>'
   +'<div class="cb">'
-  +'<div class="sec"><h3>تفاصيل المنتج</h3><div class="g2">'+fd(multi?'الأوردر الفرعي':'الأوردر','<div class="ro" dir="ltr">'+(multi?'#'+esc(s.sid)+' · IB-'+esc(o.id):'IB-'+esc(o.id))+'</div>')+fd('المبتكر',woo('<input class="sel2" data-f="vendor" value="'+esc(s.vendor||'—')+'" aria-label="المبتكر" disabled>'))+'</div>'
+  +'<div class="sec"><h3>تفاصيل المنتج</h3><div class="g2">'+fd(multi?WK('الأوردر الفرعي'):'الأوردر','<div class="ro" dir="ltr">'+(multi?'#'+esc(s.sid)+' · IB-'+esc(o.id):'IB-'+esc(o.id))+'</div>')+fd(WK('المبتكر'),woo('<input class="sel2" data-f="vendor" value="'+esc(s.vendor||'—')+WK('" aria-label="المبتكر" disabled>')))+'</div>'
   +'<div class="g2">'+fd('المنتج','<div class="ro">'+esc(s.prod)+(s.sku?' · <span dir="ltr">'+esc(s.sku)+'</span>':'')+'</div>')+fd('حالة المنتج','<select class="sel2" id="ess" data-f="ss" aria-label="حالة المنتج"><option value=""'+(s.ss?'':' selected')+'>— اختر الحالة —</option>'+SS.map(function(x){return'<option value="'+esc(x)+'"'+(x===s.ss?' selected':'')+'>'+esc(LB('sub',x))+'</option>'}).join('')+'</select>','ess')+'</div>'
   +site
   +'<div class="g2">'+fd('الكمية',woo('<input class="sel2" data-f="qty" dir="ltr" value="'+esc(s.qty)+'" aria-label="الكمية" disabled>'))+fd('القيمة (ج.م)',woo('<input class="sel2" data-f="tot" dir="ltr" value="'+esc(s.tot)+'" aria-label="القيمة" disabled>'))+'</div>'
-  +'<div class="g2">'+fd('تاريخ تبليغ المبتكر','<input class="sel2" data-f="exp" dir="ltr" placeholder="dd/mm/yyyy" value="'+(s.exp?numFmt(s.exp):'')+'">')+fd('مدة التصنيع','<div class="ro">'+leadTxt(s).replace('مدة التصنيع: ','')+'</div>')+'</div>'
-  +fd('ملاحظة للمبتكر','<textarea class="sel2" data-f="cm" rows="3">'+esc(s.cm)+'</textarea>')
+  +'<div class="g2">'+fd(WK('تاريخ تبليغ المبتكر'),'<input class="sel2" data-f="exp" dir="ltr" placeholder="dd/mm/yyyy" value="'+(s.exp?numFmt(s.exp):'')+'">')+fd('مدة التصنيع','<div class="ro">'+leadTxt(s).replace('مدة التصنيع: ','')+'</div>')+'</div>'
+  +fd(WK('ملاحظة للمبتكر'),'<textarea class="sel2" data-f="cm" rows="3">'+esc(s.cm)+'</textarea>')
   +'<div class="err" id="eerr" role="alert" hidden></div>'
   +'</div>'
   +'</div><div class="cf"><button type="button" class="btn pri" data-eok>حفظ التعديلات</button><button type="button" class="btn" data-cc>إلغاء</button></div></div>';
@@ -896,10 +898,10 @@ function editSub(n){var s=allSub(n);if(!s)return;var o=OM[s.oid];if(!o)return;
  w.addEventListener('mousedown',function(e){if(e.target===w)tryClose()});
  w.addEventListener('click',function(e){if(e.target.closest('[data-cc]')){tryClose();return}
   var ok=e.target.closest('[data-eok]');if(!ok)return;var g=function(k){var el=w.querySelector('[data-f="'+k+'"]');return el?el.value:null},err=w.querySelector('#eerr'),ex=g('exp').trim();
-  if(ex&&parseTyped(ex)===null){err.textContent='تاريخ تبليغ المبتكر لازم يكون بصيغة يوم/شهر/سنة';err.hidden=false;return}
+  if(ex&&parseTyped(ex)===null){err.textContent=WK('تاريخ تبليغ المبتكر لازم يكون بصيغة يوم/شهر/سنة');err.hidden=false;return}
   var nss=g('ss'),ssMoved=nss!==s.ss,nsite=g('site');
   function finish(siteNote){var changes=[];var apply=function(k,v,lab){if(String(s[k]||'')!==String(v||'')){changes.push(lab+': «'+(s[k]||'—')+'» ← «'+(v||'—')+'»');s[k]=v}};
-   var sb=snapS(s),isRet=ssMoved&&(RET.indexOf(nss)>=0||nss==='وصل المخزن');if(ssMoved&&!isRet)apply('ss',nss,'حالة المنتج');apply('exp',ex?parseTyped(ex):'','تاريخ تبليغ المبتكر');apply('cm',g('cm').trim(),'الملاحظة');
+   var sb=snapS(s),isRet=ssMoved&&(RET.indexOf(nss)>=0||nss==='وصل المخزن');if(ssMoved&&!isRet)apply('ss',nss,'حالة المنتج');apply('exp',ex?parseTyped(ex):'',WK('تاريخ تبليغ المبتكر'));apply('cm',g('cm').trim(),'الملاحظة');
    if(changes.length&&window.IbtekrApp&&window.IbtekrApp.logEvent)window.IbtekrApp.logEvent({action:'suborder.edit',newValue:'#'+s.sid+' (IB-'+o.id+') · '+changes.join(' · ')});
    close();S.open[o.id]=true;draw(1);subW(s,sb);if(isRet)subStatus(s,nss);
    if(ssMoved&&!isRet&&nss==='جاهز للشحن من المبتكر للمخزن'&&window.IBOrdersOps&&window.IBOrdersOps.askConsolidate)window.IBOrdersOps.askConsolidate(orderSnap(o),{sid:s.sid,itemId:s.itemId,vendor:s.vendor,prod:s.prod,ss:nss}); // comments decision 24
@@ -907,7 +909,7 @@ function editSub(n){var s=allSub(n);if(!s)return;var o=OM[s.oid];if(!o)return;
   if(!SL.length||nsite==null||nsite===s.raw){finish('');return}
   busy(ok,1,'بيتغيّر على الموقع…');
   ws.setSubSiteStatus(o.id,s.sid,nsite).then(function(r){
-   if(r&&r.ok){mine.forEach(function(x){x.raw=r.status});if(r.status==='cancelled')cancelLocal(mine);finish('الأوردر الفرعي #'+s.sid+' بقى «'+siteLbl(r.status)+'» على الموقع'+(mine.length>1?' — '+nCount(mine.length,'منتج','منتجات')+' مع بعض':''));return}
+   if(r&&r.ok){mine.forEach(function(x){x.raw=r.status});if(r.status==='cancelled')cancelLocal(mine);finish(WK('الأوردر الفرعي #')+s.sid+' بقى «'+siteLbl(r.status)+'» على الموقع'+(mine.length>1?' — '+nCount(mine.length,'منتج','منتجات')+' مع بعض':''));return}
    busy(ok,0);toast(siteFail(r))},function(){busy(ok,0);toast('مافيش اتصال — الحالة ماتغيّرتش')})});}
 R.addEventListener('keydown',function(e){if(!MP)return;var mi=[].slice.call(R.querySelectorAll('#mpop [role=menuitem]')),ci=mi.indexOf(R.activeElement);if(e.key==='Escape'){e.preventDefault();e.stopPropagation();mpClose(1);return}if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();mi[(ci+(e.key==='ArrowDown'?1:mi.length-1))%mi.length].focus()}},true);
 R.addEventListener('click',function(e){setTimeout(flush,0);
@@ -936,7 +938,7 @@ R.addEventListener('click',function(e){setTimeout(flush,0);
  if(b=t.closest('[data-cm2]')){var cn2=b.dataset.cm2;S.edit=S.edit==='c'+cn2?null:'c'+cn2;draw(1);if(S.edit){var ci=R.querySelector('[data-ce="'+cn2+'"]');if(ci){ci.focus();ci.setSelectionRange(ci.value.length,ci.value.length)}}return}
  if(t.closest('#clr')){S.q='';S.st='الكل';S.deliv='';S.conf='';S.vendor='';S.vc='';S.fb={op:'and',items:[]};S.page=1;$('oq').value='';(R.getElementById('gq')||{}).value='';draw();return}
  if(t.closest('#sync')){var ws=WS(),bad=function(r){toast(r&&r.reason==='forbidden'?'مش من صلاحياتك':'معرفناش نعمل مزامنة — جرّب تاني')};if(!ws||!ws.syncNow){bad(null);return}toast('بنزامن مع الموقع…');
-  ws.syncNow().then(function(r){if(!r||!r.ok)return bad(r);var c=r.counts||{},n=function(k){var x=c[k]||{};return typeof x[k]==='number'?x[k]:typeof x.upserted==='number'?x.upserted:0};toast('تمت المزامنة · '+n('orders')+' أوردر · '+n('products')+' منتج · '+n('vendors')+' مبتكر')},bad);return}
+  ws.syncNow().then(function(r){if(!r||!r.ok)return bad(r);var c=r.counts||{},n=function(k){var x=c[k]||{};return typeof x[k]==='number'?x[k]:typeof x.upserted==='number'?x.upserted:0};toast('تمت المزامنة · '+n('orders')+' أوردر · '+n('products')+' منتج · '+n('vendors')+WK(' مبتكر'))},bad);return}
  if(t.closest('[data-oretry]')){if(window.IBOrders&&window.IBOrders.load)window.IBOrders.load();return}
 
 });

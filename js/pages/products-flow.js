@@ -28,7 +28,8 @@
   const filePick = (accept, multiple, onFiles) => { const inp = h('input', { type: 'file', accept, multiple: !!multiple, style: 'display:none' }); inp.addEventListener('change', () => { const f = [...inp.files]; inp.value = ''; if (f.length) onFiles(f); }); document.body.append(inp); inp.click(); setTimeout(() => inp.remove(), 60000); };
   const Card = (title, sub, body, acts) => h('section', { class: 'card sec fl-card', 'data-no-tq': '', 'data-no-cols': '', 'data-no-th': '' },
     h('div', { class: 'sec-h' }, h('div', null, h('h2', { class: 't-h5' }, title), sub ? h('div', { class: 't-small sub' }, sub) : null), acts ? h('div', { class: 'acts-inline' }, acts) : null), [].concat(body).filter(Boolean));
-  const CASES = { sheet: 'شيت جاهز من المبتكر', whatsapp: 'داتا على الواتساب', photos: 'صور وعايز شيت' };
+  // single-seller mode: the seller's own sheet / photos — no maker sends them
+  const CASES = { get sheet() { return SINGLE() ? 'شيت جاهز' : 'شيت جاهز من المبتكر'; }, whatsapp: 'داتا على الواتساب', photos: 'صور وعايز شيت' };
   const STEPS = { data: ['البداية', 'المبتكر', 'البيانات', 'الأسعار', 'الصور', 'الرفع'], photos: ['البداية', 'المبتكر', 'الصور', 'الشيت'] };
   const SHOT_L = ['صورة 1 · في النص', 'صورة 2 · البيئة', 'صورة 3 · البيئة', 'صورة 4 · التفاصيل'];
   const REASON = { push_disabled: 'الكتابة على الموقع متقفلة (WOO_PUSH_ENABLED)', forbidden: 'مش مسموحلك', network: 'مشكلة في الاتصال — جرّب تاني', invalid: 'البيانات ناقصة أو مش صحيحة', missing: 'مش لاقيين الدفعة',
@@ -94,9 +95,9 @@
     if (pre && pre.auto) { begin(pre, kase, type); return; }
     const opt = (title, desc, on, onClick) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(!!on), class: 'opt-card', onClick }, h('i', { class: 'rd' }), h('span', null, h('b', null, title), h('small', null, desc)));
     const body = () => [h('div', { class: 'opt-grid', role: 'radiogroup', 'aria-label': 'الحالة' },
-      opt(CASES.sheet, 'المبتكر بعت شيت فيه البيانات + صور المنتجات.', kase === 'sheet', () => { kase = 'sheet'; draw(); }),
+      opt(CASES.sheet, SINGLE() ? 'شيت فيه البيانات + صور المنتجات.' : 'المبتكر بعت شيت فيه البيانات + صور المنتجات.', kase === 'sheet', () => { kase = 'sheet'; draw(); }),
       opt(CASES.whatsapp, 'سكرين شوتس من الواتساب بالبيانات + صور المنتجات — الـ AI بيقرا الداتا.', kase === 'whatsapp', () => { kase = 'whatsapp'; draw(); }),
-      opt(CASES.photos, 'المبتكر عنده صور بس وعايز شيت يملاه — بنعمله الشيت بالصور جواه.', kase === 'photos', () => { kase = 'photos'; draw(); })),
+      opt(CASES.photos, SINGLE() ? 'صور بس — بنعملك الشيت بالصور جواه.' : 'المبتكر عنده صور بس وعايز شيت يملاه — بنعمله الشيت بالصور جواه.', kase === 'photos', () => { kase = 'photos'; draw(); })),
     h('h3', { class: 't-h5 sub-h' }, 'نوع المنتجات'),
     h('div', { class: 'opt-grid', role: 'radiogroup', 'aria-label': 'نوع المنتجات' },
       opt('Simple', 'كل منتج صف واحد بسعره وصوره.', type === 'Simple', () => { type = 'Simple'; draw(); }),

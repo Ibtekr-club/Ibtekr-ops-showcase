@@ -156,6 +156,8 @@
   const words = (text) => { let s = String(text == null ? '' : text); if (!/تذ(?:كر|اكر)/.test(s)) return s; for (const [a, b] of WORDS) s = s.split(a).join(b); return s; };
   // a description or a closing note may be a member's own words: only the server's own sentences in it change
   const phrases = (text) => { let s = String(text == null ? '' : text); if (!/تذكرة/.test(s)) return s; for (const [a, b] of [['من التذكرة دي أو من', 'من الطلب ده أو من'], ['الطلب في التذكرة TKT-', 'موجود في الطلب TKT-']]) s = s.split(a).join(b); return s; };
-  return Object.freeze({ words, phrases, TYPES, STATUSES, get PRIORITIES() { return prios(); }, BASE_PRIORITIES, get ROLES() { return ROLES; }, BASE_ROLES, setRoles, get ADMIN_ROLE() { return ADMIN; }, CUSTOMER_REASONS, VENDOR_REASONS, OUTCOMES, OPEN, WORK_STATUSES, TITLE_MAX, label, validateTicket, createStore, canWork, canClose, canReopen, isAdmin, summary, summaryDetails, filterTickets });
+  // single-seller mode (no makers): «مشكلة مبتكر» isn't a choice — the list is read when shown; validateTicket keeps the full list
+  const oneSeller = () => { const S = typeof window !== 'undefined' && window.IBSettings; return !!(S && S.single && S.single()); };
+  return Object.freeze({ words, phrases, get TYPES() { return oneSeller() ? TYPES.filter((t) => t[0] !== 'vendor') : TYPES; }, STATUSES, get PRIORITIES() { return prios(); }, BASE_PRIORITIES, get ROLES() { return ROLES; }, BASE_ROLES, setRoles, get ADMIN_ROLE() { return ADMIN; }, CUSTOMER_REASONS, VENDOR_REASONS, OUTCOMES, OPEN, WORK_STATUSES, TITLE_MAX, label, validateTicket, createStore, canWork, canClose, canReopen, isAdmin, summary, summaryDetails, filterTickets });
 });
 
