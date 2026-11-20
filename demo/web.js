@@ -153,7 +153,10 @@ window.IB_DEMO = true;
   function unitOf(el) {
     var tab = el.closest('[role="tab"], .tab, .chip, .seg-btn, [data-tab], [data-dtab]'); if (tab && short(tab, 60)) return tab;
     var opt = el.closest('option'); if (opt) return opt;
-    var row = el.closest('tr, li, .set-row, .dn-item, .cv, .kv, .info-row, .row-item'); if (row && short(row, 220) && !row.querySelector('input:focus, textarea:focus')) return row;
+    var row = el.closest('tr, li, .set-row, .dn-item, .cv, .kv, .info-row, .row-item');
+    // the single-seller switch itself stays (it is what this model is); only its explanation's line about makers goes
+    if (row && row.querySelector('[data-store-single]')) return el;
+    if (row && short(row, 220) && !row.querySelector('input:focus, textarea:focus')) return row;
     var head = el.closest('h1, h2, h3, h4, .kpi-label, .t-h3, .card-title, .sec-title, .cat-top, [class*="-title"], [class*="-hd"]');
     if (head) { var card = head.closest('.acc-ov-tile, .kpi, .card, section'); if (card && !card.querySelector('main') && !card.contains(document.querySelector('#root main > *:only-child'))) return card; }
     var u = el; while (u.parentElement && !BIG.test(u.parentElement.tagName) && short(u.parentElement, 60) && !u.parentElement.matches(KEEP)) u = u.parentElement;
@@ -174,13 +177,22 @@ window.IB_DEMO = true;
     root.querySelectorAll('*').forEach(function (e) { if (e.shadowRoot) sweep(e.shadowRoot); });
   }
   if (mode === 'single') {
-    var run = function () {
-      try { sweep(document.body); } catch (e) { /* a page in the middle of drawing */ }
-      // the brand line under the logo («بيت لكل مبتكر») is about makers too
-      document.querySelectorAll('.sidebar *, .bottom-nav *').forEach(function (n) { if (n.children.length === 0 && MAKER.test(n.textContent)) hide(n); });
+    var brandLine = function () { document.querySelectorAll('.sidebar *, .bottom-nav *, .login-brand *').forEach(function (n) { if (n.children.length === 0 && MAKER.test(n.textContent)) hide(n); }); };
+    var safe = function (root) { try { sweep(root); } catch (e) { /* a page in the middle of drawing */ } };
+    // a MutationObserver's callback runs before the browser paints, so a new text is hidden before it is ever seen (no flash)
+    var seen = function (list) {
+      list.forEach(function (m) {
+        if (m.type === 'characterData') { if (m.target.parentNode) safe(m.target.parentNode); return; }
+        m.addedNodes.forEach(function (n) { if (n.nodeType === 1) safe(n); else if (n.nodeType === 3 && n.parentNode) safe(n.parentNode); });
+      });
+      brandLine();
     };
-    new MutationObserver(function () { clearTimeout(run.t); run.t = setTimeout(run, 60); }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
-    setInterval(run, 700); // the orders page draws inside a shadow root the observer does not see
+    var mo = new MutationObserver(seen);
+    mo.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+    // the orders page draws inside a shadow root: each new one is watched the same way
+    var attach = Element.prototype.attachShadow;
+    Element.prototype.attachShadow = function (init) { var root = attach.call(this, init); try { mo.observe(root, { childList: true, subtree: true, characterData: true }); } catch (e) { /* closed */ } return root; };
+    setInterval(function () { safe(document.body); brandLine(); }, 1500); // a safety net
   }
 
   var start = function () { if (mode) banner(); else entry(); };
