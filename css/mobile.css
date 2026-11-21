@@ -177,10 +177,6 @@
   .table-title .acts-inline>.pop-anchor>.select,.table-title .acts-inline>.pop-anchor>.btn{width:100%;min-width:0}
   .table-title .acts-inline .select .val{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .table-title .acts-inline .tq-btn{padding-inline:12px}
-  /* the row of the filter's chips scrolls sideways instead of stacking */
-  .af-row{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding-bottom:2px}
-  .af-row::-webkit-scrollbar{display:none}
-  .af-row>*{flex:none}
 }
 
 /* ---------- 12. Record cards (a table's rows on a phone): a name on top, the rest as quiet pairs ---------- */
@@ -266,4 +262,56 @@
   .cs-inbox.show-chat .cs-chat .cmp{flex:none}
   /* nothing floats over a conversation */
   body:has(main:not([hidden]) .cs-inbox.show-chat) .page-head .actions>.btn.btn-brand,body:has(main:not([hidden]) .cs-inbox.show-chat) .to-top{display:none}
+}
+
+/* ---------- 18. The chips of the filters in force (phone, tablet, any touch screen): one line that slides under the finger ----------
+   Picking five filters no longer pushes the table five lines down. «مسح الكل» stays in sight at the line's end. */
+@media (max-width:1023px),(pointer:coarse){
+  .af-row{flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-snap-type:x proximity;scroll-padding-inline:12px}
+  .af-row::-webkit-scrollbar{display:none}
+  .af-row>*{flex:none}
+  .af-chip{max-width:min(78vw,340px);scroll-snap-align:start}
+  .af-chip .af-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .af-clr{position:sticky;inset-inline-end:0;z-index:1;border-radius:999px;background:var(--color-bg-container);box-shadow:-12px 0 12px -4px var(--color-bg-base),12px 0 12px -4px var(--color-bg-base)}
+}
+
+/* ================= Popups, reviewed one by one (phone and tablet) ================= */
+
+/* ---------- 19. The period picker (phone): the whole month in sight, the buttons always at the bottom ----------
+   It was already a sheet from the bottom, but the month sat in a short scrolling window (a week was cut) and the comparison's
+   two dates ran off the screen. Now the sheet itself scrolls, the days are 44px, and each pair of dates shares a line. */
+@media (max-width:767px){
+  .dp.range{max-height:calc(100vh - var(--dm-h,0px) - 12px)!important;max-height:calc(100dvh - var(--dm-h,0px) - 12px)!important;overflow-y:auto!important;overscroll-behavior:contain;border-radius:20px 20px 0 0;box-shadow:0 -8px 32px rgba(46,42,27,.24),0 0 0 100vmax rgba(46,42,27,.38)}
+  .dp.range .dp-body{flex:none;overflow:visible;min-height:auto}
+  .dp.range .cals{padding-inline:12px}
+  .dp.range .day{height:44px;font-size:15px}
+  .dp.range .rp-mode{position:sticky;top:0;z-index:2;background:var(--color-bg-elevated);padding:12px 12px 8px}
+  .dp.range .rp-mode>*{min-height:40px}
+  .dp.range .pcmp-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;padding:12px 16px}
+  .dp.range .pcmp-fields>.pcmp-lab,.dp.range .pcmp-fields>.help,.dp.range .pcmp-fields>p{grid-column:1/-1}
+  .dp.range .pcmp-fields>label{display:flex;flex-direction:column;align-items:stretch;gap:4px;min-width:0}
+  .dp.range .pcmp-fields .input{width:100%;min-width:0;height:44px;box-sizing:border-box}
+  .dp.range .dp-foot{position:sticky;bottom:0;z-index:2;box-shadow:0 -6px 16px rgba(46,42,27,.08)}
+  .dp.range .dp-foot .btn{min-height:48px;font-size:15px;font-weight:600;border-radius:10px}
+}
+
+/* ---------- 20. A form's date (one day): days a finger can hit ---------- */
+/* phone: a sheet from the bottom, the week across the whole screen */
+@media (max-width:767px){
+  .dp.single{position:fixed!important;inset:auto 0 0 0!important;top:auto!important;left:0!important;right:0!important;bottom:0!important;width:auto!important;min-width:0!important;max-width:none!important;max-height:none!important;z-index:300;border:0;border-radius:20px 20px 0 0;padding:8px 16px calc(16px + env(safe-area-inset-bottom,0px));box-shadow:0 -8px 32px rgba(46,42,27,.24),0 0 0 100vmax rgba(46,42,27,.38);animation:m-sheet-up .22s var(--m-ease)}
+  .dp.single::before{content:'';display:block;width:36px;height:4px;border-radius:2px;background:var(--color-border-default);opacity:.45;margin:4px auto 8px}
+  .dp.single .cal{width:100%}
+  .dp.single .cal-grid{grid-template-columns:repeat(7,minmax(0,1fr));width:100%}
+  .dp.single .day{width:100%;height:46px;font-size:16px}
+  .dp.single .cal-head .icon-btn,.dp.single .cal-nav,.dp.single .cal-head button{min-width:44px;min-height:44px}
+  .dp.single .dp-foot .btn,.dp.single>.btn,.dp.single .btn{min-height:48px}
+}
+@media (max-width:767px) and (prefers-reduced-motion:reduce){.dp.single{animation:none}}
+/* tablet / touch: it stays under its field, with 44px days */
+@media (min-width:768px) and (pointer:coarse){
+  .dp.single{width:344px}
+  .dp.single .cal{width:100%}
+  .dp.single .cal-grid{grid-template-columns:repeat(7,44px);justify-content:space-between}
+  .dp.single .day{width:44px;height:44px;font-size:15px}
+  .dp.range .day{min-height:40px}
 }
