@@ -153,4 +153,35 @@
     }).observe(document.documentElement, { childList: true, subtree: true });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watchAccount); else watchAccount();
+
+  /* · The keyboard (the owner 21 Nov, an iPhone): a phone's keyboard does not shrink the page — it covers it, and the browser
+     slides the page up under it, so anything pinned to the screen (the assistant, the bottom bar) ends up half off the top or
+     floating in the middle. The part of the screen still in sight is the visual viewport: its top and height go to
+     --m-vv-top / --m-vv-h (under the demo's banner while that is in sight), and html.m-kb says a keyboard is up
+     (css/mobile.css §32). Zoomed in with two fingers nothing is set — the sheet falls back to the screen's own height. */
+  var vv = window.visualViewport; var rootEl = document.documentElement; var tall = 0; var wide = 0;
+  function typing() { var a = document.activeElement; while (a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement;
+    return !!a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !/^(checkbox|radio|button|submit|range|file|color)$/.test(a.type || '')); }
+  function fit() {
+    if (!vv) return;
+    if (vv.scale > 1.05) { rootEl.style.removeProperty('--m-vv-top'); rootEl.style.removeProperty('--m-vv-h'); rootEl.classList.remove('m-kb'); return; }
+    if (Math.abs(vv.width - wide) > 1) { wide = vv.width; tall = 0; } // turned on its side: a new «full height»
+    tall = Math.max(tall, vv.height, window.innerHeight || 0);
+    var up = tall - vv.height > 120 && typing();
+    var bar = parseFloat(getComputedStyle(rootEl).getPropertyValue('--dm-h')) || 0;
+    var top = Math.max(vv.offsetTop, bar);
+    rootEl.style.setProperty('--m-vv-top', Math.round(top) + 'px');
+    rootEl.style.setProperty('--m-vv-h', Math.max(240, Math.round(vv.height - (top - vv.offsetTop))) + 'px');
+    rootEl.classList.toggle('m-kb', up);
+  }
+  if (vv) { vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); window.addEventListener('resize', fit);
+    document.addEventListener('focusin', function () { setTimeout(fit, 60); setTimeout(fit, 400); }, true); document.addEventListener('focusout', function () { setTimeout(fit, 120); }, true);
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fit); else fit(); window.addEventListener('load', fit); }
+  /* The assistant takes the focus as it opens — with a keyboard on the desk that is a help, on a touch screen it throws the
+     keyboard over the chat before the member has read it. So there the focus is given back; a tap in the box types as always. */
+  var touch = window.matchMedia ? window.matchMedia('(pointer:coarse)') : null;
+  document.addEventListener('click', function (e) {
+    var t = e.target; if (!touch || !touch.matches || !t || !t.closest || !t.closest('.ai-btn')) return;
+    var a = document.activeElement; if (a && a.classList && a.classList.contains('ai-input')) a.blur(); fit();
+  });
 })();

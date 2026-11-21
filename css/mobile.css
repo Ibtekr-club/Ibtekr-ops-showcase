@@ -145,7 +145,6 @@
 }
 /* an upright tablet: three across, so five cards are 3 + 2 and not 2 + 2 + 1 */
 @media (min-width:768px) and (max-width:1023px){
-  .dash-kpis,.cards.five,.cards.six,.cards.three{grid-template-columns:repeat(3,minmax(0,1fr))}
   .content{padding:16px 20px;gap:16px}
 }
 
@@ -438,4 +437,62 @@
   .sec-h:has([data-cols],.tq-btn) .acts{flex-wrap:nowrap;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none;gap:var(--m-s2);padding-block:2px}
   .sec-h:has([data-cols],.tq-btn) .acts::-webkit-scrollbar{display:none}
   .sec-h:has([data-cols],.tq-btn) .acts>*{flex:0 0 auto}
+}
+
+/* ---------- 30. The number cards on an upright tablet: full rows, on every page the same ----------
+   Some pages laid them two across, some three, and five cards left one alone on the last line. Now up to four across, each
+   line filled to its end (a last line of two or three shares the width); exactly five or nine go three across (3 + 2, 3 × 3). */
+@media (min-width:768px) and (max-width:1023px){
+  :is(.dash-kpis,.cards,.kpis,.kpi-grid,div,section):has(>.card.kpi),.cards:has(>.card.sum-tile){display:flex;flex-wrap:wrap;gap:var(--m-s3);align-items:stretch}
+  :is(.dash-kpis,.cards,.kpis,.kpi-grid,div,section):has(>.card.kpi)>*,.cards:has(>.card.sum-tile)>*{flex:1 1 22%;min-width:150px;max-width:none;grid-column:auto}
+  :is(.dash-kpis,.cards,.kpis,.kpi-grid,div,section):has(>.card.kpi:nth-child(5):last-child)>*,
+  :is(.dash-kpis,.cards,.kpis,.kpi-grid,div,section):has(>.card.kpi:nth-child(9):last-child)>*{flex-basis:30%}
+  .card.kpi{padding:var(--m-s3) 14px}
+  /* settings' home: five cards in two columns left the last one alone beside a hole — it takes the line */
+  #pg-settings .set-grid>.set-card:last-child:nth-child(odd){grid-column:1/-1}
+}
+
+/* ---------- 31. «ملفي» head (phone): the picture beside the name, the tags on one line, the button across ----------
+   The name sat in an 85px column (two lines) with the tags stacked under it — 228px before the tabs. */
+@media (max-width:767px){
+  #pg-profile .prof-head{display:grid;grid-template-columns:56px minmax(0,1fr);column-gap:var(--m-s3);row-gap:var(--m-s3);align-items:center;padding:var(--m-s4)}
+  #pg-profile .prof-head>.avatar{width:56px;height:56px;font-size:22px}
+  #pg-profile .prof-head>.grow{min-width:0}
+  #pg-profile .prof-head h1{font-size:20px;line-height:28px;overflow-wrap:anywhere}
+  #pg-profile .prof-head .grow .acts-inline{display:flex;flex-direction:row;flex-wrap:wrap;gap:6px;margin-top:6px}
+  #pg-profile .prof-head>.acts-inline{grid-column:1/-1;display:flex;gap:var(--m-s2)}
+  #pg-profile .prof-head>.acts-inline>*{flex:1 1 0;min-width:0}
+  #pg-profile .prof-head>.acts-inline .btn{width:100%}
+}
+
+/* ---------- 32. The assistant on a phone, and the keyboard (the owner 21 Nov, on an iPhone) ----------
+   The assistant opened as a 560px box hung under the bar; the keyboard came up at once, the page slid under it, the box lost
+   its head off the top of the screen and the bottom bar floated in the middle with a hole under it. Now on a phone it is the
+   whole screen, and it follows what the keyboard leaves visible (--m-vv-top / --m-vv-h, js/pages/mobile.js): the head stays
+   on top, the box to type in sits on the keyboard, the examples slide on one line. And while any keyboard is up the bottom
+   bar steps aside (html.m-kb) — it has no place floating over a field being typed in. */
+@media (max-width:767px){
+  .ai-panel{left:0!important;right:0!important;top:var(--m-vv-top,var(--dm-h,0px))!important;width:auto!important;max-width:none!important;min-width:0;height:var(--m-vv-h,calc(100dvh - var(--dm-h,0px)))!important;min-height:0;max-height:none;border:0;border-radius:0;box-shadow:none;resize:none}
+  .ai-panel .ai-head{min-height:52px;padding-block:4px;padding-inline:16px 4px;cursor:default}
+  .ai-panel .ai-head .icon-btn{width:44px;height:44px}
+  .ai-panel .ai-list{padding:var(--m-s4);gap:var(--m-s3);overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+  .ai-panel .ai-msg{max-width:88%;padding:10px 14px;border-radius:16px;font-size:15px;line-height:24px}
+  .ai-panel .ai-chips{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:10px var(--m-s4);gap:var(--m-s2)}
+  .ai-panel .ai-chips::-webkit-scrollbar{display:none}
+  .ai-panel .ai-chips .btn{flex:0 0 auto;height:36px!important;min-height:36px!important;border-radius:999px;font-size:13px;font-weight:500}
+  .ai-panel .ai-form{padding:var(--m-s2) var(--m-s3);gap:var(--m-s2)}
+  .ai-panel .ai-input{height:44px;padding:0 var(--m-s4);border-radius:22px}
+  .ai-panel .ai-send{flex:0 0 44px;width:44px;height:44px;border-radius:50%;background:var(--color-brand-default);color:var(--color-text-on-brand)}
+  .ai-panel .ai-note{padding:0 var(--m-s4) calc(var(--m-s2) + env(safe-area-inset-bottom,0px));font-size:12px;line-height:18px}
+  html.m-kb .ai-panel .ai-note{padding-bottom:var(--m-s2)}
+  body:has(.ai-panel:not([hidden])){overflow:hidden}
+  body:has(.ai-panel:not([hidden])) .page-head .actions>.btn.btn-brand,html.m-kb .page-head .actions>.btn.btn-brand{display:none}
+}
+@media (max-width:1023px),(pointer:coarse){
+  html.m-kb .bottom-nav{display:none}
+}
+/* a tablet: the box keeps its place and size, but never runs under the keyboard */
+@media (min-width:768px) and (pointer:coarse){
+  html.m-kb .ai-panel{top:calc(var(--m-vv-top,0px) + 8px)!important;height:calc(var(--m-vv-h,100dvh) - 16px)!important;min-height:0}
+  .ai-panel .ai-input{font-size:16px} /* under 16px an iPad zooms the page in on the box, and stays zoomed */
 }
