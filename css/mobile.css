@@ -73,12 +73,12 @@
 
 /* ---------- 5. The page's main action (phone): by the thumb, over the bottom bar ---------- */
 @media (max-width:767px){
-  .page-head .actions>.btn.btn-brand{position:fixed;z-index:6;right:16px;bottom:calc(64px + env(safe-area-inset-bottom,0px) + 12px);left:auto;flex:none;width:auto;min-width:0;max-width:calc(100vw - 96px);height:48px;min-height:48px;padding:0 20px;border-radius:999px;font-size:15px;font-weight:700;box-shadow:0 6px 16px rgba(0,86,66,.32),0 2px 4px rgba(46,42,27,.2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .page-head .actions>.btn.btn-brand svg{flex:none;width:20px;height:20px}
+  .page-head .actions>.btn.btn-brand,.m-fab{position:fixed;z-index:6;right:16px;bottom:calc(64px + env(safe-area-inset-bottom,0px) + 12px);left:auto;flex:none;width:auto;min-width:0;max-width:calc(100vw - 96px);height:48px;min-height:48px;padding:0 20px;border-radius:999px;font-size:15px;font-weight:700;box-shadow:0 6px 16px rgba(0,86,66,.32),0 2px 4px rgba(46,42,27,.2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .page-head .actions>.btn.btn-brand svg,.m-fab svg{flex:none;width:20px;height:20px}
   /* the page keeps room under its last line, so the button never covers it */
   .main:has(.page-head .actions>.btn.btn-brand){padding-bottom:calc(64px + env(safe-area-inset-bottom,0px) + 72px)}
   /* out of the way of anything that owns the bottom of the screen */
-  body:has(.scrim) .page-head .actions>.btn.btn-brand,body:has(.bulk-bar) .page-head .actions>.btn.btn-brand,body:has(.save-bar) .page-head .actions>.btn.btn-brand,body:has(.bn-sheet) .page-head .actions>.btn.btn-brand{display:none}
+  body:has(.scrim) .page-head .actions>.btn.btn-brand,body:has(.bulk-bar) .page-head .actions>.btn.btn-brand,body:has(.save-bar) .page-head .actions>.btn.btn-brand,body:has(.bn-sheet) .page-head .actions>.btn.btn-brand,body:has(.scrim) .m-fab,body:has(.bulk-bar) .m-fab,body:has(.save-bar) .m-fab,body:has(.bn-sheet) .m-fab{display:none}
 }
 
 /* ---------- 6. Tabs (phone and upright tablet): one line that scrolls, its ends fading out ---------- */
@@ -247,7 +247,7 @@
   .cs-inbox.show-chat .cs-chat .cs-msgs{flex:1 1 auto;min-height:0;overscroll-behavior:contain;padding:12px}
   .cs-inbox.show-chat .cs-chat .cmp{flex:none}
   /* nothing floats over a conversation */
-  body:has(main:not([hidden]) .cs-inbox.show-chat) .page-head .actions>.btn.btn-brand,body:has(main:not([hidden]) .cs-inbox.show-chat) .to-top{display:none}
+  body:has(main:not([hidden]) .cs-inbox.show-chat) .page-head .actions>.btn.btn-brand,body:has(main:not([hidden]) .cs-inbox.show-chat) .m-fab,body:has(main:not([hidden]) .cs-inbox.show-chat) .to-top{display:none}
 }
 
 /* ---------- 18. The chips of the filters in force (phone, tablet, any touch screen): one line that slides under the finger ----------
@@ -494,7 +494,7 @@
   .ai-panel .ai-send{flex:0 0 40px;width:40px;height:40px;border-radius:50%;background:var(--color-brand-default);color:var(--color-text-on-brand)}
   .ai-panel .ai-note{flex:none;padding:var(--m-s2) var(--m-s4) calc(var(--m-s2) + env(safe-area-inset-bottom,0px));font-size:12px;line-height:18px;text-align:center}
   html.m-kb .ai-panel .ai-note{padding-bottom:var(--m-s2)}
-  body:has(.ai-panel:not([hidden])) .page-head .actions>.btn.btn-brand,html.m-kb .page-head .actions>.btn.btn-brand{display:none}
+  body:has(.ai-panel:not([hidden])) .page-head .actions>.btn.btn-brand,html.m-kb .page-head .actions>.btn.btn-brand,body:has(.ai-panel:not([hidden])) .m-fab,html.m-kb .m-fab{display:none}
 }
 @media (max-width:1023px),(pointer:coarse){
   html.m-kb .bottom-nav{display:none}
@@ -544,4 +544,22 @@
   .scrim,.scrim .modal,.scrim .modal-body,.scrim .drawer,.menu,.dp,.ai-list,.cs-chat{overscroll-behavior:contain}
   html.m-kb .scrim{top:var(--m-vv-top,0px);bottom:auto;height:var(--m-vv-h,100dvh);padding-block:8px}
   html.m-kb .scrim .modal{max-height:calc(var(--m-vv-h,100dvh) - 16px)}
+}
+
+/* ---------- 35. The floating main action is never under the page (the owner 21 Nov, an iPhone) ----------
+   «اتاكد ان دايما الزراير الطايرة متنزلش تحت كومبوننتس الصفحة»: the button floated from inside the page head's row of actions,
+   and that row slides sideways — Safari draws a pinned element that lives inside a sliding box with that box, so the cards
+   of a table (a sliding box of their own, later in the page) were drawn over it. «اطلع لأول الصفحة» never had this: it sits
+   on the page itself. So on a touch phone the floating button is one of the page's own too — .m-fab, put on <body> by
+   js/pages/mobile.js, which shows the open page's main action on it and presses that action when it is tapped; the
+   action itself stays in its row, out of sight. Same look, same place, same rules for stepping aside. */
+.m-fab{display:none}
+@media (max-width:767px){
+  html.m-fab-on .m-fab:not([hidden]){display:inline-flex;align-items:center;justify-content:center;gap:8px;z-index:24}
+  html.m-fab-on .page-head .actions>.btn.btn-brand{display:none!important}
+  /* it steps aside for anything that opens over the page — a popup, a sheet or a menu, the bars of a selection or of unsaved
+     changes, an open conversation, the assistant, the keyboard */
+  .m-fab[hidden],body:has(.scrim) .m-fab,body:has(.bulk-bar) .m-fab,body:has(.save-bar) .m-fab,body:has(.bn-sheet) .m-fab,body:has([data-popover-root] [aria-expanded="true"]) .m-fab,
+  body:has(main:not([hidden]) .cs-inbox.show-chat) .m-fab,body:has(.ai-panel:not([hidden])) .m-fab,html.m-kb .m-fab{display:none!important}
+  body:has([data-popover-root] [aria-expanded="true"]) .to-top{display:none}
 }
