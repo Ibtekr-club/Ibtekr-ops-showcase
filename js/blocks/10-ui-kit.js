@@ -339,7 +339,7 @@
   }
   // single-seller mode: a table has no makers' or sub-orders' column — on a page, in a popup, in an export (window.IBUI.noMakerCols)
   const oneSellerOn = () => { const S = window.IBSettings; return !!(S && S.single && S.single()); };
-  const MAKER_COLS = ['المبتكر', 'المبتكرين', 'الأوردر الفرعي', 'فرعيات'];
+  const MAKER_COLS = ['المبتكر', 'المبتكرين', 'الأوردر الفرعي', 'فرعيات', 'حصة إبتكر', 'حصة إبتكر (ج.م)']; // …and the share: with no maker it is the sales column again
   function noMakerCols(headers, rows, totalRow) {
     if (!oneSellerOn() || !Array.isArray(headers)) return { headers, rows, totalRow };
     const off = headers.map((x) => typeof x === 'string' && MAKER_COLS.includes(x.trim())); if (!off.some(Boolean)) return { headers, rows, totalRow };

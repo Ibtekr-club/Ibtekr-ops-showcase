@@ -22,6 +22,8 @@
   // picked), then every template of the piece's kind: the images' new ones for a post / carousel («البوست» of the images is applied to
   // every image already), and all the videos' ones for a video («البوست» included — nothing applies it to a video by itself).
   const NO_TPL = 'none';
+  // single-seller mode says the marketplace's words its own way («نصيب إبتكر» is the sales there)
+  const ONE_S = (t) => (window.IBSettings && window.IBSettings.oneSeller ? window.IBSettings.oneSeller(t) : t);
   const aiTemplates = (tab) => { const p = window.IBSettings && window.IBSettings.public ? window.IBSettings.public() : null; const all = p && p.aiTemplates ? p.aiTemplates : {};
     const video = tab === 'video';
     return (Array.isArray(all[video ? 'vid' : 'img']) ? all[video ? 'vid' : 'img'] : []).filter((x) => x && x.id && x.id !== NO_TPL && (video || x.id !== 'post')); };
@@ -1192,7 +1194,7 @@
   }
   const adsNote = (s) => (s && !s.configured ? U.InlineNote({ kind: 'warning', children: 'مفيش منصة إعلانات مربوطة لسه — الصرف وأرقام المنصات هيظهروا لما الأدمن يربط الحسابات من «حالة الربط» تحت (ميتا · تيك توك · جوجل). أوردرات ووكومرس اللي جاية من إعلانات ظاهرة من دلوقتي.' })
     : s && s.anyError ? U.InlineNote({ kind: 'warning', children: AD_KEYS.filter((k) => s.platforms[k].configured && s.platforms[k].error).map((k) => { const p = s.platforms[k]; return p.why + (p.syncedAt ? ' — أرقام ' + AD_NAME[k] + ' من آخر مزامنة نجحت (' + atLabel(p.syncedAt) + ').' : ''); }).join(' · ') }) : null);
-  const adsSource = () => h('p', { class: 'source t-small help mk-src' }, 'المصادر: Meta Ads · TikTok Ads · Google Ads (قراية بس — المربوط منهم بيتحدث كل ساعة) + ووكومرس (مصدر الأوردر / UTM: utm_campaign = رقم الحملة على المنصة) · المبيعات من غير الملغي والمرتجع والفاشل' + (moneyOk() ? ' · نصيب إبتكر بنفس حساب «الحسابات»' : '') + '.');
+  const adsSource = () => h('p', { class: 'source t-small help mk-src' }, 'المصادر: Meta Ads · TikTok Ads · Google Ads (قراية بس — المربوط منهم بيتحدث كل ساعة) + ووكومرس (مصدر الأوردر / UTM: utm_campaign = رقم الحملة على المنصة) · المبيعات من غير الملغي والمرتجع والفاشل' + ONE_S(moneyOk() ? ' · نصيب إبتكر بنفس حساب «الحسابات»' : '') + '.');
   async function adsSyncNow(redraw) {
     if (AD.syncing) return; AD.syncing = true; if (redraw) redraw();
     const r = await MK().adsSync();
@@ -1218,8 +1220,8 @@
         details: det('مبيعات ووكومرس من الإعلانات', ['المنصة', 'الأوردرات', 'المبيعات (ج.م)', 'المصدر'], t.platforms.map((p) => [p.label, K.n0(p.orders), n2(p.sales), srcText(p.sources) || '—']), ['الإجمالي', K.n0(t.orders), n2(t.sales), '']) }, cmp(t.sales, P.sales, true))),
       U.KpiTile(Object.assign({ label: 'العائد الحقيقي (MER)', value: t.mer == null ? '—' : t.mer.toFixed(2), unit: t.mer == null ? undefined : '×', compare: 'off', note: U.num('مبيعات حملات المنصات المربوطة ÷ صرفها · المنصات بتقول ' + W.xr(t.roas)) }, cmp(t.mer, P.mer, true))),
       U.KpiTile(Object.assign({ label: 'تكلفة الأوردر الحقيقية', value: t.cpa == null ? '—' : n2(t.cpa), unit: t.cpa == null ? undefined : 'ج.م', compare: 'off', note: U.num('المنصات بتقول ' + (t.platformCpa == null ? '—' : K.n0(t.platformCpa)) + ' · الحد المقبول ' + K.n0(W.ADS_RULES.maxCpa)) }, cmp(t.cpa, P.cpa, false))),
-      t.profit == null ? null : U.KpiTile({ label: 'الربح بعد الإعلانات', value: n2(t.profit), unit: 'ج.م', compare: 'off', note: 'نصيب إبتكر من أوردرات الإعلانات − الصرف',
-        details: det('الربح بعد الإعلانات', ['البند', 'ج.م'], [['نصيب إبتكر من أوردرات الإعلانات (المنصات المربوطة)', n2(t.metaShare)], ['الصرف الإعلاني', '− ' + n2(t.spend)]], ['الربح', n2(t.profit)]) })].filter(Boolean);
+      t.profit == null ? null : U.KpiTile({ label: 'الربح بعد الإعلانات', value: n2(t.profit), unit: 'ج.م', compare: 'off', note: ONE_S('نصيب إبتكر من أوردرات الإعلانات − الصرف'),
+        details: det('الربح بعد الإعلانات', ['البند', 'ج.م'], [[ONE_S('نصيب إبتكر من أوردرات الإعلانات (المنصات المربوطة)'), n2(t.metaShare)], ['الصرف الإعلاني', '− ' + n2(t.spend)]], ['الربح', n2(t.profit)]) })].filter(Boolean);
     return h('div', { class: 'cards ' + (tiles.length === 5 ? 'five' : 'four'), 'data-rgroup': 'kpis', 'data-ads-kpis': String(tiles.length) }, tiles);
   }
   // 9.5.6 (decisions 67 / 71): each platform's real state; the admin links / edits / unlinks from here — the fields go to Vault through the server
@@ -1496,9 +1498,9 @@
   const agName = (a) => { const r = agReg(a); return (r && r.name) || ({ buyer: 'الميديا باير الذكي', designer: 'الديزاينر الذكي', dev: 'المبرمج الذكي' })[a] || a; };
   const agIcon = (a) => { const r = agReg(a); return (r && r.icon) || AG_DEF_ICON[a] || 'sparkle'; };
   // single-seller mode: the operations assistant has no makers or sub-orders to read
-  const AG_INTRO_ONE = { stock: 'أنا التشغيل الذكي. بشوف الأوردرات والمتأخر منها، وطلبات فريق العمليات، والمخزن والمرتجعات — اسألني إيه اللي يتعمل النهارده وبإيه نبدأ. وأقدر أرفعلك منتجات جديدة.' };
+  const AG_INTRO_ONE = { accountant: 'أنا المحاسب الذكي. بقرا المصروفات والمبيعات بأرقامك الحقيقية — ومابسجّلش ولا بحرّك فلوس.', stock: 'أنا التشغيل الذكي. بشوف الأوردرات والمتأخر منها، وطلبات فريق العمليات، والمخزن والمرتجعات — اسألني إيه اللي يتعمل النهارده وبإيه نبدأ. وأقدر أرفعلك منتجات جديدة.' };
   const agIntro = (a) => (window.IBSettings && window.IBSettings.single && window.IBSettings.single() && AG_INTRO_ONE[a]) || AG_INTRO[a] || ('أنا ' + agName(a) + '.' + ((agReg(a) || {}).about ? ' ' + agReg(a).about : ''));
-  const agSugg = (a) => (AG_SUGG[a] || []).filter((x) => !(window.IBSettings && window.IBSettings.single && window.IBSettings.single() && x === 'التجميعات المفتوحة'));
+  const agSugg = (a) => (AG_SUGG[a] || []).filter((x) => !(window.IBSettings && window.IBSettings.single && window.IBSettings.single() && x === 'التجميعات المفتوحة')).map((x) => ONE_S(x));
   const AG_SUB = { buyer: 'بيقرا أرقام ميتا + أوردرات ووكومرس · بيقترح وانت توافق — مابينفّذش حاجة من الشات', designer: 'أفكار وتصميمات بالبراند · بيولّد صورة لما تطلب — بكريدت الصور', dev: 'صفحات الموقع وتطوير السيستم · بيكتب المواصفات — والتنفيذ من «تقديم طلب»' };
   const agCfg = (a) => { const x = MK() && MK().agentSettingsNow && MK().agentSettingsNow(); return (x && x[a]) || null; };
   const agTime = (iso) => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(d); const t = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d); return day === TODAY() ? t : D2(day) + ' · ' + t; };
