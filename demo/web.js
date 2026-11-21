@@ -10,7 +10,7 @@ window.IB_DEMO = true;
   var set = function (k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch (e) { return false; } };
   var MODES = { marketplace: 'Marketplace', single: 'Single store' };
   // a new build of the demo starts from its own data: changes a visitor saved on an older build are dropped (the model he picked stays)
-  var BUILD = 'ab4da0fdd5', KEY_BUILD = 'ib.demo.build';
+  var BUILD = '9b3dc345d4', KEY_BUILD = 'ib.demo.build';
   if (get(KEY_BUILD) !== BUILD) { set(KEY_LOG, null); set(KEY_BUILD, BUILD); }
   var mode = MODES[get(KEY_MODE)] ? get(KEY_MODE) : null;
   // the language: Arabic as the system is, or English — the dictionary (en.js) and the layer that writes the page in English (i18n.js)
@@ -84,7 +84,7 @@ window.IB_DEMO = true;
     };
     var box = el('div', { id: 'demo-entry', dir: 'ltr' }, [el('div', { class: 'wrap' }, [
       el('h1', { text: 'Ibtekr Ops — Live demo' }),
-      el('p', { class: 'sub', text: 'An operations system for a handmade marketplace. Pick a business model — the interface is in Arabic, the data is made up.' }),
+      el('p', { class: 'sub', text: 'An operations system for a handmade marketplace. Pick a business model — the interface is in Arabic or English (the switch is at the bottom of the side menu), the data is made up.' }),
       el('div', { class: 'cards' }, [
         card('marketplace', 'Marketplace', ['Many makers, each with a commission', 'Orders split into sub-orders per maker', 'Maker statements and payouts'], 'Open the marketplace'),
         card('single', 'Single-brand store', ['One made-up brand: Decoro', 'No makers, no sub-orders', 'The same orders, products and customer service'], 'Open Decoro'),
