@@ -7,7 +7,7 @@
 // reset by token. Tokens are plain «pt.<scope>.<vendor id>» strings the page keeps in sessionStorage — the real ones are signed JWTs.
 // Every call lands in mock.portal.calls ({ action, user?, vendor?, result }); the mails Resend would send in mock.portal.mails
 // (to + the link, never a password). mock.portal.resend says whether the server has a Resend key (default true).
-import { makerLedger, makerLines, maskedBank, passwordIssues } from '../../mock/shared/portal.js?v=08419a46d6';
+import { makerLedger, makerLines, maskedBank, passwordIssues } from '../../mock/shared/portal.js?v=7b9f76a9d6';
 
 export function portalState() {
   return { calls: [], mails: [], resets: [], resend: true, nextTicket: 9000 };

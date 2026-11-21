@@ -465,34 +465,75 @@
   #pg-profile .prof-head>.acts-inline .btn{width:100%}
 }
 
-/* ---------- 32. The assistant on a phone, and the keyboard (the owner 21 Nov, on an iPhone) ----------
-   The assistant opened as a 560px box hung under the bar; the keyboard came up at once, the page slid under it, the box lost
-   its head off the top of the screen and the bottom bar floated in the middle with a hole under it. Now on a phone it is the
-   whole screen, and it follows what the keyboard leaves visible (--m-vv-top / --m-vv-h, js/pages/mobile.js): the head stays
-   on top, the box to type in sits on the keyboard, the examples slide on one line. And while any keyboard is up the bottom
-   bar steps aside (html.m-kb) — it has no place floating over a field being typed in. */
-@media (max-width:767px){
-  .ai-panel{left:0!important;right:0!important;top:var(--m-vv-top,var(--dm-h,0px))!important;width:auto!important;max-width:none!important;min-width:0;height:var(--m-vv-h,calc(100dvh - var(--dm-h,0px)))!important;min-height:0;max-height:none;border:0;border-radius:0;box-shadow:none;resize:none}
-  .ai-panel .ai-head{min-height:52px;padding-block:4px;padding-inline:16px 4px;cursor:default}
-  .ai-panel .ai-head .icon-btn{width:44px;height:44px}
-  .ai-panel .ai-list{padding:var(--m-s4);gap:var(--m-s3);overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-  .ai-panel .ai-msg{max-width:88%;padding:10px 14px;border-radius:16px;font-size:15px;line-height:24px}
-  .ai-panel .ai-chips{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:10px var(--m-s4);gap:var(--m-s2)}
-  .ai-panel .ai-chips::-webkit-scrollbar{display:none}
-  .ai-panel .ai-chips .btn{flex:0 0 auto;height:36px!important;min-height:36px!important;border-radius:999px;font-size:13px;font-weight:500}
-  .ai-panel .ai-form{padding:var(--m-s2) var(--m-s3);gap:var(--m-s2)}
-  .ai-panel .ai-input{height:44px;padding:0 var(--m-s4);border-radius:22px}
-  .ai-panel .ai-send{flex:0 0 44px;width:44px;height:44px;border-radius:50%;background:var(--color-brand-default);color:var(--color-text-on-brand)}
-  .ai-panel .ai-note{padding:0 var(--m-s4) calc(var(--m-s2) + env(safe-area-inset-bottom,0px));font-size:12px;line-height:18px}
-  html.m-kb .ai-panel .ai-note{padding-bottom:var(--m-s2)}
-  body:has(.ai-panel:not([hidden])){overflow:hidden}
-  body:has(.ai-panel:not([hidden])) .page-head .actions>.btn.btn-brand,html.m-kb .page-head .actions>.btn.btn-brand{display:none}
-}
+/* ---------- 32. The assistant on a phone or a tablet: a page of its own, as chat apps are (the owner 21 Nov) ----------
+   «عايز الشات مع الايه اي في الموبايل و التابلت يشتغل بنفس طريقة شات جي بي تي و يبقى البوب صفحة كاملة فيها اغلاق». It was a 560px
+   box hung under the bar; on an iPhone the keyboard came up at once, the page slid under it, the box lost its head off the
+   top and the bottom bar floated in the middle of the screen. Now it is the whole screen under the banner: a head with the
+   name and «إغلاق», the talk in one column (the assistant's words plain on the page, mine in a green bubble), the examples
+   on one sliding line, and the box to type in — a pill with its send button inside — resting on the keyboard. The page
+   follows the part of the screen the keyboard leaves in sight (--m-vv-top / --m-vv-h, js/pages/mobile.js). And while any
+   keyboard is up the bottom bar steps aside (html.m-kb) — it has no place floating over a field being typed in. */
 @media (max-width:1023px),(pointer:coarse){
+  .ai-panel{left:0!important;right:0!important;top:var(--m-vv-top,var(--dm-h,0px))!important;width:auto!important;max-width:none!important;min-width:0;height:var(--m-vv-h,calc(100dvh - var(--dm-h,0px)))!important;min-height:0;max-height:none;border:0;border-radius:0;box-shadow:none;resize:none;z-index:46;background:var(--color-bg-base)}
+  .ai-panel>*{width:100%;max-width:760px;margin-inline:auto;box-sizing:border-box}
+  .ai-panel .ai-head{flex:none;min-height:56px;padding-block:6px;padding-inline:var(--m-s4) 6px;border-bottom:0;cursor:default;touch-action:auto}
+  .ai-panel .ai-head h2{font-size:17px;line-height:24px;font-weight:700}
+  .ai-panel .ai-head .icon-btn{width:44px;height:44px;border-radius:50%;background:var(--color-bg-container);background-clip:content-box;border:2px solid transparent;color:var(--color-text-primary)}
+  .ai-panel .ai-list{padding:var(--m-s2) var(--m-s4) var(--m-s4);gap:var(--m-s5);-webkit-overflow-scrolling:touch}
+  .ai-panel .ai-msg{font-size:16px;line-height:26px}
+  .ai-panel .ai-msg.ai{max-width:100%;padding:0;background:none;border-radius:0}
+  .ai-panel .ai-msg.user{max-width:82%;padding:10px 16px;border-radius:22px}
+  .ai-panel .ai-chips{flex:none;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:var(--m-s2) var(--m-s4);gap:var(--m-s2);border-top:0}
+  .ai-panel .ai-chips::-webkit-scrollbar{display:none}
+  .ai-panel .ai-chips .btn{flex:0 0 auto;height:38px!important;min-height:38px!important;padding-inline:14px;border-radius:999px;font-size:14px;font-weight:500}
+  .ai-panel .ai-form{flex:none;width:calc(100% - 24px);max-width:736px;margin-block:var(--m-s1) 0;padding:6px;padding-inline-start:var(--m-s4);gap:var(--m-s2);border:1px solid var(--color-border-subtle);border-radius:28px;background:var(--color-bg-container)}
+  .ai-panel .ai-form:focus-within{border-color:var(--color-border-focus)}
+  .ai-panel .ai-input{height:40px;padding:0;border:0;border-radius:0;background:none;font-size:16px}
+  .ai-panel .ai-input:focus{outline:0;box-shadow:none}
+  .ai-panel .ai-send{flex:0 0 40px;width:40px;height:40px;border-radius:50%;background:var(--color-brand-default);color:var(--color-text-on-brand)}
+  .ai-panel .ai-note{flex:none;padding:var(--m-s2) var(--m-s4) calc(var(--m-s2) + env(safe-area-inset-bottom,0px));font-size:12px;line-height:18px;text-align:center}
+  html.m-kb .ai-panel .ai-note{padding-bottom:var(--m-s2)}
+  body:has(.ai-panel:not([hidden])) .page-head .actions>.btn.btn-brand,html.m-kb .page-head .actions>.btn.btn-brand{display:none}
   html.m-kb .bottom-nav{display:none}
 }
-/* a tablet: the box keeps its place and size, but never runs under the keyboard */
-@media (min-width:768px) and (pointer:coarse){
-  html.m-kb .ai-panel{top:calc(var(--m-vv-top,0px) + 8px)!important;height:calc(var(--m-vv-h,100dvh) - 16px)!important;min-height:0}
-  .ai-panel .ai-input{font-size:16px} /* under 16px an iPad zooms the page in on the box, and stays zoomed */
+
+/* ---------- 33. The header's controls: one size, one order (the owner 21 Nov) ----------
+   «خلي زرار الايه اي و البروفايل جمب بعض و النوتيفكشين بعد الايه اي و خلي الايقونز و الزراير قد بعض»: after the search come
+   the bell, the assistant, then the account — three circles of 40 (44 to the finger), 8 apart; the bell on the search's
+   own soft fill so it reads as a button like the other two. */
+@media (max-width:1023px){
+  .topbar>.gq-wrap{order:0}
+  .topbar>.pop-anchor:has(>.notif-btn){order:1}
+  .topbar>.ai-btn{order:2}
+  .topbar>.pop-anchor.user{order:3}
+  .topbar>.qa-anchor,.topbar>.clock-widget{order:4}
+  .topbar .ai-btn,.topbar .notif-btn,.topbar .user-btn{box-sizing:border-box;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border:2px solid transparent;border-radius:50%;background-clip:content-box;align-items:center;justify-content:center;place-items:center}
+  .topbar .notif-btn{background-color:var(--color-bg-container);color:var(--color-brand-default)}
+  .topbar .user-btn{background:none}
+  .topbar .user-btn .avatar{width:40px;height:40px;font-size:16px;line-height:40px}
+  .topbar .ai-btn svg,.topbar .notif-btn svg{width:20px;height:20px}
+  .topbar .notif-badge{top:-2px;inset-inline-start:-2px;box-shadow:0 0 0 2px var(--color-bg-base)}
+  .topbar .search{height:40px}
+}
+@media (max-width:767px){
+  .topbar{gap:4px}
+  .topbar>.gq-wrap{margin-inline-end:4px}
+  .topbar>.qa-anchor,.topbar>.clock-widget{margin-inline-start:-4px}
+}
+@media (min-width:768px) and (max-width:1023px){
+  .topbar{gap:4px}
+  .topbar>.gq-wrap{margin-inline-end:8px}
+  .topbar>.qa-anchor,.topbar>.clock-widget{margin-inline-start:-4px}
+}
+
+/* ---------- 34. Nothing moves behind an open popup (the owner 21 Nov) ----------
+   «لو فيه بوباب مفتوح و عملت سكرول بلاقي الصفحة اللي وراه بيتعملها سكرول»: with fingers the page behind a popup, a sheet, a
+   drawer, a menu or a calendar stays where it is. The finger is held by js/pages/mobile.js (the orders page's popups too),
+   which also keeps a tap on the dimmed page from pressing what is under it — not by overflow:hidden on the page, which
+   throws it back to its top. Here: a scroll inside the popup never runs on into the page (overscroll-behavior), and with a
+   keyboard up a popup fits the part of the screen still in sight. */
+@media (max-width:1023px),(pointer:coarse){
+  .scrim,.scrim .modal,.scrim .modal-body,.scrim .drawer,.menu,.dp,.ai-list,.cs-chat{overscroll-behavior:contain}
+  html.m-kb .scrim{top:var(--m-vv-top,0px);bottom:auto;height:var(--m-vv-h,100dvh);padding-block:8px}
+  html.m-kb .scrim .modal{max-height:calc(var(--m-vv-h,100dvh) - 16px)}
 }

@@ -80,6 +80,11 @@
     '@media (max-width:1023px),(pointer:coarse){',
     '.afc-row{flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-snap-type:x proximity;margin-inline:-12px;padding-inline:12px;scroll-padding-inline:12px}',
     '.afc-row::-webkit-scrollbar{display:none}',
+    /* a keyboard up (--m-kb-* are set only then, below): the dialog fits the part of the screen still in sight; and a
+       scroll inside a popup never runs on into the page */
+    '#cscrim,#uscrim{top:var(--m-kb-top,var(--dm-h,0px));height:var(--m-kb-h,auto)}',
+    '#cdlg,#udlg{max-height:min(80vh,calc(var(--m-kb-h,100vh) - 16px))!important;max-height:min(80dvh,calc(var(--m-kb-h,100dvh) - 16px))!important}',
+    '#cscrim,#uscrim,#cdlg,#udlg,#mpop,#dpop,.fb{overscroll-behavior:contain}',
     '.afc{flex:none;flex-wrap:nowrap;gap:8px;padding-top:0}',
     '.afc-chip{flex:none;max-width:min(78vw,340px);scroll-snap-align:start}.afc-op{flex:none}',
     '.afc-n{flex:none;padding-inline:4px}',
@@ -164,7 +169,7 @@
     return !!a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !/^(checkbox|radio|button|submit|range|file|color)$/.test(a.type || '')); }
   function fit() {
     if (!vv) return;
-    if (vv.scale > 1.05) { rootEl.style.removeProperty('--m-vv-top'); rootEl.style.removeProperty('--m-vv-h'); rootEl.classList.remove('m-kb'); return; }
+    if (vv.scale > 1.05) { rootEl.style.removeProperty('--m-vv-top'); rootEl.style.removeProperty('--m-vv-h'); rootEl.style.removeProperty('--m-kb-top'); rootEl.style.removeProperty('--m-kb-h'); rootEl.classList.remove('m-kb'); return; }
     if (Math.abs(vv.width - wide) > 1) { wide = vv.width; tall = 0; } // turned on its side: a new «full height»
     tall = Math.max(tall, vv.height, window.innerHeight || 0);
     var up = tall - vv.height > 120 && typing();
@@ -173,10 +178,85 @@
     rootEl.style.setProperty('--m-vv-top', Math.round(top) + 'px');
     rootEl.style.setProperty('--m-vv-h', Math.max(240, Math.round(vv.height - (top - vv.offsetTop))) + 'px');
     rootEl.classList.toggle('m-kb', up);
+    if (up) { rootEl.style.setProperty('--m-kb-top', Math.round(top) + 'px'); rootEl.style.setProperty('--m-kb-h', Math.max(240, Math.round(vv.height - (top - vv.offsetTop))) + 'px'); } else { rootEl.style.removeProperty('--m-kb-top'); rootEl.style.removeProperty('--m-kb-h'); }
   }
   if (vv) { vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); window.addEventListener('resize', fit);
     document.addEventListener('focusin', function () { setTimeout(fit, 60); setTimeout(fit, 400); }, true); document.addEventListener('focusout', function () { setTimeout(fit, 120); }, true);
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fit); else fit(); window.addEventListener('load', fit); }
+  /* · Nothing moves behind an open popup (the owner 21 Nov — «لو فيه بوباب مفتوح و عملت سكرول بلاقي الصفحة اللي وراه بيتعملها
+     سكرول»): with fingers, while a popup, a drawer, a sheet, a menu or a calendar is open — the kit's or the orders page's —
+     a drag scrolls only what is inside it. A drag that starts on the page behind, or on a part of the popup with nothing
+     left to scroll that way, goes nowhere (so the scroll never runs on into the page). And a tap on the dimmed page behind
+     a bottom sheet closes the sheet, as before, without also pressing whatever was under the finger. A mouse on a desk is
+     not touched by any of this. */
+  var hands = window.matchMedia ? window.matchMedia('(max-width:1023px),(pointer:coarse)') : null;
+  var ORDERS_POPS = '#cscrim,#uscrim,#mpop,#dpop,.fb';
+  function shown(el) { return !!el && !el.hidden && el.getClientRects().length > 0; }
+  function pinned(el) { var p = getComputedStyle(el).position; return p === 'fixed' || p === 'absolute'; }
+  // the kit's popover: the popup is the last child of its [data-popover-root] anchor, beside the trigger that opened it
+  function kitPopups() {
+    var out = []; var list = document.querySelectorAll('[data-popover-root] [aria-expanded="true"]');
+    for (var i = 0; i < list.length; i++) { var a = list[i].closest('[data-popover-root]'); var el = a && a.lastElementChild;
+      if (el && el !== list[i] && !el.contains(list[i]) && shown(el) && pinned(el) && out.indexOf(el) < 0) out.push(el); }
+    return out;
+  }
+  function ordersPopups() { var h = document.getElementById('orders'); var r = h && h.shadowRoot; var out = []; if (!r) return out;
+    var list = r.querySelectorAll(ORDERS_POPS); for (var i = 0; i < list.length; i++) if (shown(list[i])) out.push(list[i]); return out; }
+  function openPopups() {
+    var out = kitPopups().concat(ordersPopups()); var phone = window.innerWidth <= 767; var i;
+    var list = document.querySelectorAll('.scrim,.ai-panel' + (phone ? ',.cs-inbox.show-chat .cs-chat' : '')); // the assistant is a page of its own here (css §32)
+    for (i = 0; i < list.length; i++) if (shown(list[i])) out.push(list[i]);
+    return out;
+  }
+  function isSheet(el) { var r = el.getBoundingClientRect(); return getComputedStyle(el).position === 'fixed' && r.width >= window.innerWidth - 2 && r.bottom >= window.innerHeight - 2; }
+  var drag = null; // this finger's drag: where it began and what it may scroll
+  function dragStart(e) {
+    drag = null; if (!hands || !hands.matches || !e.touches || e.touches.length !== 1) return;
+    var pops = openPopups(); if (!pops.length) return;
+    var path = e.composedPath ? e.composedPath() : []; var may = []; var inside = false;
+    for (var i = 0; i < path.length; i++) { var n = path[i]; if (!n || n.nodeType !== 1) continue;
+      var cs = getComputedStyle(n);
+      if (/(auto|scroll)/.test(cs.overflowY) && n.scrollHeight > n.clientHeight + 1) may.push([n, 'y']);
+      if (/(auto|scroll)/.test(cs.overflowX) && n.scrollWidth > n.clientWidth + 1) may.push([n, 'x']);
+      if (pops.indexOf(n) >= 0) { inside = true; break; }
+      if (n === document.body) break; }
+    // a finger on the dimmed page behind a bottom sheet: the tap closes the sheet and stops there (dragEnd)
+    var t = e.target; var behind = false;
+    if (!inside && t && t.closest && !t.closest('[data-popover-root]') && !t.closest('#demo-bar')) { var kit = kitPopups(); for (var k = 0; k < kit.length; k++) if (isSheet(kit[k])) behind = true; }
+    drag = { x: e.touches[0].clientX, y: e.touches[0].clientY, may: inside ? may : [], behind: behind, moved: false };
+  }
+  function dragMove(e) {
+    if (!drag || !e.touches || e.touches.length !== 1) return;
+    var dx = e.touches[0].clientX - drag.x; var dy = e.touches[0].clientY - drag.y; var flat = Math.abs(dx) > Math.abs(dy);
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) drag.moved = true;
+    if (!e.cancelable) return;
+    for (var i = 0; i < drag.may.length; i++) { var n = drag.may[i][0];
+      if (drag.may[i][1] === 'x') { if (flat) return; continue; }
+      if (flat) continue;
+      if (dy > 0 && n.scrollTop > 0) return;
+      if (dy < 0 && n.scrollTop + n.clientHeight < n.scrollHeight - 1) return; }
+    e.preventDefault();
+  }
+  document.addEventListener('touchstart', dragStart, { capture: true, passive: true });
+  document.addEventListener('touchmove', dragMove, { capture: true, passive: false });
+  /* The kit closes its popovers on a mousedown outside them; a finger's mousedown comes with the click, on whatever is under
+     it. So for a tap behind a sheet the browser's own mousedown / focus / click are called off, and the kit is told. */
+  function dragEnd(e) {
+    var d = drag; drag = null; if (!d || !d.behind || d.moved || !e.cancelable) return;
+    e.preventDefault(); document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+  }
+  document.addEventListener('touchend', dragEnd, { capture: true, passive: false });
+  // a wheel or a trackpad on a tablet: the same rule
+  document.addEventListener('wheel', function (e) {
+    if (!window.matchMedia || !window.matchMedia('(pointer:coarse)').matches || !e.cancelable || e.ctrlKey) return; var pops = openPopups(); if (!pops.length) return;
+    var path = e.composedPath ? e.composedPath() : []; var flat = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+    for (var i = 0; i < path.length; i++) { var n = path[i]; if (!n || n.nodeType !== 1) continue; var cs = getComputedStyle(n);
+      if (flat && /(auto|scroll)/.test(cs.overflowX) && n.scrollWidth > n.clientWidth + 1) return;
+      if (!flat && /(auto|scroll)/.test(cs.overflowY) && n.scrollHeight > n.clientHeight + 1 && (e.deltaY < 0 ? n.scrollTop > 0 : n.scrollTop + n.clientHeight < n.scrollHeight - 1)) return;
+      if (pops.indexOf(n) >= 0 || n === document.body) break; }
+    e.preventDefault();
+  }, { capture: true, passive: false });
+  document.addEventListener('touchcancel', function () { drag = null; }, { capture: true, passive: true });
   /* The assistant takes the focus as it opens — with a keyboard on the desk that is a help, on a touch screen it throws the
      keyboard over the chat before the member has read it. So there the focus is given back; a tap in the box types as always. */
   var touch = window.matchMedia ? window.matchMedia('(pointer:coarse)') : null;
