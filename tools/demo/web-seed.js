@@ -162,7 +162,7 @@ function singleStore(mock) {
   if (mock.mkt) ['trends', 'agents', 'agentKb', 'kb'].forEach((k) => { if (mock.mkt[k]) mock.mkt[k] = deep(mock.mkt[k]); });
   addOrders(mock, true);
   // and no product stands in a status that names a maker
-  const OWN_STATUS = { 'جاهز للشحن من المبتكر للمخزن': '', 'تم الشحن للمخزن': '', 'وصل المخزن': '', 'مرتجع للمبتكر': 'مرتجع للمخزن' };
+  const OWN_STATUS = { 'جاهز للشحن من المخزن للعميل': 'جاهز للشحن من المبتكر للعميل', 'جاهز للشحن من المبتكر للمخزن': '', 'تم الشحن للمخزن': '', 'وصل المخزن': '', 'مرتجع للمبتكر': 'مرتجع للمخزن' };
   mock.orderItems.forEach((l) => { if (Object.prototype.hasOwnProperty.call(OWN_STATUS, l.status)) l.status = OWN_STATUS[l.status]; if (l.ret && /مبتكر/.test(String(l.ret.to || l.ret.type || ''))) l.ret = null; });
 }
 
