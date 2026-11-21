@@ -2,15 +2,20 @@
 
 **A production operations system for a handmade marketplace, designed and built by a team of three using AI agents (Claude Code).**
 
-### ▶ [Live demo — demo.ibtekr.club](https://demo.ibtekr.club) · 🎬 [Video walkthrough (1:20)](https://demo.ibtekr.club/demo-walkthrough.mp4)
+### ▶ [Live demo — demo.ibtekr.club](https://demo.ibtekr.club) · 🎬 [Video walkthrough (1:20)](https://demo.ibtekr.club/demo-walkthrough.mp4) · 📦 [Repository](https://github.com/Ibtekr-club/Ibtekr-ops-showcase)
 
 The demo runs entirely in your browser on sample data — pick *Marketplace* or *Single store*, change anything, press *Reset*.
+It is in **Arabic or English**: the «عربي / English» switch sits at the bottom of the side menu (in the top bar on a phone).
 
 ![Demo walkthrough](docs/screenshots/demo.gif)
 
 | Pick a business model | Dashboard | Orders |
 |---|---|---|
 | ![Entry screen](docs/screenshots/entry.png) | ![Dashboard](docs/screenshots/dashboard-marketplace.png) | ![Orders](docs/screenshots/orders.png) |
+
+| Dashboard in English | Orders in English |
+|---|---|
+| ![Dashboard in English](docs/screenshots/dashboard-english.png) | ![Orders in English](docs/screenshots/orders-english.png) |
 
 ---
 
@@ -100,6 +105,9 @@ flowchart LR
 - **The demo**: the same app on an in-browser stand-in for the backend (`tests/e2e/supabase-mock.mjs` and `mock/shared/`) — the
   same tables, permission rules and function results, with made-up data, kept in `localStorage` until *Reset*. It is also what
   the end-to-end tests run against.
+- **The English version**: a layer of the demo only (`tools/demo/i18n.js` and the dictionary in `tools/demo/i18n/`, about
+  14,200 entries). It translates what the app writes to the page and the sample data, and mirrors the layout to
+  left-to-right — the app's own code is not changed, and the production system stays Arabic.
 
 ## Design process
 
@@ -113,6 +121,7 @@ Three design decisions and why:
 
 1. **The interface speaks Egyptian Arabic, on purpose.** The users are the team in Egypt; buttons and messages are written the way
    they talk ("ابدأ الدوام", "مستنية ردنا"), right-to-left throughout. The team found it easy and natural to work with.
+   (The English in the demo was added for visitors who do not read Arabic; the team works in Arabic.)
 2. **The system prepares, a person decides.** AI assistants draft replies, fill forms and suggest budget changes, but nothing is
    sent, published or paid without a click — and every write to the shop comes from a person, behind a global switch.
 3. **Built on staging, switched to live in one step.** Everything was built and tested against a staging shop first, so the
@@ -155,12 +164,14 @@ WooCommerce + Dokan · Claude API · WhatsApp Cloud API / Meta Graph API · Play
 Requires Node 22.
 
 ```bash
+git clone https://github.com/Ibtekr-club/Ibtekr-ops-showcase.git
+cd Ibtekr-ops-showcase
 npm ci
 npm run demo:web                                  # builds dist/demo-web
 npx http-server dist/demo-web -p 4191             # open http://localhost:4191
 ```
 
-Tests: `npm test` (unit), `npm run e2e` (end-to-end on the in-browser backend), `npm run e2e:demo` (the web demo, both models).
+Tests: `npm test` (unit), `npm run e2e` (end-to-end on the in-browser backend), `npm run e2e:demo` (the web demo — both models, Arabic and English).
 
 ## License
 

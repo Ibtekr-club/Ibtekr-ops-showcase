@@ -84,7 +84,7 @@ window.IB_DEMO = true;
     };
     var box = el('div', { id: 'demo-entry', dir: 'ltr' }, [el('div', { class: 'wrap' }, [
       el('h1', { text: 'Ibtekr Ops — Live demo' }),
-      el('p', { class: 'sub', text: 'An operations system for a handmade marketplace. Pick a business model — the interface is in Arabic, the data is made up.' }),
+      el('p', { class: 'sub', text: 'An operations system for a handmade marketplace. Pick a business model — the interface is in Arabic or English (the switch is at the bottom of the side menu), the data is made up.' }),
       el('div', { class: 'cards' }, [
         card('marketplace', 'Marketplace', ['Many makers, each with a commission', 'Orders split into sub-orders per maker', 'Maker statements and payouts'], 'Open the marketplace'),
         card('single', 'Single-brand store', ['One made-up brand: Decoro', 'No makers, no sub-orders', 'The same orders, products and customer service'], 'Open Decoro'),

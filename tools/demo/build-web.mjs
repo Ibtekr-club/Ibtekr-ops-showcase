@@ -11,7 +11,7 @@ import { build, FORBIDDEN } from './build.mjs';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const SITE = 'https://demo.ibtekr.club';
 export const TITLE = 'Ibtekr Ops — Live demo';
-export const DESCRIPTION = 'An operations system for a handmade marketplace: orders synced from WooCommerce / Dokan, makers and commissions, an AI product studio, customer service and WhatsApp — in Arabic, on sample data.';
+export const DESCRIPTION = 'An operations system for a handmade marketplace: orders synced from WooCommerce / Dokan, makers and commissions, an AI product studio, customer service and WhatsApp — in Arabic or English, on sample data.';
 /** Phone numbers the made-up data may hold (and the web demo's own 0100000xxxx); any other mobile number in the build stops it. */
 export const DEMO_PHONES = new Set(['01000000000', '01000000001', '01000000002', '01000000003', '01000000004', '01000000005', '01000000099', '01000007016', '01000007030', '01001112223', '01001234567', '01009007052', '01009766655', '01011122233', '01012345678', '01066778899', '01098765432', '01099999999', '01122334455', '01234567890', '01555666777']);
 /** E-mail domains the made-up data may use; any other address in the build stops it (the vendored libraries are not scanned). */
