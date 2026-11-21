@@ -21,25 +21,35 @@
     return null;
   }
   var PUNCT = { '،': ',', '؛': ';', '؟': '?', '«': '“', '»': '”', '٪': '%' };
+  var LONE = { 'ص': 'AM', 'م': 'PM', 'د': 'min', 'ث': 's', 'س': 'h' }; // a letter standing alone after a time or a number
+  var DIGITS = { '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9' };
   function pieces(s) {
     var out = '', i = 0, n = s.length, c, k, j;
     while (i < n) {
       c = s[i];
+      var start = i === 0 || !isL(s[i - 1]) || !isL(c);
+      // a known text may start with a sign or a Latin word (« · حصة…», «Enter بيبعت»): tried at every start, the longest first
+      k = start && (AR.test(c) || (c !== ' ' && B2[s.substr(i, 2)])) ? longest(s, i) : null;
+      if (k && (AR.test(c) || AR.test(k))) { out += DICT[k]; i += k.length; continue; }
       if (PUNCT[c]) { out += PUNCT[c]; i++; continue; }
+      if (DIGITS[c]) { out += DIGITS[c]; i++; continue; }
       if (!AR.test(c)) { out += c; i++; continue; }
-      var start = i === 0 || !isL(s[i - 1]);
-      k = start || !isL(c) ? longest(s, i) : null;
-      if (k) { out += DICT[k]; i += k.length; continue; }
+      if (start && LONE[c] && !isL(s[i + 1])) { out += LONE[c]; i++; continue; }
       if (start && c === 'و' && i + 2 < n) { k = longest(s, i + 1); if (k && k.length > 1) { out += 'and ' + DICT[k]; i += 1 + k.length; continue; } } // «و» joined to the next word
       j = i; while (j < n && isL(s[j])) j++; if (j === i) j = i + 1; out += s.slice(i, j); i = j; // a word the dictionary does not know yet: left as it is
     }
     return out.replace(/ {2,}/g, ' ').replace(/ ,/g, ',');
   }
-  var memo = new Map();
-  function core(s) {
+  var memo = new Map(); var composed = new Map(); // composed: the texts put together from parts (for the checks to read)
+  function one(s) { // one run of text: known whole, else a pattern, else its parts
     if (DICT[s] !== undefined) return DICT[s];
     for (var i = 0; i < PATS.length; i++) { var m = PATS[i][0].exec(s); if (m) return PATS[i][1].replace(/\$(\d)/g, function (_, d) { return m[d] == null ? '' : tr(m[d]); }); }
-    return pieces(s);
+    var out = pieces(s); if (composed.size < 20000) composed.set(s, out); return out;
+  }
+  function core(s) {
+    if (DICT[s] !== undefined) return DICT[s];
+    if (s.indexOf(' · ') < 0) return one(s);
+    return s.split(' · ').map(function (x) { var m = /^(\s*)([\s\S]*?)(\s*)$/.exec(x); return AR.test(x) ? m[1] + one(m[2]) + m[3] : x; }).join(' · '); // «… · … · …»: each part on its own
   }
   function tr(s) {
     if (typeof s !== 'string' || !AR.test(s)) return s;
@@ -230,5 +240,5 @@
   document.addEventListener('load', function (e) { var t = e.target; if (t && t.tagName === 'LINK' && t.sheet) mirrorSheet(t.sheet); }, true); // a stylesheet loaded later
 
   // for the demo's own scripts (web.js, boot.js) and the checks: translate a text, read what the page shows
-  window.IBT = tr; window.IBT.shown = function (n) { return n.nodeType === 3 ? dData.get.call(n) : dText.get.call(n); };
+  window.IBT = tr; window.IBT.composed = composed; window.IBT.shown = function (n) { return n.nodeType === 3 ? dData.get.call(n) : dText.get.call(n); };
 })();
