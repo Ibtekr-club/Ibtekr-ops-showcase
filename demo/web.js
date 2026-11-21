@@ -5,18 +5,25 @@
 window.IB_DEMO = true;
 (function () {
   'use strict';
-  var KEY_MODE = 'ib.demo.mode', KEY_LOG = 'ib.demo.log', MAX_BODY = 300000, MAX_LOG = 4000000;
+  var KEY_MODE = 'ib.demo.mode', KEY_LOG = 'ib.demo.log', KEY_LANG = 'ib.demo.lang', MAX_BODY = 300000, MAX_LOG = 4000000;
   var get = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
   var set = function (k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch (e) { return false; } };
   var MODES = { marketplace: 'Marketplace', single: 'Single store' };
   // a new build of the demo starts from its own data: changes a visitor saved on an older build are dropped (the model he picked stays)
-  var BUILD = 'e04e82e1d5', KEY_BUILD = 'ib.demo.build';
+  var BUILD = 'e991d67704', KEY_BUILD = 'ib.demo.build';
   if (get(KEY_BUILD) !== BUILD) { set(KEY_LOG, null); set(KEY_BUILD, BUILD); }
   var mode = MODES[get(KEY_MODE)] ? get(KEY_MODE) : null;
+  // the language: Arabic as the system is, or English — the dictionary (en.js) and the layer that writes the page in English (i18n.js)
+  // are loaded only for English, before anything of the app runs
+  var lang = get(KEY_LANG) === 'en' ? 'en' : 'ar'; window.IB_LANG = lang;
+  if (lang === 'en' && mode && document.readyState === 'loading') {
+    var v = /^[0-9a-f]+$/.test(BUILD) ? '?v=' + BUILD : '';
+    document.write('<script src="demo/en.js' + v + '"><\/script><script src="demo/i18n.js' + v + '"><\/script>');
+  }
   var log = []; try { log = JSON.parse(get(KEY_LOG) || '[]'); if (!Array.isArray(log)) log = []; } catch (e) { log = []; }
   var replaying = false;
 
-  var css = document.createElement('style');
+  var css = document.createElement('style'); css.id = 'ib-demo-style';
   css.textContent = [
     'html.ib-demo{overflow:hidden}',
     'html.ib-demo body{margin:0;margin-top:40px;height:calc(100vh - 40px);height:calc(100dvh - 40px);overflow-y:auto}',
@@ -37,8 +44,18 @@ window.IB_DEMO = true;
     '#demo-entry .card h2{margin:0 0 6px;font-size:20px;color:#005642}#demo-entry .card ul{margin:10px 0 14px;padding-inline-start:18px;color:#4b5a55;font-size:14px}',
     '#demo-entry .card .go{display:inline-block;background:#005642;color:#fff7ef;border-radius:999px;padding:6px 16px;font-weight:700;font-size:14px}',
     '#demo-entry .note{margin-top:18px;font-size:12px;color:#6b7a75}',
-    '#demo-toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:100002;max-width:min(92vw,520px);background:#1d2a26;color:#fff7ef;border-radius:12px;padding:10px 16px;font:600 14px Cairo,system-ui,sans-serif;direction:rtl;box-shadow:0 4px 18px rgba(0,0,0,.25);opacity:0;transition:opacity .2s;pointer-events:none}',
+    '#demo-toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:100002;max-width:min(92vw,520px);background:#1d2a26;color:#fff7ef;border-radius:12px;padding:10px 16px;font:600 14px Cairo,system-ui,sans-serif;direction:' + (lang === 'en' ? 'ltr' : 'rtl') + ';box-shadow:0 4px 18px rgba(0,0,0,.25);opacity:0;transition:opacity .2s;pointer-events:none}',
     '#demo-toast.on{opacity:1}',
+    // the language switch: under «الإعدادات», kept at the bottom of the side bar; on a phone (no side bar) in the banner
+    'html.ib-demo .sidebar{height:calc(100vh - 40px);height:calc(100dvh - 40px)}',
+    '.sidebar .dm-lang{margin-top:auto;position:sticky;bottom:-16px;margin-inline:-12px;margin-bottom:-16px;padding:10px 12px 14px;background:var(--color-bg-sidebar,#005642);border-top:1px solid #fff7ef33;display:flex;justify-content:center;direction:ltr;z-index:2}',
+    '.dm-lang .dm-sw{display:flex;border:1px solid #fff7ef55;border-radius:999px;overflow:hidden}',
+    '.dm-lang button{all:unset;box-sizing:border-box;font:600 12px Cairo,system-ui,sans-serif;cursor:pointer;padding:5px 14px;color:#fff7ef;line-height:18px;white-space:nowrap}',
+    '.dm-lang button:focus-visible{outline:2px solid #fff7ef;outline-offset:-2px}',
+    '.dm-lang button[aria-pressed=true]{background:#fff7ef;color:#005642}',
+    '#demo-bar .dm-lang{display:none}',
+    '@media (max-width:1279px){.sidebar .dm-lang{margin-inline:-4px;padding-inline:2px}.sidebar .dm-lang button{padding:5px 6px}.sidebar .dm-lang [data-short]{font-size:0}.sidebar .dm-lang [data-short]::after{content:attr(data-short);font-size:12px}}',
+    '@media (max-width:1023px){#demo-bar .dm-lang{display:flex}}',
   ].join('\n');
   document.head.appendChild(css);
 
@@ -48,6 +65,16 @@ window.IB_DEMO = true;
   }
   function choose(m) { set(KEY_MODE, m); set(KEY_LOG, null); location.reload(); }
   function reset() { set(KEY_LOG, null); location.reload(); }
+  function setLang(l) { if (l === lang) return; set(KEY_LANG, l === 'en' ? 'en' : null); location.reload(); }
+  function langSwitch() {
+    var mk = function (l, label, short) { var b = el('button', { type: 'button', 'data-i18n-off': '', 'data-demo-lang': l, 'data-short': short, 'aria-pressed': String(l === lang), text: label }); b.addEventListener('click', function () { setLang(l); }); return b; };
+    return el('div', { class: 'dm-lang', 'data-i18n-off': '' }, [el('div', { class: 'dm-sw', role: 'group', 'aria-label': 'Language' }, [mk('ar', 'عربي', 'ع'), mk('en', 'English', 'EN')])]);
+  }
+  // the side bar is drawn again whenever the menu changes: the switch is put back at its end
+  function keepLang() {
+    var put = function () { var sb = document.querySelector('.sidebar'); if (sb && (!sb.lastElementChild || !sb.lastElementChild.classList.contains('dm-lang'))) { var old = sb.querySelector('.dm-lang'); if (old) old.remove(); sb.appendChild(langSwitch()); } };
+    put(); new MutationObserver(put).observe(document.body, { childList: true, subtree: true });
+  }
 
   // --- the entry screen: one card per business model
   function entry() {
@@ -75,8 +102,8 @@ window.IB_DEMO = true;
     }));
     var rs = el('button', { type: 'button', class: 'dm-rs', 'data-demo-reset': '', text: 'Reset' });
     rs.addEventListener('click', reset);
-    document.body.appendChild(el('div', { id: 'demo-bar', role: 'region', 'aria-label': 'Demo' }, [el('b', { text: 'Demo mode' }), el('span', { class: 'dm-lb', text: '— sample data' }), el('span', { class: 'dm-sp' }), sw, rs]));
-    document.documentElement.classList.add('ib-demo');
+    document.body.appendChild(el('div', { id: 'demo-bar', role: 'region', 'aria-label': 'Demo' }, [el('b', { text: 'Demo mode' }), el('span', { class: 'dm-lb', text: '— sample data' }), el('span', { class: 'dm-sp' }), langSwitch(), sw, rs]));
+    document.documentElement.classList.add('ib-demo'); keepLang();
   }
 
   // --- «this would have gone out»: courier (Bosta), Meta (Messenger / Instagram / WhatsApp / publishing / ads) and e-mail
@@ -98,7 +125,7 @@ window.IB_DEMO = true;
   // --- every write the page sends, kept for the next open (boot.js replays them before the page starts)
   window.__ibDemoAfter = function (method, url, body, headers) {
     if (replaying || method === 'GET' || method === 'HEAD' || /\/auth\/v1\//.test(url)) return;
-    if (outbound(url, body)) toast('ده ديمو — في السيستم الحقيقي هيتبعت إشعار');
+    if (outbound(url, body)) toast(lang === 'en' ? 'This is a demo — the real system would send this out' : 'ده ديمو — في السيستم الحقيقي هيتبعت إشعار');
     if (body && body.length > MAX_BODY) return;
     var keep = {}; ['content-type', 'prefer', 'accept', 'content-profile', 'accept-profile', 'x-client-info'].forEach(function (k) { if (headers[k]) keep[k] = headers[k]; });
     log.push({ m: method, u: url, b: body, h: keep });
@@ -130,16 +157,24 @@ window.IB_DEMO = true;
     if (/(عميل|عملاء|رسايل|واتساب)/.test(q)) return 'عندك ' + f.conv.length + ' محادثة مستنية رد في خدمة العملاء. افتح «الرسايل» والرد المقترح هيبقى جاهز في الخانة.';
     return 'ملخص النهارده: ' + f.os.length + ' أوردر في السيستم — ' + f.newO.length + ' جديد مستني التأكيد، ' + f.work.length + ' جاري التنفيذ، ' + f.ship.length + ' في الشحن، و' + f.late.length + ' متأخر. ' + (f.conv.length ? 'وفيه ' + f.conv.length + ' رسالة عملاء مستنية رد. ' : '') + 'تحب أبدأ بإيه؟';
   }
+  function replyEn(q) {
+    var f = facts(); var pl = function (n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); };
+    if (/(متأخر|تأخير|late|delay)/i.test(q)) return f.late.length ? 'You have ' + pl(f.late.length, 'late order') + ': ' + f.late.map(function (o) { return 'IB-' + o.id; }).join(', ') + '. I suggest following up on production and giving the customer a new date — the “Late” filter in Orders lists them.' : 'No late orders right now 👌';
+    if (/(مبيعات|بيع|sales|revenue|إيراد)/i.test(q)) return 'Completed sales are ' + fmt(f.doneSum) + ' EGP from ' + pl(f.done.length, 'order') + ', an average of ' + fmt(f.done.length ? f.doneSum / f.done.length : 0) + ' EGP per order. Another ' + pl(f.work.length, 'order') + ' in processing add up to ' + fmt(f.workSum) + ' EGP.';
+    if (/(مبتكر|رصيد|سحب|maker|balance|withdraw)/i.test(q)) return f.bal || f.pend.length ? 'Makers’ balances on Dokan total ' + fmt(f.bal) + ' EGP' + (f.pend.length ? ', and ' + pl(f.pend.length, 'withdrawal request') + ' are waiting for your approval (' + f.pend.map(function (w) { return f.vname(w.vendor_id) + ' — ' + fmt(w.amount) + ' EGP'; }).join(', ') + ').' : '.') : 'This store sells one brand, so there are no makers or balances.';
+    if (/(عميل|عملاء|رسايل|واتساب|customer|message|whatsapp)/i.test(q)) return 'You have ' + pl(f.conv.length, 'conversation') + ' waiting for a reply in Customer service. Open “Messages” and the suggested reply is ready in the box.';
+    return 'Today’s summary: ' + pl(f.os.length, 'order') + ' in the system — ' + f.newO.length + ' new and waiting for confirmation, ' + f.work.length + ' processing, ' + f.ship.length + ' shipping, and ' + f.late.length + ' late. ' + (f.conv.length ? pl(f.conv.length, 'customer message') + ' waiting for a reply. ' : '') + 'Where would you like to start?';
+  }
   window.__ibDemoAnswer = function (method, url, body) {
     if (method !== 'POST' || !/\/functions\/v1\/ai-content\b/.test(url) || !body) return null;
     var b; try { b = JSON.parse(body); } catch (e) { return null; }
     if (!b || b.action !== 'assistant' || b.mode === 'filter') return null;
     var turns = Array.isArray(b.turns) ? b.turns : []; var q = String((turns[turns.length - 1] || {}).text || '');
-    return { result: 'ok', text: reply(q), actions: [], tools: [], report: [], model: 'demo', cost_usd: 0, run_id: Date.now() };
+    return { result: 'ok', text: lang === 'en' ? replyEn(q) : reply(q), actions: [], tools: [], report: [], model: 'demo', cost_usd: 0, run_id: Date.now() };
   };
 
   window.__ibDemoWeb = {
-    mode: mode,
+    mode: mode, lang: lang,
     log: function () { return log.slice(); },
     replaying: function (on) { replaying = !!on; },
   };
