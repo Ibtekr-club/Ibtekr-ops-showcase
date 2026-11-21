@@ -609,5 +609,27 @@
 @media (hover:none),(pointer:coarse){
   .cal-grid .day:not(.sel):not(.inrange):hover{background:transparent}
   .cal-grid .day:not(.sel):active{background:var(--color-bg-hover)}
-  .cal-grid .day.sel{box-shadow:0 0 0 2px var(--color-bg-elevated),0 0 0 4px var(--color-brand-default)}
+}
+
+/* ---------- 37. The period picker's month on a phone, drawn clean (the owner 22 Nov — «الاستايل لسه فيه حاجة مش مظبوطة») ----------
+   Three things read as glitches: a double ring round the picked days (mine, from §36 — gone); the comparison period's days
+   marked by a thick line under each, bent at its ends by the day's rounded corners (now a small dot under the number); and
+   «الفترة» / «فترة المقارنة» looking alike whichever was on (the one on is filled, as the ready period in force above it).
+   The period itself is one band from its first day to its last: the two ends are filled squares with the band running into
+   them, today keeps a quiet ring. */
+@media (max-width:767px){
+  .dp.range .cal-grid{row-gap:4px;column-gap:0}
+  .dp.range .day{border-radius:10px;font-variant-numeric:tabular-nums}
+  .dp.range .day.inrange{border-radius:0}
+  .dp.range .day.sel{border-radius:10px;font-weight:700;box-shadow:none}
+  .dp.range .day.today:not(.sel){box-shadow:inset 0 0 0 1.5px var(--color-action-default);border-radius:10px}
+  .dp.range .day.today.inrange{border-radius:0}
+  /* the comparison period: a dot under the number */
+  .dp.range .day.pcmp:not(.sel):not(.inrange){box-shadow:none}
+  .dp.range .day.today.pcmp:not(.sel):not(.inrange){box-shadow:inset 0 0 0 1.5px var(--color-action-default)}
+  .dp.range .day.pcmp:not(.sel):not(.inrange):not(.outside)::after{content:"";position:absolute;bottom:4px;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--color-action-default)}
+  /* which of the two periods the month is picking */
+  .dp.range .rp-mode .chip{border:1px solid var(--m-line);background:var(--color-bg-container);color:var(--color-text-primary);font-weight:500;padding-inline:14px}
+  .dp.range .rp-mode .chip.on{background:var(--color-brand-default);border-color:var(--color-brand-default);color:var(--color-text-on-brand);font-weight:700}
+  .dp.range .pcmp-fields .pcmp-lab i{border-radius:50%}
 }
