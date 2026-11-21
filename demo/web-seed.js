@@ -56,7 +56,7 @@ function addOrders(mock, single) {
     const [name, state, city] = CUSTOMERS[c];
     const lines = items.map(([pid, qty], i) => {
       const p = single ? DECORO[(k + i) % DECORO.length] : pOf(pid);
-      const price = single ? p[4] : p[5]; const maker = single ? 9 : p[1]; const rate = single ? null : MAKERS.find((m) => m[0] === maker)[4];
+      const price = single ? p[4] : p[5]; const maker = single ? 9 : p[1]; const rate = single ? 100 : MAKERS.find((m) => m[0] === maker)[4]; // single: the whole sale is the store's
       return { pid: single ? p[0] : pid, sku: single ? p[1] : p[2], name: single ? p[2] : p[3], qty, total: price * qty, maker, rate };
     });
     const total = lines.reduce((s, l) => s + l.total, 0);
@@ -143,8 +143,33 @@ function singleStore(mock) {
   addOrders(mock, true);
 }
 
+/** The money the dashboard and «الحسابات» show: the accounts' balances (an opening deposit and what this month's expenses took) and
+ *  this month's expenses by type — dates kept inside the current month so «الشهر ده» always has them. */
+function money(mock) {
+  if (!mock.acc) return;
+  const dom = new Date(NOW).getUTCDate(); const inMonth = (d) => day(Math.min(d, dom - 1));
+  let id = 9000; const by = '00000000-0000-4000-8000-000000000001';
+  const row = (x) => ({ id: ++id, note: null, created_by: by, created_at: ago(1), updated_by: null, updated_at: null, voided_by: null, voided_at: null, ...x });
+  const opening = [['حساب البنك', 85000], ['حساب بوسطة', 12400], ['حساب باي موب', 6800]];
+  opening.forEach(([account, amount]) => mock.acc.acc_account_moves.push(row({ account, on_date: inMonth(19), direction: 'deposit', amount, note: 'رصيد أول الشهر', beneficiary_kind: 'أخرى', beneficiary: 'رصيد افتتاحي', vendor_id: null, member_id: null, expense_id: null, vendor_move_id: null, pair_id: null, withdraw_id: null })));
+  const exp = [
+    // no salaries yet: they are paid on the 28th (the payroll card says so)
+    { category: 'الإعلانات', beneficiary: 'Meta', amount: 2400, details: 'Meta', on: 6, note: 'حملة الشتا' },
+    { category: 'الاشتراكات', beneficiary: 'Canva', amount: 650, on: 10, sub_name: 'Canva Pro', sub_is_other: false, sub_ends: day(-20), sub_alerts: ['week'], sub_note: null },
+    { category: 'المصروفات', beneficiary: 'مطبعة الكراتين', amount: 950, on: 4, note: 'تغليف وكراتين' },
+  ];
+  exp.forEach((x) => {
+    const e = row({ on_date: inMonth(x.on), direction: 'withdraw', category: x.category, beneficiary: x.beneficiary, beneficiary_other: !!x.beneficiary_other, amount: x.amount, note: x.note || null,
+      sub_name: x.sub_name || null, sub_is_other: x.sub_is_other || false, sub_ends: x.sub_ends || null, sub_alerts: x.sub_alerts || null, sub_note: null, details: x.details || null, staff_kind: null, reason: null, account: 'حساب البنك' });
+    mock.acc.acc_expenses.push(e);
+    // the expense paid from the bank is one operation with its account move (0143)
+    mock.acc.acc_account_moves.push(row({ account: 'حساب البنك', on_date: e.on_date, direction: 'withdraw', amount: x.amount, note: x.note || x.category, beneficiary_kind: 'أخرى', beneficiary: x.beneficiary, vendor_id: null, member_id: null, expense_id: e.id, vendor_move_id: null, pair_id: null, withdraw_id: null }));
+  });
+}
+
 /** The model the visitor picked, applied to the stand-in after seed.js (boot.js, web demo only). */
 export function webSeed(mock, mode) {
   if (!mock || !Array.isArray(mock.orders)) return;
   if (mode === 'single') singleStore(mock); else marketplace(mock);
+  money(mock);
 }

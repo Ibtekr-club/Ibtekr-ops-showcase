@@ -205,7 +205,7 @@ function subrow(o,s,l){
  +'<div class="c c4" data-l="حالة المنتج">'+sdd(SSTY,s.ss,'data-ss="'+s.n+'"',110,SS,1)+'</div>'
  +'<div class="c c5" data-l="القيمة"><b style="font-weight:600">'+fmt(s.tot)+' ج.م</b></div>'
  +'<div class="c c6" data-l="'+LBX('make')+'">'+(s.pulled?pullNote(s)+'</div>':'<div class="dc"><div class="dcr">'+sbadge(s,sl)+'<div class="cnt"><s>يوم</s><b>'+sc.t+'</b></div></div><div class="btrk"><div class="fil" style="width:'+pct+'%;background:'+DB[sl][3]+'"></div></div></div>'
- +''+dfield('ex:'+s.n,s.exp,WK('تاريخ تبليغ المبتكر'),1,'أضف تاريخ الإبلاغ')+'<span class="lead" data-lead="'+s.n+'">'+leadTxt(s)+'</span></div>')
+ +''+dfield('ex:'+s.n,s.exp,SG()?'تاريخ بدء التصنيع':'تاريخ تبليغ المبتكر',1,SG()?'أضف تاريخ البداية':'أضف تاريخ الإبلاغ')+'<span class="lead" data-lead="'+s.n+'">'+leadTxt(s)+'</span></div>')
  +'<div class="c c7" data-l="'+LBX('cm')+'"><div class="cm inl" data-cm="'+s.n+'"><textarea data-ce="'+s.n+'" data-orig="'+esc(s.cm)+'" rows="2" placeholder="اكتب تعليقك هنا" aria-label="'+LBX('cm')+' #'+s.sid+'">'+esc(s.cm)+'</textarea><button type="button" class="csv" data-cs="'+s.n+'" hidden>حفظ</button></div></div>'
  +'<div class="c c8" data-l=""><button class="ibtn" data-more="s:'+s.n+'" aria-haspopup="menu" aria-expanded="false" aria-label="المزيد">'+ic('more')+'</button></div></div>'}
 function subs(o,l){if(MODE!=='d')return subsM(o,l,MODE==='m');
@@ -450,7 +450,7 @@ function siteStatusDialog(n){var s=allSub(n);if(!s)return;var o=OM[s.oid],ws=WS(
  var L=ws.siteStatuses(),mine=o.subs.filter(function(x){return String(x.sid)===String(s.sid)}),pcs=mine.reduce(function(a,x){return a+(Number(x.qty)||1)},0);
  var cnt=nCount(mine.length,'منتج','منتجات')+(pcs!==mine.length?' ('+nCount(pcs,'قطعة','قطع')+')':'');
  var w=document.createElement('div');w.id='cscrim';
- w.innerHTML=WK('<div id="cdlg" role="dialog" aria-modal="true" aria-labelledby="cdt"><div class="ch"><h2 id="cdt">تعديل الحالة على الموقع — الأوردر الفرعي #')+esc(s.sid)+'</h2><button type="button" class="ibtn" data-cc aria-label="إغلاق">'+ic('xx')+'</button></div>'
+ w.innerHTML='<div id="cdlg" role="dialog" aria-modal="true" aria-labelledby="cdt"><div class="ch"><h2 id="cdt">'+WK('تعديل الحالة على الموقع — الأوردر الفرعي #')+esc(s.sid)+'</h2><button type="button" class="ibtn" data-cc aria-label="إغلاق">'+ic('xx')+'</button></div>'
   +'<div class="cb"><div class="lb">الحالة دلوقتي على الموقع: <span class="now" data-site-now>'+esc(s.raw?siteLbl(s.raw):'—')+'</span></div>'
   +'<div><label class="lb" for="cwst">الحالة الجديدة على الموقع</label><select id="cwst" class="sel2">'+L.map(function(x){return'<option value="'+esc(x.slug)+'"'+(x.slug===s.raw?' selected':'')+'>'+esc(x.label)+'</option>'}).join('')+'</select></div>'
   +(pcs>1?WK('<div class="nt warn" role="note" data-sub-many>الأوردر الفرعي #')+esc(s.sid)+' فيه '+esc(cnt)+' — الحالة هتتغيّر '+(mine.length>1?'لكل المنتجات دي':'للقطع كلها')+' مع بعض على الموقع.</div>':'')
@@ -807,7 +807,7 @@ function addLineDialog(oid,sid,vid,vname){var o=OM[oid],ws=WS();if(!o||!ws||!ws.
  function sync(){var v=qty(),p=num(pr.value);w.querySelector('[data-q="-1"]').disabled=!(v>1);w.querySelector('[data-q="1"]').disabled=!(v<MAXQ);w.querySelector('[data-qv]').textContent=v>=1&&v<=MAXQ&&p>=0?money(v*p):'—';err.hidden=true}
  function drawList(){if(!items)return;var t=q.value.trim().toLowerCase(),L=items.filter(function(p){return!t||p.name.toLowerCase().indexOf(t)>=0||p.sku.toLowerCase().indexOf(t)>=0});
   list.innerHTML=L.length?L.slice(0,40).map(function(p){return'<button type="button" role="option" data-ap="'+p.id+'" aria-selected="'+!!(pick&&pick.id===p.id)+'"><b>'+esc(p.name)+'</b><small><span dir="ltr">'+esc(p.sku||'—')+'</span>'+(p.type==='variable'?' · بتركيبات':'')+(p.price!=null?' · '+esc(money(p.price)):'')+'</small></button>'}).join('')+(L.length>40?'<div class="ld">'+L.length+' منتج — اكتب أكتر عشان تضيّق</div>':''):'<div class="ld">'+(items.length?WK('مفيش منتج بالاسم ده عند المبتكر'):WK('المبتكر ده مالوش منتجات على الموقع'))+'</div>'}
- ws.makerProducts(vid).then(function(r){if(!w.isConnected)return;if(r&&r.ok){items=r.items;drawList()}else list.innerHTML=WK('<div class="ld">مش قادرين نجيب منتجات المبتكر — اقفل وجرّب تاني</div>')},function(){if(w.isConnected)list.innerHTML=WK('<div class="ld">مش قادرين نجيب منتجات المبتكر — اقفل وجرّب تاني</div>')});
+ ws.makerProducts(vid).then(function(r){if(!w.isConnected)return;if(r&&r.ok){items=r.items;drawList()}else list.replaceChildren(Object.assign(document.createElement('div'),{className:'ld',textContent:WK('مش قادرين نجيب منتجات المبتكر — اقفل وجرّب تاني')}))},function(){if(w.isConnected)list.replaceChildren(Object.assign(document.createElement('div'),{className:'ld',textContent:WK('مش قادرين نجيب منتجات المبتكر — اقفل وجرّب تاني')}))});
  sync();
  function close(){w.remove();R.removeEventListener('keydown',keys,true);if(prev&&prev.focus&&prev.isConnected)prev.focus()}
  var keys=dlgKeys(w,close);R.addEventListener('keydown',keys,true);

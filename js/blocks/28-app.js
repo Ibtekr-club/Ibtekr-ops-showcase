@@ -4679,7 +4679,8 @@
   // the range picker, ordersReport (dates = today − ageDays) and block 25's greeting / 30-day window. K.TODAY (the
   // prototype's fixed date) only without the orders adapter; the sample stores (contracts, money) keep their own date.
   function dashToday() { return window.IBOrders && window.IBOrders.today ? window.IBOrders.today() : window.IBKit ? window.IBKit.TODAY : TODAY; }
-  const DTODAY = window.IBKit ? window.IBKit.TODAY : TODAY; const DT0 = dashToday(); state.drange = state.drange || { from: DT0, to: DT0, preset: 'today' };
+  const DTODAY = window.IBKit ? window.IBKit.TODAY : TODAY; const DT0 = dashToday(); // the public demo (window.IB_DEMO, web.js only) opens the dashboard on this month so its made-up numbers show; the app opens on today
+  state.drange = state.drange || (window.IB_DEMO === true ? { from: DT0.slice(0, 8) + '01', to: DT0, preset: 'thisMonth' } : { from: DT0, to: DT0, preset: 'today' });
   window.IBDashData = {
     get TODAY() { return dashToday(); }, today: dashToday, range: () => state.drange, DateRangeField: () => DateRangeField('dash'),
     rows: ordersRows, full: allOrders, alerts,
