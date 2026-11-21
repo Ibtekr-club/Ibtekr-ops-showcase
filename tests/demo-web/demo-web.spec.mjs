@@ -280,7 +280,10 @@ test.describe('a phone', () => {
     if (await page.locator('#orders >> .fb').count()) await page.locator('#orders >> [data-fbapply]').click();
     const chips = await page.evaluate(() => { const r = document.getElementById('orders').shadowRoot; const row = r.querySelector('.afc-row'); const tops = [...row.querySelectorAll('.afc-chip')].map((c) => Math.round(c.getBoundingClientRect().top)); const clr = row.querySelector(':scope > .btn').getBoundingClientRect(); return { n: tops.length, lines: new Set(tops).size, h: Math.round(row.getBoundingClientRect().height), scrolls: row.scrollWidth > row.clientWidth, clr: [Math.round(clr.left), Math.round(clr.right)] }; });
     expect(chips.n).toBeGreaterThanOrEqual(3); expect(chips.lines).toBe(1); expect(chips.h).toBeLessThanOrEqual(56); expect(chips.scrolls).toBe(true);
-    expect(chips.clr[0]).toBeGreaterThanOrEqual(0); expect(chips.clr[1]).toBeLessThanOrEqual(390); // «مسح الفلاتر» stays on screen
+    expect(chips.clr[0]).toBeGreaterThanOrEqual(0); expect(chips.clr[1]).toBeLessThanOrEqual(390);
+    // (22 Nov — «مسح الكل … أول زرار في الصف و بعديه نتيجة الفلاتر»): it is the line's first button, the chips follow it, none under it
+    const firstOf = await page.evaluate(() => { const r = document.getElementById('orders').shadowRoot; const row = r.querySelector('.afc-row'); const c = row.querySelector(':scope > .btn').getBoundingClientRect(); const chip = row.querySelector('.afc-chip').getBoundingClientRect(); return { rtl: getComputedStyle(row).direction === 'rtl', clr: [c.left, c.right], chip: [chip.left, chip.right], pos: getComputedStyle(row.querySelector(':scope > .btn')).position }; });
+    expect(firstOf.pos).toBe('static'); if (firstOf.rtl) expect(firstOf.chip[1]).toBeLessThanOrEqual(firstOf.clr[0]); else expect(firstOf.chip[0]).toBeGreaterThanOrEqual(firstOf.clr[1]);
     await page.locator('#orders >> .afc-row > .btn').click();
     // a date: a sheet from the bottom with days a finger can hit
     await page.locator('#orders >> [data-tg]').first().click(); await page.locator('#orders >> [data-dp]').first().click(); await page.waitForTimeout(400);
@@ -306,6 +309,10 @@ test.describe('a phone', () => {
     expect(await page.evaluate(() => { const d = [...document.querySelectorAll('.dp.range .cal-grid .day:not(.outside)')][11]; const t = new Touch({ identifier: 3, target: d, clientX: 5, clientY: 5 });
       d.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, cancelable: true, composed: true, touches: [t], targetTouches: [t], changedTouches: [t] })); d.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true, composed: true, touches: [], targetTouches: [], changedTouches: [t] }));
       d.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); d.dispatchEvent(new MouseEvent('mouseenter', { bubbles: false })); return d.isConnected; }), 'the day under the finger is still the same one when the click comes').toBe(true);
+    // the day just tapped keeps the picked day's fill, whatever a phone still holds «over» it (it was the hover's pale fill
+    // under the picked day's pale number — an empty square)
+    await page.locator('.dp.range .cal-grid .day.sel').first().hover(); const fill = await page.locator('.dp.range .cal-grid .day.sel').first().evaluate((d) => { const cs = getComputedStyle(d); const probe = document.createElement('i'); probe.style.color = 'var(--color-brand-default)'; d.appendChild(probe); const want = getComputedStyle(probe).color; probe.remove(); return [cs.backgroundColor, want, cs.color]; });
+    expect(fill[0]).toBe(fill[1]); expect(fill[2]).not.toBe(fill[0]);
     await days.nth(11).tap(); const picked = await page.evaluate(() => [...document.querySelectorAll('.dp.range .range-row>.input input')].filter((i) => i.getClientRects().length).map((i) => i.value.slice(0, 2)));
     expect(picked).toEqual(['10', '12']); expect(await page.locator('.dp.range .cal-grid .day.sel').count()).toBe(2);
     const month = await page.locator('.dp.range .cal-h span').first().textContent(); await page.locator('.dp.range .cal-h .icon-btn[aria-label="الشهر التالي"]').tap(); await expect(page.locator('.dp.range .cal-h span').first()).not.toHaveText(month);

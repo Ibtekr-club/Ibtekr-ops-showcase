@@ -258,7 +258,9 @@
   .af-row>*{flex:none}
   .af-chip{max-width:min(78vw,340px);scroll-snap-align:start}
   .af-chip .af-t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .af-clr{position:sticky;inset-inline-end:0;z-index:1;border-radius:999px;background:var(--color-bg-container);box-shadow:-12px 0 12px -4px var(--color-bg-base),12px 0 12px -4px var(--color-bg-base)}
+  /* the owner 22 Nov — «زرار مسح الكل بدل ما هو فوق زراير الفلتر يبقى في نفس الصف بس أول زرار و بعديه نتيجة الفلاتر»: it was pinned
+     to the line's end and sat over the chips sliding under it; now it is the line's first button and the chips follow it */
+  .af-clr{order:-1;position:static;scroll-snap-align:start;border-radius:999px;background:var(--color-bg-container);box-shadow:none}
 }
 
 /* ================= Popups, reviewed one by one (phone and tablet) ================= */
@@ -594,4 +596,18 @@
   .m-fab[hidden],body:has(.scrim) .m-fab,body:has(.bulk-bar) .m-fab,body:has(.save-bar) .m-fab,body:has(.bn-sheet) .m-fab,body:has([data-popover-root] [aria-expanded="true"]) .m-fab,
   body:has(main:not([hidden]) .cs-inbox.show-chat) .m-fab,body:has(.ai-panel:not([hidden])) .m-fab,html.m-kb .m-fab{display:none!important}
   body:has([data-popover-root] [aria-expanded="true"]) .to-top{display:none}
+}
+
+/* ---------- 36. A calendar's picked day stays picked under a finger (the owner 22 Nov, an iPhone — «الكالندر لسة بايظة») ----------
+   A phone keeps «the mouse is over it» on whatever was last tapped. The kit's hover fill for a day is written after — and as
+   strong as — the fill of the picked day, so the day just tapped turned the hover's pale beige under its own beige number:
+   an empty-looking square where the start of the period should be (with a mouse it shows only while the pointer rests on
+   it). The picked day and the days of the period keep their own fill whatever is over them; and where there is no real
+   hover, a day gets no hover fill at all. */
+.cal-grid .day.sel:hover,.cal-grid .day.sel:active,.cal-grid .day.sel:focus{background:var(--color-brand-default);color:var(--color-text-on-brand)}
+.cal-grid .day.inrange:hover{background:var(--color-brand-subtle-bg)}
+@media (hover:none),(pointer:coarse){
+  .cal-grid .day:not(.sel):not(.inrange):hover{background:transparent}
+  .cal-grid .day:not(.sel):active{background:var(--color-bg-hover)}
+  .cal-grid .day.sel{box-shadow:0 0 0 2px var(--color-bg-elevated),0 0 0 4px var(--color-brand-default)}
 }
