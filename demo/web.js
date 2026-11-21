@@ -10,7 +10,7 @@ window.IB_DEMO = true;
   var set = function (k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch (e) { return false; } };
   var MODES = { marketplace: 'Marketplace', single: 'Single store' };
   // a new build of the demo starts from its own data: changes a visitor saved on an older build are dropped (the model he picked stays)
-  var BUILD = '7580298d96', KEY_BUILD = 'ib.demo.build';
+  var BUILD = 'e04e82e1d5', KEY_BUILD = 'ib.demo.build';
   if (get(KEY_BUILD) !== BUILD) { set(KEY_LOG, null); set(KEY_BUILD, BUILD); }
   var mode = MODES[get(KEY_MODE)] ? get(KEY_MODE) : null;
   var log = []; try { log = JSON.parse(get(KEY_LOG) || '[]'); if (!Array.isArray(log)) log = []; } catch (e) { log = []; }

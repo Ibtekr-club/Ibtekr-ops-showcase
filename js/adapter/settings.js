@@ -522,10 +522,10 @@
     if (!ADDED_KINDS.includes(kind)) return (STATUS_KINDS[kind] || []).slice();
     const src = listSrc() || {}; const all = STATUS_KINDS[kind].concat(cleanAdded(src.statusAdded, kind));
     const ord = cleanOrder(src.statusOrder, kind, all); const list = ord.concat(all.filter((x) => !ord.includes(x)));
-    // single-seller mode: a product is never sent by a maker to the hub or back to a maker — those four are no choice
+    // single-seller mode: a product is never sent by a maker to the hub or back to a maker — those are no choice, and one «جاهز للشحن» is enough (the owner 21 Nov)
     return kind === 'sub' && single() ? list.filter((x) => !SINGLE_OFF_SUB.includes(x)) : list;
   }
-  const SINGLE_OFF_SUB = ['جاهز للشحن من المبتكر للمخزن', 'تم الشحن للمخزن', 'وصل المخزن', 'مرتجع للمبتكر'];
+  const SINGLE_OFF_SUB = ['جاهز للشحن من المخزن للعميل', 'جاهز للشحن من المبتكر للمخزن', 'تم الشحن للمخزن', 'وصل المخزن', 'مرتجع للمبتكر'];
   const cleanLabels = (v, src) => {
     const out = {}; if (!v || typeof v !== 'object' || Array.isArray(v)) return out;
     for (const kind of Object.keys(STATUS_KINDS)) {
