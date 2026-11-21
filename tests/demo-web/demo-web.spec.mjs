@@ -104,3 +104,48 @@ test('single store: Decoro without makers and nothing about makers on any page, 
   expect(await page.evaluate(() => window.IBSettings.single())).toBe(false);
   await expect(makersLink(page)).toBeVisible({ timeout: 20000 });
 });
+
+// the texts a page shows that still hold Arabic letters (the English demo reads back the Arabic the app wrote, so what is shown
+// is asked from the layer itself)
+const arabicShown = (page) => page.evaluate(() => {
+  const AR = /[\u0621-\u064A]/; const out = [];
+  const vis = (el) => { if (!el || el.closest('#demo-bar, .dm-lang, script, style, [hidden]')) return false; const r = el.getBoundingClientRect(); return r.width > 0 && getComputedStyle(el).visibility !== 'hidden'; };
+  const walk = (root) => { const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT); let n;
+    while ((n = tw.nextNode())) { if (n.nodeType === 1) { if (n.shadowRoot) walk(n.shadowRoot); continue; } const t = window.IBT.shown(n); if (t && AR.test(t) && vis(n.parentElement)) out.push(t.trim().slice(0, 80)); } };
+  walk(document.body); return out;
+});
+test('English: the switch under «الإعدادات» turns the demo to English, left to right, on every page of both models; back to Arabic as it was', async ({ page }) => {
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/');
+  await page.locator('[data-demo-mode="marketplace"]').click();
+  await inApp(page);
+  // Arabic first: the layer is not even loaded
+  expect(await page.evaluate(() => [document.documentElement.dir, typeof window.IBT, typeof window.IB_EN])).toEqual(['rtl', 'undefined', 'undefined']);
+  const sw = page.locator('.sidebar .dm-lang');
+  await expect(sw).toBeVisible();
+  expect(await page.evaluate(() => { const sb = document.querySelector('.sidebar'); return sb.lastElementChild.classList.contains('dm-lang') && sb.lastElementChild.previousElementSibling.dataset.page; })).toBe('settings'); // under «الإعدادات»
+  await sw.locator('[data-demo-lang="en"]').click();
+  await inApp(page);
+  expect(await page.evaluate(() => [document.documentElement.dir, document.documentElement.lang])).toEqual(['ltr', 'en']);
+  await expect(page.locator('.sidebar .nav-item[data-page="orders"]')).toHaveText('Orders');
+  await expect(page.locator('.sidebar .dm-lang [data-demo-lang="en"]')).toHaveAttribute('aria-pressed', 'true');
+  for (const mode of ['marketplace', 'single']) {
+    if (mode === 'single') { await page.locator('[data-demo-switch="single"]').click(); await inApp(page); await expect(page.locator('.sidebar .nav-item[data-page="orders"]')).toHaveText('Orders'); }
+    const pages = await page.$$eval('.sidebar .nav-item[data-page]', (ns) => ns.filter((n) => !n.hidden).map((n) => n.dataset.page));
+    for (const pg of pages) {
+      await page.locator(`.sidebar .nav-item[data-page="${pg}"]`).click(); await page.waitForTimeout(1500);
+      expect(await arabicShown(page), `${mode} › ${pg}`).toEqual([]);
+    }
+  }
+  // the app still works in its own words: an order's status is read back as the app wrote it, and a change is kept
+  await go(page, 'orders');
+  const st = page.locator('#orders select[data-st]').first(); await expect(st).toBeVisible({ timeout: 20000 });
+  expect(await st.evaluate((el) => /[\u0621-\u064A]/.test(el.value))).toBe(true);
+  expect(errors).toEqual([]);
+  // back to Arabic
+  await page.locator('.sidebar .dm-lang [data-demo-lang="ar"]').click();
+  await inApp(page);
+  expect(await page.evaluate(() => [document.documentElement.dir, typeof window.IBT])).toEqual(['rtl', 'undefined']);
+  await expect(page.locator('.sidebar .nav-item[data-page="orders"]')).toHaveText('الأوردرات');
+});
+

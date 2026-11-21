@@ -202,5 +202,12 @@
 "إمتى تقدروا تسلّموا المنتج؟": "When can you deliver the product?",
 "items بترتيب الفهرس: level 1 = قسم رئيسي، level 2 = تحت آخر level 1 قبله، level 3 تحت آخر level 2 قبله، وهكذا (لحد": "items in the index order: level 1 = main category, level 2 = under the last level 1 before it, level 3 under the last level 2 before it, and so on (up to",
 "1 = رئيسي، 2 = تحته، 3 = تحت الفرعي …": "1 = main, 2 = under it, 3 = under the sub-category …",
-"مفيش رصيد Dokan ده — الصافي من حركاتنا بس": "No Dokan balance — net from our transactions only"
+"مفيش رصيد Dokan ده — الصافي من حركاتنا بس": "No Dokan balance — net from our transactions only",
+"تحديث بيانات السيستم من Excel أو Google Sheets — اللي ليه نسخة على الموقع بيتبعت للموقع زي التعديل باليد": "Update system data from Excel or Google Sheets — anything that has a copy on the website is sent to the website like a manual edit",
+"اللي ليه نسخة على الموقع بيتبعت للموقع مع الحفظ — زي التعديل من الصفحة نفسها.": "Anything that has a copy on the website is sent to the website on save — like editing from the page itself.",
+"المصروفات والحسابات والتسويات": "Expenses, accounts and settlements",
+"القطع والحركات والجرد (الأماكن بتفضل)": "Pieces, movements and stock counts (locations stay)",
+"مرفقات الطلبات والمحادثات، صور الاستوديو والتسويق، مستندات الموظفين — اللوجو والخطوط وأوراق الشركة بيفضلوا": "Request and conversation attachments, studio and marketing images, employee documents — the logo, fonts and company papers stay",
+"بيفضلوا: حسابك إنت وحساب الأونر، الأدوار الثابتة وصلاحياتها، كل الإعدادات والقوائم والربط بالمنصات، والبراند واللوجو والخطوط وأوراق الشركة. لو الموقع لسه مربوط، المزامنة هترجّع أوردراته ومنتجاته — صفّر الموقع أو غيّر الربط من «الربط بالمنصات» الأول.": "What stays: your account and the owner’s account, the built-in roles and their permissions, all settings, lists and integrations, and the brand, logo, fonts and company papers. If the website is still connected, sync will bring back its orders and products — reset the website or change the connection from “Integrations” first.",
+"كل بيانات السيستم مرة واحدة — الأوردرات والمنتجات والحسابات والمخزن وخدمة العملاء والطلبات والتسويق وسجلات الموارد البشرية والسجلات، والملفات المرفوعة، وأعضاء الفريق والأدوار المضافة. نهائي ومالوش تراجع.": "All system data at once — orders, products, accounts, warehouse, customer service, requests, marketing, HR records and logs, uploaded files, team members and added roles. Permanent and cannot be undone."
 }

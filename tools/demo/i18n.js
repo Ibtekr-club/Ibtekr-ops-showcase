@@ -14,29 +14,40 @@
   var B2 = Object.create(null);
   Object.keys(DICT).forEach(function (k) { if (!k) return; var b = k.slice(0, 2); (B2[b] || (B2[b] = [])).push(k); });
   Object.keys(B2).forEach(function (b) { B2[b].sort(function (x, y) { return y.length - x.length; }); });
-  function longest(s, i) {
-    var list = B2[s.substr(i, 2)]; var one = s[i]; var k, j, n = s.length;
-    if (list) for (var x = 0; x < list.length; x++) { k = list[x]; if (!s.startsWith(k, i)) continue; j = i + k.length; if (j < n && isL(s[j]) && isL(k[k.length - 1])) continue; return k; }
-    if (DICT[one] !== undefined && !(i + 1 < n && isL(s[i + 1]) && isL(one))) return one;
-    return null;
+  var dangling = function (k) { var m = k.length; return m > 2 && k[m - 1] === 'و' && !isL(k[m - 2]); }; // a text that ends with «و» for the word the code joins to it
+  // every known text that stands at i (a text ends at a word's end)
+  function at(s, i) {
+    var list = B2[s.substr(i, 2)]; var out = [], n = s.length, k, j;
+    if (list) for (var x = 0; x < list.length; x++) { k = list[x]; if (!s.startsWith(k, i)) continue; j = i + k.length; if (j < n && isL(s[j]) && isL(k[k.length - 1]) && !dangling(k)) continue; out.push(k); }
+    if (DICT[s[i]] !== undefined && !(i + 1 < n && isL(s[i + 1]) && isL(s[i]))) out.push(s[i]);
+    return out;
   }
   var PUNCT = { '،': ',', '؛': ';', '؟': '?', '«': '“', '»': '”', '٪': '%' };
-  var LONE = { 'ص': 'AM', 'م': 'PM', 'د': 'min', 'ث': 's', 'س': 'h' }; // a letter standing alone after a time or a number
+  var UNIT = { 'ص': 'AM', 'م': 'PM', 'د': 'min', 'ث': 's', 'س': 'h' }; // a letter standing alone after a time or a number
+  var INITIAL = { 'ا': 'A', 'أ': 'A', 'إ': 'E', 'آ': 'A', 'ب': 'B', 'ت': 'T', 'ث': 'T', 'ج': 'G', 'ح': 'H', 'خ': 'K', 'د': 'D', 'ذ': 'Z', 'ر': 'R', 'ز': 'Z', 'س': 'S', 'ش': 'S', 'ص': 'S', 'ض': 'D', 'ط': 'T', 'ظ': 'Z', 'ع': 'A', 'غ': 'G', 'ف': 'F', 'ق': 'Q', 'ك': 'K', 'ل': 'L', 'م': 'M', 'ن': 'N', 'ه': 'H', 'و': 'W', 'ي': 'Y' }; // a person's initial
   var DIGITS = { '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9' };
+  // a text put together from known texts: the split that leaves the fewest Arabic letters untranslated (then the fewest parts) —
+  // the longest text first is not always it («قيد التنفيذ (» would take the bracket of the text after it)
   function pieces(s) {
-    var out = '', i = 0, n = s.length, c, k, j;
+    var n = s.length; var cost = new Array(n + 1), pick = new Array(n); cost[n] = 0; var i, c, k, j, opts, x, v;
+    for (i = n - 1; i >= 0; i--) {
+      c = s[i]; var start = i === 0 || !isL(s[i - 1]) || !isL(c) || (s[i - 1] === 'و' && (i < 2 || !isL(s[i - 2]))); // …or right after a joined «و»
+      cost[i] = cost[i + 1] + (isL(c) ? 1 : 0); pick[i] = null; // the letter as it is
+      if (!start || c === ' ') continue;
+      if (AR.test(c) || B2[s.substr(i, 2)]) {
+        opts = at(s, i);
+        for (x = 0; x < opts.length; x++) { k = opts[x]; if (!AR.test(c) && !AR.test(k)) continue; v = cost[i + k.length] + 0.001; if (v < cost[i]) { cost[i] = v; pick[i] = k; } }
+      }
+      if (c === 'و' && i + 2 < n) { opts = at(s, i + 1); for (x = 0; x < opts.length; x++) { k = opts[x]; if (k.length < 2) continue; v = cost[i + 1 + k.length] + 0.002; if (v < cost[i]) { cost[i] = v; pick[i] = '\u0000' + k; } } } // «و» joined to the next word
+    }
+    var out = ''; i = 0;
     while (i < n) {
-      c = s[i];
-      var start = i === 0 || !isL(s[i - 1]) || !isL(c);
-      // a known text may start with a sign or a Latin word (« · حصة…», «Enter بيبعت»): tried at every start, the longest first
-      k = start && (AR.test(c) || (c !== ' ' && B2[s.substr(i, 2)])) ? longest(s, i) : null;
-      if (k && (AR.test(c) || AR.test(k))) { out += DICT[k]; i += k.length; continue; }
-      if (PUNCT[c]) { out += PUNCT[c]; i++; continue; }
-      if (DIGITS[c]) { out += DIGITS[c]; i++; continue; }
-      if (!AR.test(c)) { out += c; i++; continue; }
-      if (start && LONE[c] && !isL(s[i + 1])) { out += LONE[c]; i++; continue; }
-      if (start && c === 'و' && i + 2 < n) { k = longest(s, i + 1); if (k && k.length > 1) { out += 'and ' + DICT[k]; i += 1 + k.length; continue; } } // «و» joined to the next word
-      j = i; while (j < n && isL(s[j])) j++; if (j === i) j = i + 1; out += s.slice(i, j); i = j; // a word the dictionary does not know yet: left as it is
+      c = s[i]; k = pick[i];
+      if (k) { if (k[0] === '\u0000') { k = k.slice(1); out += 'and ' + DICT[k]; i += 1 + k.length; } else { out += DICT[k]; i += k.length; if (dangling(k) && isL(s[i])) out += ' '; } continue; }
+      if (PUNCT[c]) out += PUNCT[c]; else if (DIGITS[c]) out += DIGITS[c];
+      else if (isL(c) && (i === 0 || !isL(s[i - 1])) && !isL(s[i + 1])) { j = i - 1; while (j >= 0 && s[j] === ' ') j--; out += UNIT[c] && j >= 0 && /[0-9٠-٩]/.test(s[j]) ? UNIT[c] : (INITIAL[c] || c); }
+      else out += c;
+      i++;
     }
     return out.replace(/ {2,}/g, ' ').replace(/ ,/g, ',');
   }
@@ -44,10 +55,20 @@
   function one(s) { // one run of text: known whole, else a pattern, else its parts
     if (DICT[s] !== undefined) return DICT[s];
     for (var i = 0; i < PATS.length; i++) { var m = PATS[i][0].exec(s); if (m) return PATS[i][1].replace(/\$(\d)/g, function (_, d) { return m[d] == null ? '' : tr(m[d]); }); }
-    var out = pieces(inline(s)); if (composed.size < 20000) composed.set(s, out); return out;
+    var out = polish(pieces(inline(s))); if (composed.size < 20000) composed.set(s, out); return out;
   }
   // «3 من 12» inside a longer text reads «3 of 12» (the same word is «from» elsewhere)
-  var inline = function (s) { return s.replace(/(\d[\d,.]*%?) من (\d[\d,.]*)(?![\d/])/g, '$1 of $2'); };
+  var AGO = { 'يوم': 'days', 'أيام': 'days', 'ساعة': 'hours', 'ساعات': 'hours', 'دقيقة': 'minutes', 'دقايق': 'minutes', 'شهر': 'months', 'شهور': 'months', 'أسبوع': 'weeks', 'أسابيع': 'weeks' };
+  var inline = function (s) {
+    return s.replace(/(\d[\d,.]*%?) من (\d[\d,.]*)(?![\d/])/g, '$1 of $2')
+      .replace(/(^|[\s(·—])(?:من|منذ) (\d+) (يوم|أيام|ساعة|ساعات|دقيقة|دقايق|شهر|شهور|أسبوع|أسابيع)(?![\u0621-\u064A])/g, function (_, p, n, u) { return p + n + ' ' + AGO[u] + ' ago'; }); // «من 3 أيام» = 3 days ago
+  };
+  // a number and its noun, put together from two texts: «1 orders» → «1 order», «8 Maker» → «8 makers»
+  var ONE_OF = { orders: 'order', 'sub-orders': 'sub-order', makers: 'maker', products: 'product', pieces: 'piece', items: 'item', days: 'day', hours: 'hour', minutes: 'minute', seconds: 'second', weeks: 'week', months: 'month', years: 'year', members: 'member', customers: 'customer', requests: 'request', rows: 'row', messages: 'message', conversations: 'conversation', campaigns: 'campaign', posts: 'post', ads: 'ad', trips: 'trip', categories: 'category', variations: 'variation', batches: 'batch', transactions: 'transaction', subscriptions: 'subscription', tasks: 'task', notifications: 'notification', templates: 'template', rules: 'rule', files: 'file', images: 'image', times: 'time', accounts: 'account', roles: 'role', channels: 'channel', segments: 'segment', brands: 'brand', movements: 'movement', returns: 'return', expenses: 'expense' };
+  var MANY_OF = {}; Object.keys(ONE_OF).forEach(function (k) { var o = ONE_OF[k]; MANY_OF[o.charAt(0).toUpperCase() + o.slice(1)] = k; MANY_OF[o] = k; });
+  var RE_ONE = new RegExp('(^|[^\\d.,:/])1 (' + Object.keys(ONE_OF).join('|') + ')\\b', 'g');
+  var RE_MANY = new RegExp('(^|[^\\d.,:/])(\\d[\\d,]*) (' + Object.keys(MANY_OF).join('|') + ')\\b(?!’|\\s+(?:number|status|date|#))', 'g');
+  var polish = function (t) { return t.replace(RE_ONE, function (_, p, w) { return p + '1 ' + ONE_OF[w]; }).replace(RE_MANY, function (m, p, n, w) { return n === '1' ? p + '1 ' + w.toLowerCase() : p + n + ' ' + MANY_OF[w]; }); };
   function core(s) { return DICT[s] !== undefined ? DICT[s] : one(s); }
   function tr(s) {
     if (typeof s !== 'string' || !AR.test(s)) return s;
@@ -190,6 +211,7 @@
     if (IS_ATTR[k]) { setAttr(this, k, v); return; }
     if (k === 'dir' && v === 'rtl') { sA.call(this, k, 'ltr'); return; }
     if (k === 'style' && /text-align|direction/.test(v)) { sA.call(this, k, inlineLtr(v)); return; }
+    if (k === 'value' && this.tagName === 'INPUT' && AR.test(v) && this.__ibField) { sA.call(this, k, v); this.__ibField(); return; } // a field's first value («إبتكر كلوب», a date): shown in English
     sA.call(this, name, value);
   };
   Element.prototype.getAttribute = function (name) {
@@ -237,6 +259,7 @@
     Object.defineProperty(proto, 'value', { configurable: true, enumerable: true,
       get: function () { var v = d.get.call(this); var o = fieldO.get(this); return o && o.e === v ? o.a : v; },
       set: function (v) { var s = v == null ? '' : String(v); if (AR.test(s) && isText(this) && !off(this)) { var e = tr(s); fieldO.set(this, { a: s, e: e }); d.set.call(this, e); } else { fieldO.delete(this); d.set.call(this, s); } } });
+    proto.__ibShown = function () { return d.get.call(this); };
     proto.__ibField = function () { if (!isText(this) || off(this)) return; var v = d.get.call(this); if (!AR.test(v)) return; var o = fieldO.get(this); if (o && o.e === v) return; var e = tr(v); fieldO.set(this, { a: v, e: e }); d.set.call(this, e); if (this.tagName === 'INPUT' && gA.call(this, 'value') === v) sA.call(this, 'value', e); };
   });
 
@@ -254,5 +277,5 @@
   document.addEventListener('load', function (e) { var t = e.target; if (t && t.tagName === 'LINK' && t.sheet) mirrorSheet(t.sheet); }, true); // a stylesheet loaded later
 
   // for the demo's own scripts (web.js, boot.js) and the checks: translate a text, read what the page shows
-  window.IBT = tr; window.IBT.composed = composed; window.IBT.shown = function (n) { return n.nodeType === 3 ? dData.get.call(n) : dText.get.call(n); };
+  window.IBT = tr; window.IBT.composed = composed; window.IBT.field = function (el) { return el.__ibShown ? el.__ibShown() : el.value; }; window.IBT.shown = function (n) { return n.nodeType === 3 ? dData.get.call(n) : dText.get.call(n); };
 })();
