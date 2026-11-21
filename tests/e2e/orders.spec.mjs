@@ -1,0 +1,1516 @@
+import { test, expect } from '@playwright/test';
+import { installSupabaseMock, LIVE, DEV_PW, XSS_NAME, IMG, SITE } from './supabase-mock.mjs';
+// The orders page (block 29) on the orders of the last 12 months (phase 2 Task 6): hydrated from IBOrders, every edit written
+// through IBOrdersStore (a refused write puts the old value back), site strings rendered as text, no prototype seed left.
+// Mock only: the cases assert the mock's seed (3 orders of the last days + one older than 12 months) and the writes it
+// recorded (mock.patches / mock.pushes / mock.syncs); E2E_SUPABASE_LIVE=1 skips them.
+const ADMIN = 'admin.dev@ibtekr.local'; const OPS = 'ops.dev@ibtekr.local'; const ACCOUNTS = 'accounts.dev@ibtekr.local'; // accounts: orders.status N, sensitive.customer_phone N
+const EVIL = '"><img src=x onerror="window.__xss=1">'; // breaks out of an attribute or a tag when not escaped
+let mock = null; let pageErrors = [];
+test.beforeEach(async ({ page }) => {
+  test.skip(LIVE, 'asserts on the mocked Supabase (its seed and the writes it recorded)');
+  pageErrors = []; page.on('pageerror', (e) => pageErrors.push(e.message));
+  mock = await installSupabaseMock(page);
+});
+test.afterEach(() => {
+  if (LIVE) return;
+  expect(pageErrors).toEqual([]);
+  expect(mock.unhandled).toEqual([]);
+});
+
+// the sign-in waits for the orders load (IBDirectory.load): `timeout` when that load is made to fail
+async function signIn(page, email, { timeout } = {}) {
+  await page.goto('/');
+  await expect(page.locator('#login')).toBeVisible();
+  await page.fill('#lg-id', email);
+  await page.fill('#lg-pw', DEV_PW);
+  await page.getByRole('button', { name: 'دخول', exact: true }).click();
+  await expect(page.locator('#root')).toBeVisible({ timeout });
+}
+// signed in, on #orders, the three mock orders drawn
+async function openOrders(page, email = ADMIN) {
+  await signIn(page, email);
+  await page.evaluate(() => { location.hash = 'orders'; });
+  await expect(page.locator('#orders')).toBeVisible();
+  await expect(cards(page)).toHaveCount(3);
+  await openFirst(page);
+}
+const cards = (page) => page.locator('#orders #list .card');
+// decision 48: every order starts closed — the tests open the first two the way a member does (the fold button)
+async function openFirst(page, n = 2) {
+  for (let i = 0; i < n; i++) { const b = cards(page).nth(i).locator('[data-tg]').first(); if ((await b.getAttribute('aria-label')) === 'فتح') await b.click(); await expect(cards(page).nth(i).locator('[data-tg]').first()).toHaveAttribute('aria-label', 'طي'); }
+}
+const card = (page, id) => page.locator(`#orders .card[data-o="${id}"]`);
+// A viewport change makes the block redraw the list once its mode changes (desktop / tablet <= 1023 / mobile <= 767) — on the
+// resize event, after setViewportSize resolves — so a locator read right after can hit a card about to be replaced (CI run 146:
+// every computed style empty = a detached element). Wait for a card of the new mode before reading anything in it.
+const atWidth = async (page, width, height = 900) => {
+  await page.setViewportSize({ width, height });
+  const want = width <= 767 ? 'm' : width <= 1023 ? 't' : 'd';
+  await expect(async () => {
+    expect(await card(page, '181668').evaluate((e) => (e.classList.contains('m') ? 'm' : e.classList.contains('t') ? 't' : 'd'))).toBe(want);
+  }).toPass({ timeout: 5000 });
+};
+const toast = (page) => page.locator('#orders #toast');
+// nothing a site string carried ran or became an element (the shadow root and the light DOM)
+const inert = async (page) => {
+  expect(await page.evaluate(() => document.querySelectorAll('img[src="x"]').length + document.getElementById('orders').shadowRoot.querySelectorAll('img[src="x"]').length)).toBe(0);
+  expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+};
+
+test('the orders page lists real orders and no seed', async ({ page }) => {
+  await openOrders(page);
+  await expect(page.locator('#orders #cn')).toHaveText('3');
+  await expect(card(page, '181668')).toContainText('ليلى منصوري'); // the newest two open, as before
+  await expect(card(page, '181668').locator('.band')).toContainText('0100 900 7052');
+  await expect(card(page, '181668').locator('.band a.wa')).toHaveAttribute('href', 'https://wa.me/201009007052');
+  await expect(card(page, '181668').locator('.band')).toContainText('الدفع عند الاستلام'); // the site's payment title
+  await expect(card(page, '181668').locator('.note.web')).toContainText('اتصلوا قبل التوصيل'); // orders.customer_note
+  await expect(card(page, '180686').locator('.note.web')).toContainText('مفيش ملاحظة من العميل');
+  await expect(page.locator('#orders .oroot')).not.toContainText('Customer 48');
+  await expect(page.locator('#orders .oroot')).not.toContainText('IB-150001'); // older than 12 months: never asked
+  await expect(page.locator('#orders .ph')).not.toContainText('Airtable');
+  expect(await page.evaluate(() => [window.OrdersApp.get('180492'), window.OrdersApp.query({}, 10).total, window.OrdersApp.vendors()])).toEqual([null, 3, ['Anticora', 'Artisan Loft']]);
+  // the removed line of 180686 is not shown: one sub-order, 2 × Cushion
+  await expect(card(page, '180686').locator('.so .row:not(.h)')).toHaveCount(1);
+  await expect(card(page, '180686')).not.toContainText('Cushion Cover');
+});
+
+test('an html customer name renders inert', async ({ page }) => {
+  await openOrders(page);
+  await card(page, '180656').locator('[data-tg="180656"]').click();
+  await expect(card(page, '180656').locator('.band')).toContainText(XSS_NAME);
+  await page.evaluate(() => window.OrdersApp.setQuery('<img')); // 5.5 decision 10: the in-page field is hidden; the top bar's Enter sets the query
+  await expect(cards(page)).toHaveCount(1);
+  await expect(page.locator('#orders #oq')).toHaveValue('<img');
+  await page.evaluate(() => window.OrdersApp.details('180656'));
+  await expect(page.locator('#orders #ddt')).toContainText(XSS_NAME);
+  await inert(page);
+});
+
+test('every site string renders as text: cards (desktop, tablet, mobile), filters and dialogs', async ({ page }) => {
+  await openOrders(page);
+  await page.evaluate((evil) => {
+    const d = window.IBOrders.data(); const o = d.orders.find((x) => x.id === '181668');
+    Object.assign(o, { name: evil, phone: evil, pay: evil, note: evil, cnote: evil, state: evil, stateName: evil, city: evil, addr: evil, st: evil, cf: evil });
+    Object.assign(o.subs[0], { prod: evil, sku: evil, vendor: evil, cm: evil, ss: evil, exp: evil, link: 'https://x.test/' + evil });
+    o.subs[1].link = 'javascript:alert(1)';
+    d.vendors = d.vendors.concat(evil); d.images = Object.assign({}, d.images, { [evil]: 'javascript:alert(1)' });
+    window.OrdersApp.hydrate(d);
+  }, EVIL);
+  await expect(card(page, '181668')).toContainText(EVIL);
+  await expect(page.locator('#orders #fv option', { hasText: EVIL })).toHaveCount(1);
+  await expect(card(page, '181668').locator('a.plink')).toHaveCount(2); // the first line only: javascript: is no link
+  for (const a of await card(page, '181668').locator('a.plink').all()) await expect(a).toHaveAttribute('href', 'https://x.test/' + EVIL);
+  await inert(page);
+  for (const width of [800, 375]) { // tablet, mobile templates
+    await atWidth(page, width);
+    await expect(card(page, '181668')).toContainText(EVIL);
+    await inert(page);
+  }
+  await atWidth(page, 1280, 720);
+  await page.evaluate(() => window.OrdersApp.edit('181668'));
+  await expect(page.locator('#orders #cdlg [data-f="name"]')).toHaveValue(EVIL);
+  await expect(page.locator('#orders #cdlg')).toContainText(EVIL); // the customer's note
+  await expect(page.locator('#orders #cdlg .fd', { hasText: 'المحافظة' }).locator('.ro')).toHaveText(EVIL); // the governorate
+  await inert(page);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.OrdersApp.editSub(5001));
+  await expect(page.locator('#orders #cdlg [data-f="cm"]')).toHaveValue(EVIL);
+  await inert(page);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.OrdersApp.details('181668', 'subs'));
+  await expect(page.locator('#orders #ddt')).toContainText(EVIL);
+  await inert(page);
+});
+
+test('a status change writes the order and pushes it to the site', async ({ page }) => {
+  await openOrders(page);
+  await page.locator('#orders select[data-st="180656"]').selectOption('جاري التنفيذ');
+  await expect.poll(() => mock.pushes.length).toBe(1);
+  expect(mock.patches).toEqual([{ table: 'orders', id: 180656, status: 'جاري التنفيذ' }]);
+  expect(mock.pushes).toEqual([{ action: 'push_status', order_id: 180656, status: 'جاري التنفيذ', result: 'ok' }]);
+  expect(mock.orders.find((o) => o.id === 180656).woo_status).toBe('processing');
+  await expect(card(page, '180656').locator('.sdd')).toContainText('جاري التنفيذ');
+});
+
+// the owner 11 Nov («زي الـ automation»): Dokan recreates the sub-orders of a parent edited through the API (new numbers), so an order of
+// several makers gets the status on each of its sub-orders and the parent on the site is left as it is; the site status follows at once
+// (the owner 14 Nov: shown in the sub-order's ⋮ popup — the column is gone)
+test('a status change on an order with sub-orders goes to each sub-order, never the parent; the site status follows', async ({ page }) => {
+  await openOrders(page);
+  const c = card(page, '181668');
+  await c.locator('select[data-st="181668"]').selectOption('جاهز للشحن');
+  await expect.poll(() => mock.pushes.length).toBe(1);
+  expect(mock.patches).toEqual([{ table: 'orders', id: 181668, status: 'جاهز للشحن' }]);
+  expect(mock.pushes).toEqual([{ action: 'push_status', order_id: 181668, status: 'جاهز للشحن', result: 'ok', subs: [181669, 181670] }]);
+  expect(mock.orders.find((o) => o.id === 181668).woo_status).toBe('processing'); // the site's parent untouched
+  expect(mock.subOrders.map((s) => [s.woo_order_id, s.woo_status])).toEqual([[181669, 'ready-shipping'], [181670, 'ready-shipping']]);
+  for (const n of [5001, 5002]) {
+    await c.locator('[data-more="s:' + n + '"]').click();
+    await page.locator('#orders #mpop [data-ma="sitest"]').click();
+    await expect(page.locator('#orders #cdlg [data-site-now]')).toHaveText('جاهز للشحن');
+    await page.locator('#orders #cdlg .cf [data-cc]').click();
+  }
+});
+
+test('«فشل» replaces «تم RTC»: a chip and an option styled like «ملغي», saved here but never pushed to the site (from_woo)', async ({ page }) => {
+  await openOrders(page);
+  await expect(page.locator('#orders [data-sc="فشل"]')).toHaveCount(1);
+  await expect(page.locator('#orders [data-sc="تم RTC"]')).toHaveCount(0);
+  await expect(page.locator('#orders .oroot')).not.toContainText('RTC');
+  const sel = page.locator('#orders select[data-st="181668"]');
+  expect(await sel.locator('option').allTextContents()).toEqual(['قيد الانتظار', 'جاري التنفيذ', 'معلّق', 'جاهز للشحن', 'قيد الشحن', 'مكتمل', 'استرجاع', 'ملغي', 'فشل']); // status_map's order (owner batch 2 decision 22: the settings reorder it)
+  await sel.selectOption('فشل');
+  await expect.poll(() => mock.pushes.length).toBe(1);
+  expect(mock.patches).toEqual([{ table: 'orders', id: 181668, status: 'فشل' }]);
+  expect(mock.pushes[0]).toEqual({ action: 'push_status', order_id: 181668, status: 'فشل', result: 'skipped', reason: 'no_woo_status' });
+  expect(mock.orders.find((o) => o.id === 181668).woo_status).toBe('processing'); // the site never learns «فشل» from us
+  const dd = card(page, '181668').locator('label.sdd', { has: page.locator('select[data-st="181668"]') });
+  await expect(dd).toHaveClass(/\bs-err\b/); // the tone and the icon of «ملغي»
+  await expect(dd.locator('.l svg path[d="m9 9 6 6m0-6-6 6"]')).toHaveCount(1);
+  await expect(page.locator('#orders [data-sc="فشل"] i')).toHaveText('1');
+});
+
+test('a status whose map row has no outgoing slug (a from_system row without a slug, 0007\'s old «تم RTC» shape; none today) is saved but not pushed', async ({ page }) => {
+  mock.statusMap.find((r) => r.system_status === 'مكتمل').direction = 'from_system'; mock.statusMap.find((r) => r.system_status === 'مكتمل').woo_status = null;
+  await openOrders(page);
+  await page.locator('#orders select[data-st="181668"]').selectOption('مكتمل');
+  const rate = page.getByRole('dialog', { name: /قيّم العميل — IB-181668/ }); // «مكتمل» asks for the rating first (phase 3.6)
+  await rate.locator('#rt-sat [data-star="4"]').click(); await rate.locator('#rt-manners [data-star="4"]').click();
+  await rate.getByRole('button', { name: 'احفظ التقييم وقفّل الأوردر' }).click();
+  await expect.poll(() => mock.pushes.length).toBe(1);
+  expect(mock.patches).toEqual([{ table: 'orders', id: 181668, status: 'مكتمل' }]);
+  expect(mock.pushes[0]).toEqual({ action: 'push_status', order_id: 181668, status: 'مكتمل', result: 'skipped', reason: 'no_woo_status' });
+  expect(mock.orders.find((o) => o.id === 181668).woo_status).toBe('processing');
+  await expect(toast(page)).toBeHidden(); // skipped: nothing to tell
+});
+
+test('a status saved while WooCommerce is unreachable says so and stays', async ({ page }) => {
+  await openOrders(page);
+  mock.wooDown = true; // woo-sync answers 502: the adapter resolves { ok: true, push: 'error' }
+  await page.locator('#orders select[data-st="180656"]').selectOption('جاري التنفيذ');
+  await expect(toast(page)).toHaveText('اتحفظت هنا، بس ماوصلتش لـ WooCommerce — المزامنة هتحاول تاني');
+  expect(mock.patches).toEqual([{ table: 'orders', id: 180656, status: 'جاري التنفيذ' }]);
+  expect(mock.pushes).toEqual([]);
+  await expect(page.locator('#orders select[data-st="180656"]')).toHaveValue('جاري التنفيذ');
+  expect(await page.evaluate(() => window.OrdersApp.get('180656').st)).toBe('جاري التنفيذ');
+});
+
+test('a forbidden status change reverts', async ({ page }) => {
+  await openOrders(page, ACCOUNTS);
+  const sel = page.locator('#orders select[data-st="180656"]');
+  await sel.selectOption('جاري التنفيذ');
+  await expect(toast(page)).toHaveText('مش من صلاحياتك');
+  await expect(sel).toHaveValue('معلّق');
+  await expect(card(page, '180656').locator('.sdd')).toContainText('معلّق');
+  expect(await page.evaluate(() => window.OrdersApp.get('180656').st)).toBe('معلّق');
+  expect(mock.patches).toEqual([]);
+  expect(mock.pushes).toEqual([]);
+});
+
+test('masked phone for a role without sensitive.customer_phone', async ({ page }) => {
+  await openOrders(page, ACCOUNTS);
+  const band = card(page, '181668').locator('.band');
+  await expect(band).toContainText('010••••7052');
+  await expect(band).not.toContainText('01009007052');
+  await expect(band.locator('a.wa')).toHaveCount(0); // no WhatsApp link to a masked number
+});
+
+test('a sub-order status is written to its line only, never pushed', async ({ page }) => {
+  await openOrders(page);
+  await page.locator('#orders select[data-ss="5001"]').selectOption('مؤكد');
+  await expect.poll(() => mock.patches.length).toBe(1);
+  expect(mock.patches).toEqual([{ table: 'order_items', id: 5001, status: 'مؤكد' }]);
+  expect(mock.pushes).toEqual([]);
+  expect(mock.requests.filter((r) => r.includes('/functions/'))).toEqual([]);
+  await expect(card(page, '181668').locator('.row', { has: page.locator('[data-ss="5001"]') }).locator('.c4 .sdd')).toContainText('مؤكد');
+});
+
+test('the product image comes from products', async ({ page }) => {
+  await openOrders(page);
+  const row = (n) => page.locator('#orders .row', { has: page.locator(`[data-ss="${n}"]`) });
+  await expect(row(5001).locator('.th img')).toHaveAttribute('src', IMG.cushion);
+  await expect(row(5002).locator('.th img')).toHaveAttribute('src', IMG.curtain);
+  await card(page, '180656').locator('[data-tg="180656"]').click();
+  await expect(row(5005).locator('.th img')).toHaveCount(0); // Macrame Feathers: no image_url → the box icon
+  await expect(row(5005).locator('.th svg')).toHaveCount(1);
+  expect(await page.evaluate(() => [window.OrdersApp.thumb('IBTA4040PAHC000013'), window.OrdersApp.thumb('IBTB0CSW6RFTM')])).toEqual([IMG.cushion, '']);
+  // only https and data:image URLs are used (CSP img-src: https / data)
+  for (const bad of ['javascript:alert(1)', 'http://example.com/a.jpg']) {
+    await page.evaluate((u) => { const d = window.IBOrders.data(); d.images = Object.assign({}, d.images, { IBTA4040PAHC000013: u }); window.OrdersApp.hydrate(d); }, bad);
+    await expect(row(5001).locator('.th img')).toHaveCount(0);
+    expect(await page.evaluate(() => window.OrdersApp.thumb('IBTA4040PAHC000013'))).toBe('');
+  }
+});
+
+// the address row and the band / customer data above it, by their boxes: the row starts at or below their bottom
+const below = async (upper, lower) => { const a = await upper.boundingBox(); const b = await lower.boundingBox(); expect(b.y).toBeGreaterThanOrEqual(a.y + a.height - 1); };
+test('the address has its own row under the customer data: governorate · city · address, the code without a name, «—» without any (desktop, tablet, mobile)', async ({ page }) => {
+  await openOrders(page);
+  await card(page, '180656').locator('[data-tg="180656"]').click();
+  const row = (id) => card(page, id).locator('.arow');
+  const addr = (id) => row(id).locator(':scope > b'); // the tracking number (0140) has a <b> of its own
+  await expect(card(page, '181668').locator('.band')).not.toContainText('العنوان'); // out of the band
+  await expect(row('181668').locator(':scope > small')).toHaveText('العنوان:');
+  await expect(addr('181668')).toHaveText('القاهرة · مدينة نصر · شارع عباس العقاد'); // EG-01 → its name in woo_states
+  await expect(addr('180656')).toHaveText('EG-14 · ش التحرير'); // a code the website's list has no name for: the code
+  await expect(addr('180686')).toHaveText('—'); // no governorate, city or address
+  await expect(row('181668').locator('input, textarea, select, button, a')).toHaveCount(0); // read-only
+  expect(await card(page, '181668').locator('.band').evaluate((b) => b.nextElementSibling && b.nextElementSibling.className)).toBe('arow');
+  await below(card(page, '181668').locator('.band'), row('181668'));
+  expect(await row('181668').evaluate((e) => getComputedStyle(e.querySelector(':scope > b')).overflowWrap)).toBe('anywhere');
+  await page.evaluate(() => { const d = window.IBOrders.data(); Object.assign(d.orders.find((x) => x.id === '181668'), { city: 'القاهرة' }); Object.assign(d.orders.find((x) => x.id === '180686'), { city: ' ', addr: 'الدقي' }); window.OrdersApp.hydrate(d); });
+  await expect(addr('181668')).toHaveText('القاهرة · شارع عباس العقاد'); // a part that repeats the governorate shows once
+  await expect(addr('180686')).toHaveText('الدقي'); // an empty part is skipped
+  for (const width of [800, 375]) { // tablet, mobile: a row of its own under the customer section's fields
+    await atWidth(page, width);
+    const sec = card(page, '181668').locator('.sec.cust');
+    await expect(sec.locator('.crow')).not.toContainText('العنوان');
+    await expect(sec.locator('.inf2.adr > small')).toHaveText('العنوان');
+    await expect(sec.locator('.inf2.adr > b')).toHaveText('القاهرة · شارع عباس العقاد');
+    await expect(card(page, '180686').locator('.sec.cust .inf2.adr > b')).toHaveText('الدقي');
+    await expect(card(page, '180656').locator('.sec.cust .inf2.adr > b')).toHaveText('EG-14 · ش التحرير');
+    expect(await sec.locator('.crow').evaluate((c) => c.nextElementSibling && c.nextElementSibling.className)).toBe('inf2 adr');
+    await below(sec.locator('.crow'), sec.locator('.inf2.adr'));
+  }
+  await page.evaluate(() => { const d = window.IBOrders.data(); Object.assign(d.orders.find((x) => x.id === '180686'), { addr: '' }); window.OrdersApp.hydrate(d); });
+  await expect(card(page, '180686').locator('.sec.cust .inf2.adr > b')).toHaveText('—');
+});
+
+// the website note's text block (.wn) of a card or the popup: its text as is, its box and how it scrolls
+const noteBox = (loc) => loc.evaluate((e) => { const c = getComputedStyle(e); return { text: e.textContent, ws: c.whiteSpace, wrap: c.overflowWrap, oy: c.overflowY, ob: c.overscrollBehaviorY, max: c.maxHeight, lh: c.lineHeight, h: e.clientHeight, sh: e.scrollHeight }; });
+const NOTE3 = 'اتصلوا قبل التوصيل\nالدور التالت\nالشقة 12'; // the mock's 181668
+const NOTE5 = 'من فضلكم اتصلوا قبل التوصيل بساعة\nالعمارة اللي جنب الصيدلية\nالدور التالت\nالشقة 12 على الشمال\nماتسيبوش الطرد مع البواب';
+test('the website note reads in full: its own lines, 3 shown, a longer one scrolls inside (desktop, tablet, mobile, popup)', async ({ page }) => {
+  await openOrders(page);
+  const wn = (id) => card(page, id).locator('.note.web .wn');
+  const css = { ws: 'pre-wrap', wrap: 'anywhere', oy: 'auto', ob: 'auto', max: '64px', lh: '20px' }; // max-height = 3 lines of 20px + 4px for the last line's descenders; ob: a wheel or a swipe past the note's end goes on to the page (no overscroll-behavior:contain)
+  let b = await noteBox(wn('181668'));
+  expect(b).toMatchObject({ text: NOTE3, ...css }); // the lines as written, no « · »
+  expect(b.sh).toBeLessThanOrEqual(b.h); // 3 lines: all shown, nothing to scroll
+  expect(b.h).toBe(64);
+  await expect(card(page, '181668').locator('.note.web .nh b')).toHaveText('ملاحظة العميل من الموقع');
+  await expect(card(page, '181668').locator('.note.web').locator('input, textarea, select, button')).toHaveCount(0); // read-only
+  await page.evaluate(() => window.OrdersApp.details('181668'));
+  b = await noteBox(page.locator('#orders #cdlg .wn'));
+  expect(b).toMatchObject({ text: NOTE3, ...css });
+  expect(b.sh).toBeLessThanOrEqual(b.h); // the popup too: 3 lines, no scroll
+  await page.keyboard.press('Escape');
+  await page.evaluate(([n5]) => { const d = window.IBOrders.data(); d.orders.find((x) => x.id === '181668').cnote = n5; d.orders.find((x) => x.id === '180686').cnote = 'سطر واحد طويل من غير سطور جديدة '.repeat(20); window.OrdersApp.hydrate(d); }, [NOTE5]);
+  for (const width of [1400, 800, 375]) {
+    await atWidth(page, width);
+    for (const id of ['181668', '180686']) { // five lines; one long line that wraps
+      b = await noteBox(wn(id));
+      expect(b).toMatchObject(css);
+      expect(b.h).toBe(64); // 3 lines shown
+      expect(b.sh).toBeGreaterThan(b.h); // the rest scrolls
+    }
+    expect((await noteBox(wn('181668'))).text).toBe(NOTE5);
+    const end = await wn('181668').evaluate((e) => { e.scrollTop = e.scrollHeight; return e.scrollTop; });
+    expect(end).toBeGreaterThan(0);
+  }
+  // mobile: the note is shown, not an accordion line cut with «…»
+  await expect(card(page, '181668').locator('summary', { hasText: 'ملاحظة العميل من الموقع' })).toHaveCount(0);
+  await expect(wn('181668')).toBeVisible();
+  await expect(card(page, '181668').locator('summary', { hasText: 'تعليق خدمة العملاء' })).toHaveCount(1); // the team's comment keeps its accordion
+  await atWidth(page, 1280);
+  await page.evaluate(() => window.OrdersApp.details('181668'));
+  b = await noteBox(page.locator('#orders #cdlg .wn'));
+  expect(b).toMatchObject({ text: NOTE5, ...css });
+  expect(b.sh).toBeGreaterThan(b.h);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.OrdersApp.details('180686'));
+  await expect(page.locator('#orders #cdlg .wn')).toHaveText(/^سطر واحد طويل/);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => { const d = window.IBOrders.data(); d.orders.find((x) => x.id === '180686').cnote = '  \n '; window.OrdersApp.hydrate(d); });
+  await expect(wn('180686')).toHaveText('مفيش ملاحظة من العميل'); // blank: no note
+});
+
+test('the details popup shows the governorate read-only next to the area (the city): its name, else its code, else «—»', async ({ page }) => {
+  await openOrders(page);
+  const dlg = page.locator('#orders #cdlg');
+  const fd = (label) => dlg.locator('.fd', { has: page.locator('label', { hasText: new RegExp('^' + label + '$') }) });
+  for (const [id, state, city] of [['181668', 'القاهرة', 'مدينة نصر'], ['180656', 'EG-14', '—'], ['180686', '—', '—']]) {
+    await page.evaluate((x) => window.OrdersApp.details(x), id);
+    await expect(fd('المحافظة').locator('.ro')).toHaveText(state);
+    await expect(fd('المنطقة').locator('.ro')).toHaveText(city); // 0146: «المنطقة» — Bosta's area once «تعديل العنوان» set it
+    await expect(fd('المحافظة').locator('input, select, textarea')).toHaveCount(0); // no edit: the code comes from the website's list
+    expect(await fd('المحافظة').evaluate((e) => e.nextElementSibling && e.nextElementSibling.textContent)).toContain('المنطقة'); // side by side
+    await page.keyboard.press('Escape');
+    await expect(dlg).toHaveCount(0);
+  }
+  await page.evaluate(() => window.OrdersApp.edit('181668')); // the edit popup has the same section
+  await expect(fd('المحافظة').locator('.ro')).toHaveText('القاهرة');
+  await page.keyboard.press('Escape');
+  expect(mock.patches).toEqual([]);
+});
+
+test('the product image and name open the product on the website: its permalink, else <origin>/?p=<product_id>, else no link', async ({ page }) => {
+  // two lines the products table does not know: one with a WooCommerce product id, one with neither (a custom piece)
+  const extra = (o) => ({ sub_order_id: null, qty: 1, total: 0, vendor_id: 'a0000000-0000-4000-8000-000000000002', status: '', removed: false, pulled: false, ...o });
+  mock.orderItems.push(extra({ id: 5007, order_id: 180656, product_id: 9100, sku: 'IBT-GONE-1', name: 'Gone Lamp' }), extra({ id: 5008, order_id: 180656, product_id: null, sku: null, name: 'Custom piece' }));
+  const opened = []; // the website, never reached: each product page opened answers here
+  await page.context().route((url) => url.origin === SITE, (route) => { opened.push(route.request().url()); return route.fulfill({ status: 200, contentType: 'text/html', body: '<title>product</title>' }); });
+  await openOrders(page);
+  await card(page, '180656').locator('[data-tg="180656"]').click();
+  const row = (n) => page.locator('#orders .row', { has: page.locator(`[data-ss="${n}"]`) });
+  const links = (n) => row(n).locator('a.plink');
+  const hrefs = async (n) => { const l = await links(n).all(); return Promise.all(l.map((a) => a.getAttribute('href'))); };
+  expect(await hrefs(5001)).toEqual([SITE + '/product/cushion/', SITE + '/product/cushion/']); // the thumbnail, then the name
+  expect(await hrefs(5005)).toEqual([SITE + '/product/macrame-feathers/', SITE + '/product/macrame-feathers/']);
+  expect(await hrefs(5007)).toEqual([SITE + '/?p=9100', SITE + '/?p=9100']); // no products row: the site's ?p=
+  expect(await hrefs(5008)).toEqual([]); // neither: the markup as before
+  await expect(row(5008).locator('.prod > .th')).toHaveCount(1);
+  await expect(row(5008).locator('.pt b')).toHaveText('Custom piece × 1');
+  for (const a of await links(5001).all()) { await expect(a).toHaveAttribute('target', '_blank'); await expect(a).toHaveAttribute('rel', 'noopener noreferrer'); }
+  await expect(links(5001).first().locator('.th img')).toHaveAttribute('src', IMG.cushion);
+  await expect(links(5001).first()).toHaveAttribute('tabindex', '-1'); // the name's link is the one the keyboard gets
+  await expect(links(5001).nth(1)).toHaveText('Cushion');
+  // a click opens the product in a new tab and is no card control: the card stays open, nothing written
+  const [tab] = await Promise.all([page.context().waitForEvent('page'), links(5007).nth(1).click()]);
+  await tab.waitForLoadState();
+  expect(tab.url()).toBe(SITE + '/?p=9100');
+  await tab.close();
+  const [tab2] = await Promise.all([page.context().waitForEvent('page'), links(5001).first().click()]);
+  await tab2.waitForLoadState();
+  await tab2.close();
+  expect(opened).toEqual([SITE + '/?p=9100', SITE + '/product/cushion/']);
+  await expect(page.locator('#orders [data-tg="180656"]')).toHaveAttribute('aria-label', 'طي');
+  expect(mock.patches).toEqual([]);
+  await card(page, '180656').locator('[data-tg="180656"]').click(); // the fold still works
+  await expect(row(5007)).toHaveCount(0);
+  // the details popup shows the same links; Shift+Tab from one moves back, not to the dialog's end
+  await page.evaluate(() => window.OrdersApp.details('180656', 'subs'));
+  const name = page.locator('#orders #cdlg .row', { has: page.locator('[data-ss="5005"]') }).locator('a.plink').nth(1);
+  await expect(name).toHaveAttribute('href', SITE + '/product/macrame-feathers/');
+  await name.focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.locator('#orders #cdlg [data-dtab="subs"]')).toBeFocused();
+});
+
+test('confirmation, deposit and note are written through; a network failure puts the old value back', async ({ page }) => {
+  await openOrders(page);
+  const today = await page.evaluate(() => window.IBOrders.today());
+  await page.locator('#orders select[data-cf="181668"]').selectOption('مؤكد بعربون');
+  // the order (stamped with today's real date: its confirmation date was empty) and its unconfirmed line (auto-confirmed)
+  await expect.poll(() => mock.patches.length).toBe(2);
+  expect(mock.patches).toContainEqual({ table: 'orders', id: 181668, confirm: 'مؤكد بعربون', confirm_at: today });
+  expect(mock.patches).toContainEqual({ table: 'order_items', id: 5001, status: 'مؤكد' });
+  expect(await page.evaluate(() => window.OrdersApp.get('181668').cdate)).toBe(today); // «تاريخ التأكيد» shows at once
+  await expect(page.locator('#orders input[data-fi="cd:181668"]')).not.toHaveValue('');
+  // 0103 (the owner 15 Nov): the confirmation date fills «تاريخ تبليغ المبتكر» of the lines without one — the server's trigger, the
+  // order read again so the page shows it at once (no extra write from the page)
+  await expect.poll(() => page.evaluate(() => window.OrdersApp.get('181668').subs.map((s) => s.exp))).toEqual([today, today]);
+  const dep = page.locator('#orders input[data-dep="181668"]');
+  await dep.fill('500'); await dep.press('Tab');
+  await expect.poll(() => mock.patches.length).toBe(3);
+  expect(mock.patches[2]).toEqual({ table: 'orders', id: 181668, deposit: 500 });
+  await page.locator('#orders input[data-dep="181668"]').fill(''); await page.locator('#orders input[data-dep="181668"]').press('Tab'); // cleared → 0
+  await expect.poll(() => mock.patches.length).toBe(4);
+  expect(mock.patches[3]).toEqual({ table: 'orders', id: 181668, deposit: 0 });
+  const note = page.locator('#orders textarea[data-ne="181668"]');
+  await note.fill('اتصلوا بعد الضهر');
+  await page.locator('#orders [data-ns="181668"]').click();
+  await expect.poll(() => mock.patches.length).toBe(5);
+  expect(mock.patches[4]).toEqual({ table: 'orders', id: 181668, note: 'اتصلوا بعد الضهر' });
+  mock.ordersDown = true;
+  await page.locator('#orders textarea[data-ne="181668"]').fill('ملاحظة مش هتتحفظ');
+  await page.locator('#orders [data-ns="181668"]').click();
+  await expect(toast(page)).toHaveText('معرفناش نحفظ — جرّب تاني');
+  await expect(page.locator('#orders textarea[data-ne="181668"]')).toHaveValue('اتصلوا بعد الضهر');
+  expect(mock.patches).toHaveLength(5);
+});
+
+test('a sub-order comment, delivery date and waybill are written to the line', async ({ page }) => {
+  await openOrders(page);
+  const cm = page.locator('#orders textarea[data-ce="5002"]');
+  await cm.fill('المورد هيسلّم الخميس');
+  await page.locator('#orders [data-cs="5002"]').click();
+  await expect.poll(() => mock.patches.length).toBe(1);
+  expect(mock.patches[0]).toEqual({ table: 'order_items', id: 5002, comment: 'المورد هيسلّم الخميس' });
+  await page.locator('#orders input[data-fi="ex:5001"]').fill('20/10/2026');
+  await page.locator('#orders input[data-fi="ex:5001"]').press('Enter');
+  await expect.poll(() => mock.patches.length).toBe(2);
+  expect(mock.patches[1]).toEqual({ table: 'order_items', id: 5001, expected_at: '2026-10-20' });
+  const w = { no: 'BST-1', company: 'بوسطة', at: '2026-10-25', by: 'M01' };
+  await page.evaluate((x) => window.OrdersApp.waybill('181668', '181669', x), w);
+  await expect.poll(() => mock.patches.length).toBe(3);
+  expect(mock.patches[2]).toEqual({ table: 'order_items', id: 5001, waybill: w });
+  expect(mock.pushes).toEqual([]);
+});
+
+test('«مزامنة» runs woo-sync and says what came in', async ({ page }) => {
+  await openOrders(page);
+  await page.locator('#orders #sync').click();
+  await expect(toast(page)).toHaveText('تمت المزامنة · 4 أوردر · 6 منتج · 3 مبتكر');
+  expect(mock.syncs).toEqual([{ action: 'all' }]);
+});
+
+test('«مزامنة» by a member who may not run it says so', async ({ page }) => {
+  await openOrders(page, OPS); // woo-sync 'all' is admin only
+  await page.locator('#orders #sync').click();
+  await expect(toast(page)).toHaveText('مش من صلاحياتك');
+  expect(mock.syncs).toEqual([]);
+});
+
+test('before the orders load: a loading state, then an error with a retry', async ({ page }) => {
+  await page.goto('/'); // signed out: IBOrders idle, data() null — the page is mounted and says it is loading
+  await expect(page.locator('#login')).toBeVisible();
+  expect(await page.evaluate(() => [window.IBOrders.data(), window.IBOrders.state(), window.OrdersApp.query({}, 5).total, window.OrdersApp.alerts().lateOrders])).toEqual([null, 'idle', 0, []]);
+  await expect(page.locator('#orders #list')).toHaveText('بيحمّل الأوردرات…');
+  await expect(page.locator('#orders #cn')).toHaveText('0');
+  mock.ordersDown = true; // the load fails (supabase-js retries a GET answered 503 three times: 1 + 2 + 4 s)
+  await signIn(page, ADMIN, { timeout: 20000 });
+  await page.evaluate(() => { location.hash = 'orders'; });
+  await expect(page.locator('#orders #list')).toContainText('معرفناش نحمّل الأوردرات — جرّب تاني');
+  await expect(cards(page)).toHaveCount(0);
+  mock.ordersDown = false;
+  await page.locator('#orders [data-oretry]').click();
+  await expect(cards(page)).toHaveCount(3);
+  await expect(page.locator('#orders #cn')).toHaveText('3');
+});
+
+test('an empty 12-month window says so', async ({ page }) => {
+  mock.orders = mock.orders.filter((o) => o.id === 150001); // only the order older than 12 months
+  await signIn(page, ADMIN);
+  await page.evaluate(() => { location.hash = 'orders'; });
+  await expect(page.locator('#orders #list')).toHaveText('مفيش أوردرات في آخر 12 شهر');
+  await expect(page.locator('#orders #cn')).toHaveText('0');
+  expect(await page.evaluate(() => window.IBOrders.state())).toBe('ready');
+});
+
+test('IBOrders.clear() (sign-out) leaves no order, search or filter on the page', async ({ page }) => {
+  await openOrders(page);
+  await page.locator('#orders #fc').selectOption('غير مؤكد', { force: true }); // hidden since 5.5 decision 10 (its state still drives the filter)
+  await page.evaluate(() => window.OrdersApp.setQuery('01009007052'));
+  await expect(cards(page)).toHaveCount(1);
+  await page.evaluate(() => window.IBOrders.clear());
+  await expect(page.locator('#orders #oq')).toHaveValue('');
+  await expect(page.locator('#orders #fc')).toHaveValue('');
+  await expect(cards(page)).toHaveCount(0);
+  await expect(page.locator('#orders #list')).toHaveText('بيحمّل الأوردرات…');
+  expect(await page.evaluate(() => [window.OrdersApp.get('181668'), window.OrdersApp.query({}, 5).total, window.OrdersApp.vendors(), window.OrdersApp.thumb('IBTA4040PAHC000013')])).toEqual([null, 0, [], '']);
+  await expect(page.locator('#orders .oroot')).not.toContainText('ليلى منصوري');
+});
+
+test('the details popup: a tab switch keeps the typed info without writing it; «ليس الآن» drops it, «حفظ التعديلات» writes it', async ({ page }) => {
+  await openOrders(page);
+  const dlg = page.locator('#orders #cdlg');
+  await page.evaluate(() => window.OrdersApp.details('181668'));
+  await dlg.locator('[data-f="note"]').fill('ملاحظة مش هتتحفظ');
+  await dlg.locator('[data-dtab="subs"]').click();
+  await dlg.locator('[data-dtab="info"]').click();
+  await expect(dlg.locator('[data-f="note"]')).toHaveValue('ملاحظة مش هتتحفظ'); // stashed, not applied
+  expect(await page.evaluate(() => window.OrdersApp.get('181668').note)).toBe('');
+  await dlg.locator('[data-dtab="subs"]').click();
+  await dlg.locator('[data-cc]').first().click();
+  await page.locator('#orders #udlg [data-ud]').click(); // «ليس الآن»
+  await expect(dlg).toHaveCount(0);
+  await expect(page.locator('#orders textarea[data-ne="181668"]')).toHaveValue('');
+  expect(await page.evaluate(() => window.OrdersApp.get('181668').note)).toBe('');
+  await page.locator('#orders select[data-ss="5002"]').selectOption('قيد التنفيذ'); // a write that does go out: nothing went before it
+  await expect.poll(() => mock.patches.length).toBe(1);
+  expect(mock.patches).toEqual([{ table: 'order_items', id: 5002, status: 'قيد التنفيذ' }]);
+  await page.evaluate(() => window.OrdersApp.details('181668'));
+  await dlg.locator('[data-f="note"]').fill('اتصلوا الصبح');
+  await dlg.locator('[data-dtab="subs"]').click();
+  await dlg.locator('[data-eok]').click(); // saved from the lines tab: the stashed form is written
+  await expect.poll(() => mock.patches.length).toBe(2);
+  expect(mock.patches[1]).toEqual({ table: 'orders', id: 181668, note: 'اتصلوا الصبح' });
+});
+
+test('a Realtime order redraws its own card only, never over a field in use; counts follow', async ({ page }) => {
+  await openOrders(page);
+  // the adapter's Realtime path: a rebuilt order handed to applyOrder (the mock runs without a Realtime socket)
+  const realtime = (id, st, vendor) => page.evaluate(([id, st, vendor]) => {
+    const o = window.IBOrders.data().orders.find((x) => x.id === id);
+    window.OrdersApp.applyOrder(Object.assign({}, o, { st, subs: o.subs.map((s, i) => (i || !vendor ? s : Object.assign({}, s, { vendor }))) }));
+  }, [id, st, vendor]);
+  const other = page.locator('#orders textarea[data-ne="180686"]');
+  await other.fill('بكتب دلوقتي'); // typing in another card
+  await realtime('181668', 'قيد الشحن', 'Medo .crafts');
+  await expect(page.locator('#orders select[data-st="181668"]')).toHaveValue('قيد الشحن');
+  await expect(other).toHaveValue('بكتب دلوقتي');
+  await expect(other).toBeFocused();
+  await expect(page.locator('#orders [data-sc="قيد الشحن"] i')).toHaveText('1');
+  await expect(page.locator('#orders [data-sc="جاري التنفيذ"] i')).toHaveText('1');
+  await expect(page.locator('#orders #cn')).toHaveText('3');
+  await expect(page.locator('#orders #fv option', { hasText: 'Medo .crafts' })).toHaveCount(1);
+  // the card being edited: focused → drawn on blur
+  const mine = page.locator('#orders textarea[data-ne="181668"]');
+  await mine.focus();
+  await realtime('181668', 'جاهز للشحن');
+  await expect(page.locator('#orders select[data-st="181668"]')).toHaveValue('قيد الشحن');
+  await page.locator('#gq').focus(); // out of the list (the in-page search is hidden since 5.5 decision 10)
+  await expect(page.locator('#orders select[data-st="181668"]')).toHaveValue('جاهز للشحن');
+  // a comment typed and left unsaved: still not drawn over after the blur; the save draws it
+  await page.locator('#orders textarea[data-ne="181668"]').fill('لسه بكتب');
+  await realtime('181668', 'مكتمل');
+  await page.locator('#gq').focus(); // out of the list (the in-page search is hidden since 5.5 decision 10)
+  await expect(page.locator('#orders select[data-st="181668"]')).toHaveValue('جاهز للشحن');
+  await expect(page.locator('#orders textarea[data-ne="181668"]')).toHaveValue('لسه بكتب');
+  await expect(other).toHaveValue('بكتب دلوقتي'); // three Realtime updates later, the other card's typing is still there
+  await page.locator('#orders [data-ns="181668"]').click();
+  await expect(page.locator('#orders select[data-st="181668"]')).toHaveValue('مكتمل');
+  await expect.poll(() => mock.patches.length).toBe(1);
+  expect(mock.patches).toEqual([{ table: 'orders', id: 181668, note: 'لسه بكتب' }]); // the Realtime orders are not written back
+});
+
+test('a new Realtime order (or one that leaves the filters) redraws the list, never over a field in use; unsaved comments survive', async ({ page }) => {
+  await openOrders(page);
+  // a brand-new order as the adapter hands it to applyOrder: placed today, so the newest (first in «الأحدث أولًا»)
+  const arrive = (id) => page.evaluate((id) => {
+    const o = window.IBOrders.data().orders.find((x) => x.id === '181668');
+    const s = Object.assign({}, o.subs[0], { n: Number(id), itemId: id, oid: id, sid: id, cm: '' });
+    window.OrdersApp.applyOrder(Object.assign({}, o, { id, name: 'عميل جديد ' + id, date: window.IBOrders.today(), age: 0, note: '', cnote: '', subs: [s] }));
+  }, id);
+  const cn = page.locator('#orders #cn');
+  await arrive('182001');
+  await expect(cards(page)).toHaveCount(4);
+  await expect(cards(page).first()).toHaveAttribute('data-o', '182001');
+  await expect(card(page, '182001')).toContainText('IB-182001'); // folded: a new order is not opened
+  await expect(cn).toHaveText('4');
+  await expect(page.locator('#orders [data-sc="الكل"] i')).toHaveText('4');
+  // a field in use in another card: counted at once, drawn when the list is left
+  const other = page.locator('#orders textarea[data-ne="180686"]');
+  await other.focus();
+  await arrive('182002');
+  await expect(cn).toHaveText('5');
+  await expect(page.locator('#orders [data-sc="الكل"] i')).toHaveText('5');
+  await expect(card(page, '182002')).toHaveCount(0);
+  await expect(cards(page)).toHaveCount(4);
+  await expect(other).toBeFocused();
+  await page.locator('#gq').focus(); // out of the list (the in-page search is hidden since 5.5 decision 10)
+  await expect(card(page, '182002')).toHaveCount(1);
+  await expect(cards(page)).toHaveCount(5);
+  await expect(cards(page).first()).toHaveAttribute('data-o', '182002');
+  // a comment typed and not saved survives every full redraw: a new order, a sort change, a card folded, a status chip
+  const mine = page.locator('#orders textarea[data-ne="181668"]');
+  await mine.fill('لسه ماتحفظش');
+  await page.locator('#gq').focus(); // out of the list (the in-page search is hidden since 5.5 decision 10)
+  await arrive('182003');
+  await expect(cards(page)).toHaveCount(6);
+  await expect(mine).toHaveValue('لسه ماتحفظش');
+  await expect(page.locator('#orders [data-ns="181668"]')).toBeVisible();
+  await page.locator('#orders #so').selectOption('old');
+  await expect(cards(page).first()).toHaveAttribute('data-o', '180656');
+  await expect(mine).toHaveValue('لسه ماتحفظش');
+  await page.locator('#orders [data-tg="180686"]').click();
+  await expect(page.locator('#orders textarea[data-ne="180686"]')).toHaveCount(0); // folded
+  await expect(mine).toHaveValue('لسه ماتحفظش');
+  await page.locator('#orders [data-sc="جاري التنفيذ"]').click();
+  await expect(cards(page)).toHaveCount(5); // 180656 is «معلّق»
+  await expect(mine).toHaveValue('لسه ماتحفظش');
+  // an order that leaves the filters is taken out of the list (and out of the counts)
+  await page.evaluate(() => { const o = window.IBOrders.data().orders.find((x) => x.id === '180686'); window.OrdersApp.applyOrder(Object.assign({}, o, { st: 'مكتمل' })); });
+  await expect(card(page, '180686')).toHaveCount(0);
+  await expect(cards(page)).toHaveCount(4);
+  await expect(cn).toHaveText('4');
+  await expect(page.locator('#orders [data-sc="مكتمل"] i')).toHaveText('1');
+  // the save writes the comment typed four redraws ago; nothing Realtime brought is written back
+  await page.locator('#orders [data-ns="181668"]').click();
+  await expect.poll(() => mock.patches.length).toBe(1);
+  expect(mock.patches).toEqual([{ table: 'orders', id: 181668, note: 'لسه ماتحفظش' }]);
+});
+
+// a brand-new order as the adapter's Realtime path hands it to applyOrder: placed today, so first in «الأحدث أولًا»
+const arrive = (page, id) => page.evaluate((id) => {
+  const o = window.IBOrders.data().orders.find((x) => x.id === '181668');
+  const s = Object.assign({}, o.subs[0], { n: Number(id), itemId: id, oid: id, sid: id, cm: '' });
+  window.OrdersApp.applyOrder(Object.assign({}, o, { id, name: 'عميل جديد ' + id, date: window.IBOrders.today(), age: 0, note: '', cnote: '', subs: [s] }));
+}, id);
+
+test('a held full redraw never replaces the control being pressed: «حفظ» and the fold button work with a human press, mouse or keyboard', async ({ page }) => {
+  await openOrders(page);
+  const cn = page.locator('#orders #cn');
+  // a comment typed (its field still focused) when a new order comes in: held; a 50 ms press on «حفظ» saves it, then the list is drawn
+  const mine = page.locator('#orders textarea[data-ne="181668"]');
+  await mine.fill('اتكتب قبل الضغطة');
+  await arrive(page, '182001');
+  await expect(cn).toHaveText('4');
+  await expect(cards(page)).toHaveCount(3);
+  await page.locator('#orders [data-ns="181668"]').click({ delay: 50 });
+  await expect(toast(page)).toHaveText('تم حفظ التعليق');
+  await expect.poll(() => mock.patches.length).toBe(1);
+  expect(mock.patches).toEqual([{ table: 'orders', id: 181668, note: 'اتكتب قبل الضغطة' }]);
+  await expect(cards(page)).toHaveCount(4);
+  await expect(cards(page).first()).toHaveAttribute('data-o', '182001');
+  await expect(page.locator('#orders [data-ns="181668"]')).toBeHidden();
+  // the fold button in a browser that does not focus a pressed button (Safari, Firefox on macOS): on mousedown the field
+  // loses focus to nothing, so only the press itself holds the redraw
+  await page.locator('#orders textarea[data-ne="180686"]').focus();
+  await arrive(page, '182002');
+  await expect(cards(page)).toHaveCount(4);
+  await page.evaluate(() => {
+    const R = document.getElementById('orders').shadowRoot;
+    R.addEventListener('mousedown', function once(e) { R.removeEventListener('mousedown', once, true); e.preventDefault(); R.activeElement.blur(); }, true);
+  });
+  await expect(page.locator('#orders [data-tg="180656"]')).toHaveAttribute('aria-label', 'فتح');
+  await page.locator('#orders [data-tg="180656"]').click({ delay: 50 });
+  await expect(page.locator('#orders [data-tg="180656"]')).toHaveAttribute('aria-label', 'طي');
+  await expect(page.locator('#orders textarea[data-ne="180656"]')).toHaveCount(1);
+  await expect(cards(page)).toHaveCount(5);
+  await expect(cards(page).first()).toHaveAttribute('data-o', '182002');
+  // the keyboard: Tab from the comment to its «حفظ» (a control of the list: still held), Enter saves, then the list is drawn
+  const kb = page.locator('#orders textarea[data-ne="180686"]');
+  await kb.fill('من الكيبورد');
+  await arrive(page, '182003');
+  await expect(cards(page)).toHaveCount(5);
+  await kb.press('Tab');
+  await expect(page.locator('#orders [data-ns="180686"]')).toBeFocused();
+  await expect(cards(page)).toHaveCount(5);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => mock.patches.length).toBe(2);
+  expect(mock.patches[1]).toEqual({ table: 'orders', id: 180686, note: 'من الكيبورد' });
+  await expect(cards(page)).toHaveCount(6);
+  await expect(cards(page).first()).toHaveAttribute('data-o', '182003');
+  await expect(cn).toHaveText('6');
+});
+
+test('the date picker and the «more» menu hold a full redraw; closing them draws the list', async ({ page }) => {
+  await openOrders(page);
+  const cn = page.locator('#orders #cn'); const dp = page.locator('#orders #dpop'); const menu = page.locator('#orders #mpop');
+  // the date picker: a click inside it keeps it open (still held); a click outside closes it and draws what came in
+  await page.locator('#orders [data-fi="cd:181668"]').click();
+  await expect(dp).toHaveCount(1);
+  await arrive(page, '182001');
+  await expect(cn).toHaveText('4');
+  await expect(cards(page)).toHaveCount(3);
+  await dp.locator('[data-act="nm"]').click();
+  await expect(dp).toHaveCount(1);
+  await expect(cards(page)).toHaveCount(3);
+  await page.locator('#orders h1').click();
+  await expect(dp).toHaveCount(0);
+  await expect(cards(page)).toHaveCount(4);
+  await expect(cards(page).first()).toHaveAttribute('data-o', '182001');
+  // the «more» menu: what comes in while it is open waits (the menu never ends up beside another card); closing it draws
+  await card(page, '181668').locator('[data-more="o:181668"]').click();
+  await expect(menu).toBeVisible();
+  await arrive(page, '182002');
+  await expect(cn).toHaveText('5');
+  await expect(cards(page)).toHaveCount(4);
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  await expect(cards(page)).toHaveCount(5);
+  await expect(cards(page).first()).toHaveAttribute('data-o', '182002');
+  expect(mock.patches).toEqual([]);
+});
+
+// the owner 16 Nov: «التقويم يبقي ملاصق لfield تاريخ التاكيد او التبليغ تحته» — the picker opens right under its field even with the
+// page scrolled, and stays under it when the page scrolls on
+test('the date picker opens right under its field with the page scrolled, and follows it on scroll', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 640 });
+  await openOrders(page);
+  const dp = page.locator('#orders #dpop');
+  const field = page.locator('#orders [data-fi="cd:181668"]');
+  await field.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 120));
+  await field.click();
+  await expect(dp).toHaveCount(1);
+  const gap = async () => { const f = await field.evaluate((n) => (n.closest('.dpf') || n).getBoundingClientRect().bottom); const d = await dp.evaluate((n) => n.getBoundingClientRect().top); return Math.round(d - f); };
+  expect(await gap()).toBe(4);
+  await page.evaluate(() => window.scrollBy(0, -60));
+  await expect.poll(gap).toBe(4);
+});
+
+// ش35 (the owner 16 Nov — «خلي اي دروب داون لو تحت خالص تطلع فوق الفيلد»): a field near the bottom of the screen opens its calendar
+// above it, glued to it, and the whole calendar is on the screen
+test('ش35: the date picker of a field at the bottom of the screen opens above it', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 640 });
+  await openOrders(page);
+  const dp = page.locator('#orders #dpop');
+  const field = page.locator('#orders [data-fi="cd:181668"]');
+  // the field ~40px over the bottom edge: a screen just that tall under it (the page scrolled to the top first)
+  await page.evaluate(() => { window.scrollTo(0, 0); const sp = document.createElement('div'); sp.style.height = '420px'; document.getElementById('orders').before(sp); });
+  const fb = await field.evaluate((n) => (n.closest('.dpf') || n).getBoundingClientRect().bottom);
+  await page.setViewportSize({ width: 1280, height: Math.max(420, Math.round(fb + 40)) });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await field.click();
+  await expect(dp).toHaveAttribute('data-dir', 'up');
+  const [f, d] = await Promise.all([field.evaluate((n) => (n.closest('.dpf') || n).getBoundingClientRect().top), dp.evaluate((n) => { const r = n.getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; })]);
+  expect(Math.round(f - d.bottom)).toBe(4);
+  expect(d.top).toBeGreaterThanOrEqual(0);
+});
+
+// the owner 16 Nov: «اظبط ال ui بتاع البوب اب ده بشكل احترافي و منظم و كمان زود زر اني افتح الاوردر في صفحة الاوردارات» — the order popup
+// opens on its states as pills and a money strip, and «افتح في صفحة الأوردرات» shows that one order on the page, open
+test('the order popup: states as pills, a money strip, and «افتح في صفحة الأوردرات» shows that order open on the page', async ({ page }) => {
+  await openOrders(page);
+  await page.evaluate(() => window.OrdersApp.details('181668', 'info'));
+  const dlg = page.locator('#orders #cdlg');
+  await expect(dlg.locator('#dmeta .dpill')).toHaveCount(3);
+  await expect(dlg.locator('[data-dsum] .ds')).toHaveCount(4);
+  await expect(dlg.locator('[data-dsum]')).toContainText('المتبقي بعد العربون');
+  await expect(dlg.locator('.dnote')).toContainText('WooCommerce');
+  await dlg.locator('[data-dopen]').click();
+  await expect(page.locator('#orders #cdlg')).toHaveCount(0);
+  await expect(cards(page)).toHaveCount(1);
+  await expect(cards(page).first()).toHaveAttribute('data-o', '181668');
+  await expect(card(page, '181668').locator('[data-tg="181668"]')).toHaveAttribute('aria-label', 'طي');
+});
+
+test('Escape on a sub-order comment drops what was typed (a redraw keeps only unsaved comments)', async ({ page }) => {
+  await openOrders(page);
+  const cm = page.locator('#orders textarea[data-ce="5002"]');
+  await cm.fill('مش هتتحفظ');
+  await cm.press('Escape');
+  await expect(page.locator('#orders textarea[data-ce="5002"]')).toHaveValue('تم تبليغ المورد');
+  await expect(page.locator('#orders [data-cs="5002"]')).toBeHidden();
+  expect(mock.patches).toEqual([]);
+});
+
+test('WooCommerce owns name, phone, payment, maker, quantity and total: read-only; «مسح» on the order (decision 10) but never on a sub-order', async ({ page }) => {
+  await openOrders(page);
+  const menu = page.locator('#orders #mpop'); const dlg = page.locator('#orders #cdlg');
+  await card(page, '181668').locator('[data-more="o:181668"]').click();
+  await expect(menu.locator('[data-ma="edit"]')).toHaveCount(1);
+  await expect(menu.locator('[data-ma="del"]')).toHaveCount(1); // the order: cancel-first delete (decision 10)
+  await menu.locator('[data-ma="edit"]').click();
+  for (const f of ['name', 'phone', 'pay']) await expect(dlg.locator(`[data-f="${f}"]`)).toBeDisabled();
+  await expect(dlg.locator('[data-f="pay"]')).toHaveValue('الدفع عند الاستلام');
+  await expect(dlg).toContainText('بيتعدّل من WooCommerce');
+  await expect(dlg).toContainText('اتصلوا قبل التوصيل'); // the customer's note from the site
+  await dlg.locator('[data-etab="det"]').click(); // the plan 2026-11-14-order-edit-tabs.md decision 5: the details are their own tab
+  await dlg.locator('[data-f="note"]').fill('ملاحظة من التعديل');
+  await dlg.locator('[data-eok]').click();
+  await expect.poll(() => mock.patches.length).toBe(1);
+  expect(mock.patches).toEqual([{ table: 'orders', id: 181668, note: 'ملاحظة من التعديل' }]);
+  await card(page, '181668').locator('[data-more="s:5001"]').click();
+  await expect(menu.locator('[data-ma="del"]')).toHaveCount(0);
+  await menu.locator('[data-ma="edit"]').click();
+  for (const f of ['vendor', 'qty', 'tot']) await expect(dlg.locator(`[data-f="${f}"]`)).toBeDisabled();
+  await expect(dlg.locator('[data-f="vendor"]')).toHaveValue('Artisan Loft');
+  await expect(dlg).toContainText('بيتعدّل من WooCommerce');
+  await dlg.locator('[data-f="cm"]').fill('تعليق من التعديل');
+  await dlg.locator('[data-eok]').click();
+  await expect.poll(() => mock.patches.length).toBe(2);
+  expect(mock.patches[1]).toEqual({ table: 'order_items', id: 5001, comment: 'تعليق من التعديل' });
+  expect(mock.patches.some((x) => ['customer_name', 'customer_phone', 'payment_title', 'qty', 'total', 'vendor_id'].some((k) => k in x))).toBe(false);
+});
+
+// Phase 3.6 (plan decision 4): «مكتمل» on a main order asks for the customer's rating first — رضا · أخلاق (stars 1–5) and an
+// optional note; «ليس الآن» leaves the status; saving writes the rating and the status in one call (order_complete) and pushes.
+const rateDialog = (page) => page.getByRole('dialog', { name: /قيّم العميل — IB-180656/ });
+test('«مكتمل» asks for the customer rating: «ليس الآن» keeps the status, the stars are required, saving writes both and pushes', async ({ page }) => {
+  await openOrders(page);
+  const sel = page.locator('#orders select[data-st="180656"]');
+  await sel.selectOption('مكتمل');
+  await expect(rateDialog(page)).toBeVisible();
+  await expect(rateDialog(page)).toContainText('الأوردر هيتقفل «مكتمل» بعد التقييم');
+  await rateDialog(page).getByRole('button', { name: 'ليس الآن' }).click();
+  await expect(rateDialog(page)).toHaveCount(0);
+  await expect(sel).toHaveValue('معلّق');
+  expect(mock.patches).toEqual([]); expect(mock.ratings).toEqual([]); expect(mock.pushes).toEqual([]);
+
+  await sel.selectOption('مكتمل');
+  await rateDialog(page).getByRole('button', { name: 'احفظ التقييم وقفّل الأوردر' }).click();
+  await expect(rateDialog(page)).toContainText('اختار رضا العميل من 1 لـ 5');
+  await expect(rateDialog(page)).toContainText('اختار أخلاق العميل من 1 لـ 5');
+  expect(mock.ratings).toEqual([]);
+  await rateDialog(page).locator('#rt-sat [data-star="5"]').click();
+  await rateDialog(page).locator('#rt-manners [data-star="4"]').click();
+  await expect(rateDialog(page).locator('#rt-sat [aria-checked="true"]')).toHaveAttribute('data-star', '5');
+  await rateDialog(page).locator('textarea').fill('ذوق جداً');
+  await rateDialog(page).getByRole('button', { name: 'احفظ التقييم وقفّل الأوردر' }).click();
+  await expect(rateDialog(page)).toHaveCount(0);
+  await expect.poll(() => mock.pushes.length).toBe(1);
+  expect(mock.ratings).toEqual([{ order_id: 180656, sat: 5, manners: 4, note: 'ذوق جداً', by_user: mock.profiles.find((p) => p.email === ADMIN).id }]);
+  expect(mock.patches).toEqual([{ table: 'orders', id: 180656, status: 'مكتمل' }]);
+  expect(mock.pushes).toEqual([{ action: 'push_status', order_id: 180656, status: 'مكتمل', result: 'ok' }]);
+  await expect(card(page, '180656').locator('.sdd')).toContainText('مكتمل');
+  await expect.poll(() => mock.activity.filter((a) => JSON.stringify(a).includes('order.rating')).length).toBe(1);
+  const logged = JSON.stringify(mock.activity.find((a) => JSON.stringify(a).includes('order.rating')));
+  expect(logged).toContain('IB-180656 · رضا 5 · أخلاق 4');
+  expect(logged).not.toContain('ذوق'); // the note stays in customer_ratings only
+});
+
+test('a rating by a member who may not change the status reverts the order to its status', async ({ page }) => {
+  await openOrders(page, ACCOUNTS);
+  const sel = page.locator('#orders select[data-st="180656"]');
+  await sel.selectOption('مكتمل');
+  await rateDialog(page).locator('#rt-sat [data-star="3"]').click();
+  await rateDialog(page).locator('#rt-manners [data-star="3"]').click();
+  await rateDialog(page).getByRole('button', { name: 'احفظ التقييم وقفّل الأوردر' }).click();
+  await expect(toast(page)).toHaveText('مش من صلاحياتك');
+  await expect(sel).toHaveValue('معلّق');
+  expect(mock.ratings).toEqual([]); expect(mock.patches).toEqual([]); expect(mock.pushes).toEqual([]);
+});
+
+test('the orders page says «المبتكر», never «المورد» (plan decision 2): filters, sub-order statuses, comments', async ({ page }) => {
+  await openOrders(page);
+  // the page's own text: without what a member typed (the comment boxes) and the stylesheets
+  const text = await page.evaluate(() => { const r = document.getElementById('orders').shadowRoot; return [...r.querySelectorAll('*')].filter((e) => !e.closest('textarea, style')).map((e) => [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('')).join(' '); });
+  expect(text).not.toMatch(/مورد/);
+  expect(text).toContain('المبتكر: الكل');
+  expect(text).toContain('عدد المبتكرين: الكل');
+  expect(await page.locator('#orders select[data-ss="5001"] option').allTextContents()).toEqual(expect.arrayContaining(['جاهز للشحن من المبتكر للعميل', 'جاهز للشحن من المبتكر للمخزن', 'مرتجع للمبتكر']));
+});
+
+// المرحلة 5.5 (prototype v2, owner 31 Oct / 1 Nov): bulk selection, the status carousel, the active-filter chips, ib:orders-ready
+test('bulk select: the bar changes the status of the selected orders one by one (saved and pushed), the confirmation too, copies the numbers; every status is offered (decision 53)', async ({ page }) => {
+  await page.addInitScript(() => { document.addEventListener('ib:orders-ready', () => { window.__ordersReady = (window.__ordersReady || 0) + 1; }); });
+  await openOrders(page);
+  expect(await page.evaluate(() => window.__ordersReady)).toBe(1); // dispatched once the orders are first drawn
+  const sr = (sel) => page.locator('#orders ' + sel);
+  await expect(sr('#obulk')).toBeHidden();
+  await sr('[data-osel="180656"]').click();
+  await sr('[data-osel="181668"]').click();
+  await expect(sr('#obulk')).toBeVisible();
+  await expect(sr('#obulk b')).toHaveText('محدد 2 أوردر');
+  await expect(sr('[data-osel="180656"]')).toHaveAttribute('aria-checked', 'true');
+  const opts = await sr('select[data-obulk-st] option').allTextContents();
+  expect(opts.slice(1)).toEqual(['قيد الانتظار', 'جاري التنفيذ', 'معلّق', 'جاهز للشحن', 'قيد الشحن', 'مكتمل', 'استرجاع', 'ملغي', 'فشل']); // decision 53 (status_map's order)
+  // decision 53: the word on the right, the arrow on the left
+  const lay = await page.evaluate(() => { const l = document.getElementById('orders').shadowRoot.querySelector('#obulk .bsel'); const t = l.querySelector('span').getBoundingClientRect(), a = l.querySelector('svg').getBoundingClientRect(); return t.left > a.left; });
+  expect(lay).toBe(true);
+  await sr('select[data-obulk-st]').selectOption('قيد الشحن');
+  await expect(toast(page)).toHaveText('اتغيرت حالة 2 أوردر لـ «قيد الشحن»');
+  await expect.poll(() => mock.pushes.length).toBe(2);
+  expect(mock.patches).toContainEqual({ table: 'orders', id: 180656, status: 'قيد الشحن' });
+  expect(mock.patches).toContainEqual({ table: 'orders', id: 181668, status: 'قيد الشحن' });
+  expect(mock.pushes.map((p) => p.order_id).sort()).toEqual([180656, 181668]);
+  await expect(sr('#obulk')).toBeHidden(); // the selection is cleared after the action
+  await expect(card(page, '180656').locator('.sdd')).toContainText('قيد الشحن');
+  // confirmation for two, copy the numbers, select the whole page, clear
+  await sr('[data-osel="180686"]').click(); await sr('[data-osel="180656"]').click();
+  await sr('select[data-obulk-cf]').selectOption('مؤكد بعربون');
+  await expect(toast(page)).toHaveText(/^اتغيرت حالة التأكيد لـ [12] أوردر$/); // an order already on that value is skipped
+  await expect.poll(() => mock.patches.filter((p) => p.confirm === 'مؤكد بعربون').length).toBeGreaterThan(0);
+  await sr('[data-osel="180686"]').click();
+  await sr('[data-obulk-copy]').click();
+  expect(await page.evaluate(() => window.__lastCopy)).toBe('180686');
+  await sr('[data-osel-page]').click();
+  await expect(sr('#obulk b')).toHaveText('محدد 3 أوردر');
+  await sr('[data-obulk-csv]').click();
+  expect((await page.evaluate(() => window.__lastCopy)).split('\n')).toHaveLength(4); // header + 3
+  await sr('[data-obulk-clear]').click();
+  await expect(sr('#obulk')).toBeHidden();
+});
+
+test('decision 53: bulk «مكتمل» asks the rating order by order — the rated one closes, «ليس الآن» leaves the next as it was', async ({ page }) => {
+  await openOrders(page);
+  const sr = (sel) => page.locator('#orders ' + sel);
+  await sr('[data-osel="180656"]').click(); await sr('[data-osel="181668"]').click();
+  await sr('select[data-obulk-st]').selectOption('مكتمل');
+  const first = page.getByRole('dialog', { name: /قيّم العميل — IB-(180656|181668)/ });
+  await expect(first).toHaveCount(1);
+  const id1 = (await first.locator('h2').textContent()).match(/\d+/)[0];
+  await first.locator('#rt-sat [data-star="5"]').click(); await first.locator('#rt-manners [data-star="4"]').click();
+  await first.getByRole('button', { name: 'احفظ التقييم وقفّل الأوردر' }).click();
+  const id2 = id1 === '180656' ? '181668' : '180656';
+  const second = page.getByRole('dialog', { name: new RegExp('قيّم العميل — IB-' + id2) });
+  await expect(second).toBeVisible(); // the next order's own popup
+  await second.getByRole('button', { name: 'ليس الآن' }).click();
+  await expect(second).toHaveCount(0);
+  await expect(toast(page)).toHaveText('اتغيرت حالة 1 من 2 أوردر لـ «مكتمل»');
+  await expect.poll(() => mock.ratings.map((r) => r.order_id)).toEqual([Number(id1)]);
+  await expect(card(page, id1).locator('select[data-st]')).toHaveValue('مكتمل');
+  await expect(card(page, id2).locator('select[data-st]')).not.toHaveValue('مكتمل');
+});
+
+test('decision 53: «مسح المحدد» lists the orders with their sub-order counts, one reason for all, each deleted like its own «مسح»; a completed one is left out', async ({ page }) => {
+  mock.orders.find((o) => o.id === 180686).status = 'مكتمل';
+  mock.orders.find((o) => o.id === 180656).status = 'ملغي';
+  await openOrders(page);
+  const sr = (sel) => page.locator('#orders ' + sel); const dlg = sr('#cdlg');
+  await sr('[data-osel="180686"]').click(); await sr('[data-osel-page]').click();
+  await expect(sr('#obulk b')).toHaveText('محدد 3 أوردر');
+  await sr('[data-obulk-del]').click();
+  await expect(dlg.locator('#cdt')).toHaveText('مسح 2 أوردر؟');
+  await expect(dlg.locator('[data-del-count]')).toHaveText('2 أوردر · 3 أوردر فرعي');
+  await expect(dlg.locator('[data-del-row="181668"]')).toContainText('2 أوردر فرعي · هيتلغي الأول');
+  await expect(dlg.locator('[data-del-row="180656"]')).toContainText('1 أوردر فرعي');
+  await expect(dlg.locator('[data-del-row="180686"]')).toHaveCount(0);
+  await expect(dlg.locator('[data-del-skip]')).toHaveText('1 مكتمل/استرجاع في المحدد مش هيتمسحوا.');
+  await dlg.locator('[data-cok]').click(); // no reason yet
+  await expect(dlg.locator('#cerr')).toBeVisible(); expect(mock.deletes).toEqual([]);
+  await dlg.locator('#creason').selectOption('أوردر مكرر');
+  await dlg.locator('[data-cok]').click();
+  await expect(dlg).toHaveCount(0);
+  await expect(toast(page)).toHaveText('اتمسح 2 من 2 أوردر');
+  await expect(cards(page)).toHaveCount(1);
+  await expect(card(page, '180686')).toHaveCount(1);
+  expect(mock.deletes.map((d) => [d.order_id, d.reason]).sort()).toEqual([[180656, 'أوردر مكرر'], [181668, 'أوردر مكرر']]);
+  expect(mock.trashes.map((t) => t.order_id).sort()).toEqual([180656, 181668]);
+  expect(mock.patches).toEqual([{ table: 'orders', id: 181668, status: 'ملغي', cancel: { reason: 'أوردر مكرر' } }]); // the open one cancelled first
+  await expect(sr('#obulk')).toBeHidden();
+});
+
+test('decision 54 (from «مسح المنتج» — the menu item left on 14 Nov): the only product of a sub-order trashes the sub-order with one reason and drops its lines here — the parent on the site keeps them and its total (the owner 11 Nov); the order\'s only product deletes the whole order', async ({ page }) => {
+  await openOrders(page);
+  const sr = (sel) => page.locator('#orders ' + sel); const menu = sr('#mpop'); const dlg = sr('#cdlg');
+  const c = card(page, '181668');
+  await c.locator('[data-more="s:5002"]').click();
+  await expect(menu.locator('[data-ma="subdel"]')).toHaveCount(0);
+  await menu.locator('[data-ma="linedel"]').click();
+  await expect(toast(page)).toHaveText('ده المنتج الوحيد في الأوردر الفرعي #181670 — هيتمسح الأوردر الفرعي كله');
+  await expect(dlg.locator('#cdt')).toHaveText('مسح الأوردر الفرعي #181670؟');
+  await expect(dlg.locator('[data-sub-count]')).toContainText('1 سطر');
+  await expect(dlg).toContainText('Macrame Curtain × 1 · 2,539 ج.م');
+  await expect(dlg).toContainText('والأوردر الأصلي IB-181668 على الموقع هيفضل زي ما هو بمنتجاته وإجماليه');
+  await expect(dlg).not.toContainText('إجماليه هيقل');
+  await dlg.locator('#creason').selectOption('تعديل من العميل');
+  await dlg.locator('[data-cok]').click();
+  await expect(dlg).toHaveCount(0);
+  await expect(toast(page)).toHaveText('اتمسح الأوردر الفرعي #181670 — الأوردر الأصلي على الموقع زي ما هو');
+  expect(Number(mock.orders.find((o) => o.id === 181668).total)).toBe(3541); // the site's parent kept its total
+  expect(mock.subTrashes).toEqual([{ order_id: 181668, sub_id: 181670, lines: [5002], reason: 'تعديل من العميل', by: ADMIN }]);
+  await expect(c.locator('[data-more="s:5002"]')).toHaveCount(0);
+  await expect(c.locator('[data-more="s:5001"]')).toHaveCount(1);
+  await expect.poll(() => mock.activity.filter((a) => a.action === 'suborder.delete').map((a) => a.new_value)).toEqual(['#181670 (IB-181668) · تعديل من العميل']);
+  // the last one left: the order's own «مسح» (cancel first + the site's trash)
+  await c.locator('[data-more="s:5001"]').click();
+  await menu.locator('[data-ma="linedel"]').click();
+  await expect(toast(page)).toHaveText('ده المنتج الوحيد في الأوردر — هيتمسح الأوردر كله');
+  await expect(dlg.locator('#cdt')).toHaveText('مسح الأوردر IB-181668؟');
+  await expect(dlg.locator('[data-cok]')).toHaveText('إلغاء ومسح الأوردر');
+});
+
+// the owner 11 Nov («تاريخ الالغاء المفروض يبقي default اليوم اللي هلغي بيه»): the cancel popup's date starts on the real day in Cairo —
+// not the prototype's fixed demo day — and «اليوم الحالي» in its calendar picks the same day
+test('the owner 11 Nov: the cancel popup\'s date starts on today (Cairo); «اليوم الحالي» is today too; «ليس الآن» leaves the order', async ({ page }) => {
+  await openOrders(page);
+  const today = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); // dd/mm/yyyy
+  await card(page, '181668').locator('select[data-st="181668"]').selectOption('ملغي');
+  const dlg = page.locator('.modal[role=dialog]', { hasText: 'إلغاء — IB-181668' });
+  await expect(dlg).toBeVisible();
+  await expect(dlg.locator('input#date')).toHaveValue(today);
+  await dlg.locator('input#date').fill('01/01/2026'); await dlg.locator('input#date').press('Tab');
+  await expect(dlg.locator('input#date')).toHaveValue('01/01/2026');
+  await dlg.getByRole('button', { name: 'اختيار التاريخ' }).click();
+  await page.getByRole('button', { name: 'اليوم الحالي' }).click();
+  await expect(dlg.locator('input#date')).toHaveValue(today);
+  await dlg.getByRole('button', { name: 'ليس الآن' }).click();
+  await expect(dlg).toHaveCount(0);
+  expect(mock.patches).toEqual([]);
+  await expect(card(page, '181668').locator('select[data-st="181668"]')).toHaveValue('جاري التنفيذ');
+});
+
+test('the owner 11 / 14 Nov: «تعديل الحالة على الموقع» from ⋮ (the site\'s own status, the whole sub-order — a popup that says how many products move with it; the column is gone) and «مسح المنتج» — one product off the order on the site; the last product of a sub-order goes to «مسح الأوردر الفرعي»', async ({ page }) => {
+  // a second product in sub-order 181669 (the same maker)
+  const base = mock.orderItems.find((i) => i.id === 5001);
+  mock.orderItems.push({ ...base, id: 5099, product_id: 9003, sku: 'IBTA4040PAHC000099', name: 'Pouf', qty: 1, total: 500, status: '', comment: null });
+  mock.orders.find((o) => o.id === 181668).total = 4041;
+  await openOrders(page);
+  const sr = (sel) => page.locator('#orders ' + sel); const menu = sr('#mpop'); const dlg = sr('#cdlg');
+  const c = card(page, '181668');
+  // the owner 14 Nov («في ال 3 نقط … بوب اب بالتعديل الحالة و يعرفني لو الاوردر الفرعي فيه اكتر من قطعة»): no site-status column any more
+  const heads = c.locator('.st .row.h .c');
+  await expect(heads.nth(0)).toHaveText('الأوردر الفرعي');
+  await expect(heads.nth(1)).toHaveText('المنتج');
+  await expect(sr('select[data-wst]')).toHaveCount(0);
+  await expect(sr('.cw')).toHaveCount(0);
+  // a single-maker order has no sub-order on the site (its status = the order's) → no item
+  await card(page, '180686').locator('[data-more="s:5003"]').click();
+  await expect(menu.locator('[data-ma="sitest"]')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await c.locator('[data-more="s:5001"]').click();
+  await expect(menu.locator('[data-ma="sitest"]')).toHaveText('تعديل الحالة على الموقع');
+  await menu.locator('[data-ma="sitest"]').click();
+  await expect(dlg.locator('#cdt')).toHaveText('تعديل الحالة على الموقع — الأوردر الفرعي #181669');
+  await expect(dlg.locator('[data-site-now]')).toHaveText('جاري التنفيذ');
+  await expect(dlg.locator('[data-sub-many]')).toHaveText('الأوردر الفرعي #181669 فيه 2 منتج (3 قطع) — الحالة هتتغيّر لكل المنتجات دي مع بعض على الموقع.');
+  await expect(dlg.locator('.dlist li')).toHaveText(['Cushion × 2', 'Pouf × 1']);
+  await expect(dlg).toContainText('«حالة المنتج» جنب كل منتج مش هتتغيّر');
+  await dlg.locator('#cwst').selectOption({ label: 'جاهز للشحن' });
+  // the site call held → the button spins until the site answers
+  let rel; const hold = new Promise((r) => { rel = r; });
+  await page.route('**/functions/v1/woo-sync', async (route) => { await hold; await route.fallback(); });
+  await dlg.locator('[data-cok]').click();
+  await expect(dlg.locator('[data-cok]')).toHaveAttribute('aria-busy', 'true');
+  await expect(dlg.locator('[data-cok] .spin')).toBeVisible();
+  rel(); await page.unroute('**/functions/v1/woo-sync');
+  await expect(dlg).toHaveCount(0);
+  await expect(toast(page)).toHaveText('الأوردر الفرعي #181669 بقى «جاهز للشحن» على الموقع — 2 منتج مع بعض');
+  expect(mock.subStatuses).toEqual([{ order_id: 181668, sub_id: 181669, status: 'ready-shipping', by: ADMIN }]);
+  await expect.poll(() => mock.activity.filter((a) => a.action === 'suborder.site_status').map((a) => a.new_value)).toEqual(['#181669 (IB-181668) · ready-shipping']);
+  // the whole sub-order: the other product's popup says the new status too
+  await c.locator('[data-more="s:5099"]').click();
+  await menu.locator('[data-ma="sitest"]').click();
+  await expect(dlg.locator('[data-site-now]')).toHaveText('جاهز للشحن');
+  await dlg.locator('.cf [data-cc]').click();
+  await expect(dlg).toHaveCount(0);
+  // «مسح المنتج»: Pouf off sub-order 181669 — the order on the site keeps it (the owner 11 Nov, «زي الـ automation»)
+  await c.locator('[data-more="s:5099"]').click();
+  await expect(menu.locator('[data-ma="linedel"]')).toHaveText('مسح المنتج');
+  await menu.locator('[data-ma="linedel"]').click();
+  await expect(dlg.locator('#cdt')).toHaveText('مسح المنتج من IB-181668؟');
+  await expect(dlg.locator('[data-line-del]')).toContainText('Pouf × 1 · 500 ج.م');
+  await expect(dlg).toContainText('المنتج هيتشال من الأوردر الفرعي #181669 على الموقع، والأوردر الأصلي IB-181668 على الموقع هيفضل زي ما هو بإجماليه');
+  await dlg.locator('#creason').selectOption('تعديل من العميل');
+  // the owner 11 Nov («يظهرلي loading … عشان اعرف انه بيتمسح مش معلق»): the site call held → the button spins, the dialog's buttons locked
+  let release; const held = new Promise((r) => { release = r; });
+  await page.route('**/functions/v1/woo-sync', async (route) => { await held; await route.fallback(); });
+  await dlg.locator('[data-cok]').click();
+  await expect(dlg.locator('[data-cok]')).toHaveAttribute('aria-busy', 'true');
+  await expect(dlg.locator('[data-cok]')).toHaveText('بيتمسح…');
+  await expect(dlg.locator('[data-cok] .spin')).toBeVisible();
+  await expect(dlg.locator('[data-cok]')).toBeDisabled();
+  await expect(dlg.locator('.cf [data-cc]')).toBeDisabled();
+  release(); await page.unroute('**/functions/v1/woo-sync');
+  await expect(dlg).toHaveCount(0);
+  await expect(toast(page)).toHaveText('اتمسح المنتج من الأوردر الفرعي #181669 — الأوردر الأصلي على الموقع زي ما هو');
+  expect(Number(mock.orders.find((o) => o.id === 181668).total)).toBe(4041); // the site's parent kept its total
+  expect(mock.lineTrashes).toEqual([{ order_id: 181668, item_id: 5099, reason: 'تعديل من العميل', by: ADMIN }]);
+  await expect(c.locator('[data-more="s:5099"]')).toHaveCount(0);
+  await expect.poll(() => mock.activity.filter((a) => a.action === 'order.line_delete').map((a) => a.new_value)).toEqual(['IB-181668 · سطر #5099 · تعديل من العميل']);
+  // the last product of sub-order 181670 → «مسح الأوردر الفرعي»
+  await c.locator('[data-more="s:5002"]').click();
+  await menu.locator('[data-ma="linedel"]').click();
+  await expect(toast(page)).toHaveText('ده المنتج الوحيد في الأوردر الفرعي #181670 — هيتمسح الأوردر الفرعي كله');
+  await expect(dlg.locator('#cdt')).toHaveText('مسح الأوردر الفرعي #181670؟');
+});
+
+test('the status chips sit in a carousel; the chosen filters show as chips with their counts and a ✕ that removes one', async ({ page }) => {
+  await openOrders(page);
+  const sr = (sel) => page.locator('#orders ' + sel);
+  await expect(sr('.sc-car #chips .sc')).toHaveCount(10);
+  await expect(sr('.car-prev')).toBeHidden(); await expect(sr('.car-next')).toBeHidden(); // nothing hidden on the desktop
+  await expect(sr('#afcr')).toBeHidden();
+  await sr('#fv').selectOption('Anticora', { force: true }); // the dropdown is hidden since 5.5 decision 10; «فلتر» and the chips show the choice
+  await expect(sr('#afc .afc-chip')).toHaveCount(1);
+  await expect(sr('#afc .afc-chip .afc-t')).toHaveText('المبتكر: Anticora');
+  await expect(sr('#afc .afc-chip .afc-c')).toHaveText(String(await page.evaluate(() => window.OrdersApp.query({ vendor: 'Anticora' }, 10).total)));
+  await sr('[data-sc="معلّق"]').click();
+  await expect(sr('#afc .afc-chip')).toHaveCount(2);
+  await expect(sr('#afcn')).toContainText('أوردر');
+  await sr('[data-afc="legacy:vendor"]').click();
+  await expect(sr('#afc .afc-chip')).toHaveCount(1);
+  await expect(sr('#afc .afc-chip .afc-t')).toHaveText('الحالة: معلّق');
+  await expect(sr('#cn')).toHaveText(String(await page.evaluate(() => window.OrdersApp.query({ st: 'معلّق' }, 10).total)));
+  await sr('#clr').click();
+  await expect(sr('#afcr')).toBeHidden();
+});
+
+// المرحلة 5.5 قرار 10 (صاحب المشروع، 2 نوفمبر): the in-page search and the four dropdowns are hidden (the top bar searches, «فلتر» + the chips
+// filter); «مسح» for a cancelled order only, with a reason, through RPC order_delete
+test('decision 10: the in-page search and the four dropdowns are hidden; the top bar and «فلتر» still filter the list', async ({ page }) => {
+  await openOrders(page);
+  const sr = (sel) => page.locator('#orders ' + sel);
+  await expect(sr('.sq')).toBeHidden(); await expect(sr('.legacy-sel')).toBeHidden();
+  for (const id of ['fv', 'fc', 'fd', 'fn']) await expect(sr('#' + id)).toBeHidden();
+  await expect(sr('#fbtn')).toBeVisible(); await expect(sr('#clr')).toBeHidden(); // decision 34: no filters, no «مسح الفلاتر»
+  await expect(sr('#actbtn')).toHaveText('الملفات'); // the owner 12 Nov: «الملفات» instead of «الإجراءات»
+  expect((await sr('#fv option').allTextContents()).some((t) => t.includes('Anticora'))).toBe(true); // the hidden dropdowns keep their options: the filter state lives there
+  const q = page.locator('#gq');
+  await q.fill('181668'); await q.press('Enter');
+  await expect(sr('#cn')).toHaveText('1');
+  await expect(cards(page)).toHaveCount(1);
+  await expect(sr('#oq')).toHaveValue('181668'); // the hidden field carries the query (clear / setQuery)
+  // decision 34: with a filter on, «مسح الفلاتر» sits after the chips and their count
+  await expect(sr('#clr')).toBeVisible();
+  expect(await page.locator('#orders #afcr').evaluate((r) => [...r.children].map((c) => c.id))).toEqual(['afc', 'afcn', 'clr']);
+  await sr('#clr').click();
+  await expect(sr('#cn')).toHaveText('3');
+  await expect(sr('#oq')).toHaveValue('');
+});
+
+test('decision 10: «مسح» on a cancelled order asks a reason, trashes it on the site (order_trash: the order + its sub-orders), marks it deleted (order_delete) and drops it; the reason is logged', async ({ page }) => {
+  mock.orders.find((o) => o.id === 180656).status = 'ملغي'; // the seed's «معلّق» order, cancelled before the page loads
+  await openOrders(page);
+  const sr = (sel) => page.locator('#orders ' + sel); const menu = sr('#mpop'); const dlg = sr('#cdlg');
+  await card(page, '150001').locator('[data-more="o:150001"]').count(); // the old completed order is outside the 12-month window: not on the page
+  await card(page, '180656').locator('[data-more="o:180656"]').click();
+  await expect(menu.locator('[data-ma="del"]')).toHaveText('مسح');
+  await menu.locator('[data-ma="del"]').click();
+  await expect(dlg).toContainText('مسح الأوردر IB-180656؟');
+  await expect(dlg).toContainText('سلة مهملات الموقع');
+  await expect(dlg).not.toContainText('هيتلغي الأول'); // already cancelled
+  await expect(dlg.locator('[data-cok]')).toHaveText('مسح الأوردر');
+  await dlg.locator('[data-cok]').click(); // no reason yet
+  await expect(dlg.locator('#cerr')).toBeVisible();
+  expect(mock.deletes).toEqual([]); expect(mock.trashes).toEqual([]);
+  await dlg.locator('#creason').selectOption('أخرى');
+  await expect(dlg.locator('#cother')).toBeVisible();
+  await dlg.locator('[data-cok]').click(); // «أخرى» without a text
+  await expect(dlg.locator('#cerr2')).toBeVisible();
+  expect(mock.deletes).toEqual([]);
+  await dlg.locator('#cotxt').fill('العميل غيّر المقاس');
+  await dlg.locator('[data-cok]').click();
+  await expect(dlg).toHaveCount(0);
+  await expect(toast(page)).toHaveText('اتمسح الأوردر IB-180656 واتحط في مهملات الموقع');
+  await expect(card(page, '180656')).toHaveCount(0);
+  await expect(cards(page)).toHaveCount(2);
+  await expect(sr('#cn')).toHaveText('2');
+  expect(mock.trashes).toEqual([{ order_id: 180656, sub_orders: [], by: ADMIN }]);
+  expect(mock.deletes).toEqual([{ order_id: 180656, reason: 'العميل غيّر المقاس', by: ADMIN }]);
+  expect(mock.patches).toEqual([]); // already cancelled: no status PATCH, no push
+  expect(mock.pushes).toEqual([]);
+  await expect.poll(() => mock.activity.filter((a) => a.action === 'order.delete').map((a) => a.new_value)).toEqual(['IB-180656 · العميل غيّر المقاس · الموقع: ok']);
+  expect(await page.evaluate(() => window.OrdersApp.get('180656'))).toBeNull();
+  expect(await page.evaluate(() => window.IBOrders.data().orders.map((o) => o.id))).toEqual(['181668', '180686']);
+  // a reload never brings it back: orders_v leaves deleted orders out
+  await page.reload();
+  await expect(page.locator('#orders')).toBeVisible();
+  await expect(cards(page)).toHaveCount(2);
+  await expect(card(page, '180656')).toHaveCount(0);
+});
+
+test('decision 10: «مسح» on an open order cancels it first with the same reason (row + push), trashes it with its two sub-orders, then marks it deleted; «مكتمل» has no «مسح»', async ({ page }) => {
+  mock.orders.find((o) => o.id === 180686).status = 'مكتمل';
+  await openOrders(page);
+  const sr = (sel) => page.locator('#orders ' + sel); const menu = sr('#mpop'); const dlg = sr('#cdlg');
+  await card(page, '180686').locator('[data-more="o:180686"]').click();
+  await expect(menu.locator('[data-ma="edit"]')).toHaveCount(1);
+  await expect(menu.locator('[data-ma="del"]')).toHaveCount(0); // completed: never deleted
+  await page.keyboard.press('Escape');
+  await card(page, '181668').locator('[data-more="o:181668"]').click(); // «جاري التنفيذ», two Dokan sub-orders
+  await menu.locator('[data-ma="del"]').click();
+  await expect(dlg).toContainText('هيتلغي الأول بالسبب ده');
+  await expect(dlg.locator('[data-cok]')).toHaveText('إلغاء ومسح الأوردر');
+  await dlg.locator('#creason').selectOption('إلغاء من العميل');
+  await dlg.locator('[data-cok]').click();
+  await expect(dlg).toHaveCount(0);
+  await expect(toast(page)).toHaveText('اتمسح الأوردر IB-181668 واتحط في مهملات الموقع');
+  await expect(card(page, '181668')).toHaveCount(0);
+  await expect(cards(page)).toHaveCount(2);
+  expect(mock.patches).toEqual([{ table: 'orders', id: 181668, status: 'ملغي', cancel: { reason: 'إلغاء من العميل' } }]); // cancelled first, with the reason
+  expect(mock.pushes.map((p) => [p.order_id, p.status, p.result])).toEqual([[181668, 'ملغي', 'ok']]);
+  expect(mock.trashes).toEqual([{ order_id: 181668, sub_orders: [181669, 181670], by: ADMIN }]);
+  expect(mock.deletes).toEqual([{ order_id: 181668, reason: 'إلغاء من العميل', by: ADMIN }]);
+  expect(mock.orders.find((o) => o.id === 181668).status).toBe('ملغي');
+});
+
+test('decision 10: the site unreachable → nothing deleted (the order stays, the dialog says so); WOO_PUSH_ENABLED off → deleted here, the site untouched', async ({ page }) => {
+  mock.orders.find((o) => o.id === 180656).status = 'ملغي';
+  await openOrders(page);
+  const sr = (sel) => page.locator('#orders ' + sel); const menu = sr('#mpop'); const dlg = sr('#cdlg');
+  mock.wooDown = true;
+  await card(page, '180656').locator('[data-more="o:180656"]').click();
+  await menu.locator('[data-ma="del"]').click();
+  await dlg.locator('#creason').selectOption('أوردر مكرر');
+  await dlg.locator('[data-cok]').click();
+  await expect(toast(page)).toHaveText('الموقع ماردش — الأوردر ماتمسحش');
+  await expect(dlg).toHaveCount(1); await expect(dlg.locator('[data-cok]')).toBeEnabled();
+  expect(mock.deletes).toEqual([]); expect(mock.trashes).toEqual([]);
+  await expect(card(page, '180656')).toHaveCount(1);
+  mock.wooDown = false; mock.pushEnabled = false;
+  await dlg.locator('[data-cok]').click();
+  await expect(dlg).toHaveCount(0);
+  await expect(toast(page)).toHaveText('اتمسح الأوردر IB-180656 — الموقع ماتلمسش (الدفع متقفل)');
+  await expect(card(page, '180656')).toHaveCount(0);
+  expect(mock.trashes).toEqual([]);
+  expect(mock.deletes).toEqual([{ order_id: 180656, reason: 'أوردر مكرر', by: ADMIN }]);
+});
+
+test('decision 10: without orders.status = F the server refuses «مسح» (401 on the trash, nothing deleted) and the order stays; the dialog says so', async ({ page }) => {
+  mock.orders.find((o) => o.id === 180656).status = 'ملغي';
+  await openOrders(page, ACCOUNTS); // orders.status N
+  const sr = (sel) => page.locator('#orders ' + sel); const menu = sr('#mpop'); const dlg = sr('#cdlg');
+  await card(page, '180656').locator('[data-more="o:180656"]').click();
+  await menu.locator('[data-ma="del"]').click();
+  await dlg.locator('#creason').selectOption('أوردر مكرر');
+  await dlg.locator('[data-cok]').click();
+  await expect(toast(page)).toHaveText('مش مسموح لك تمسح أوردرات');
+  await expect(dlg).toHaveCount(1); // still open, the button usable again
+  await expect(dlg.locator('[data-cok]')).toBeEnabled();
+  expect(mock.deletes).toEqual([]); expect(mock.trashes).toEqual([]);
+  await expect(card(page, '180656')).toHaveCount(1);
+  await expect(cards(page)).toHaveCount(3);
+});
+
+// phase 13 decision 35 (owner 10 Nov — «التأكد من إن التكست سنتر جوه الزرار»): the filter's field select shares .fld with the order cards
+// (a flex column that put «رقم الأوردر» at the top); every select of the filter lays its text out like the others, in the middle
+test('decision 35: the filter builder selects keep their text in the middle (the field select is not the cards\' .fld column)', async ({ page }) => {
+  await openOrders(page);
+  await page.locator('#orders #fbtn').click();
+  await page.locator('#fbpop [data-fbadd]').first().click(); await page.locator('#fbpop [data-fbadd]').first().click();
+  const look = (sel) => page.locator('#fbpop ' + sel).first().evaluate((e) => { const c = getComputedStyle(e); return [c.display, c.flexDirection, c.alignItems].join(' '); });
+  const want = await look('select.opr');
+  expect(await look('select.fld')).toBe(want);
+  expect(await look('select.conj')).toBe(want);
+  expect(want).toBe('block row center');
+});
+
+test('decision 47: the status chips and the chosen filters stay in view under the top bar while scrolling; with no filter the space above and below the chips is the same', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await openOrders(page);
+  const bar = () => page.evaluate(() => { const R = document.querySelector('#orders').shadowRoot; const t = R.querySelector('.toolbar').getBoundingClientRect(); const c = R.querySelector('#chips').getBoundingClientRect(); const top = document.querySelector('.topbar').getBoundingClientRect();
+    return { top: Math.round(t.top), head: Math.round(top.bottom), above: Math.round(c.top - t.top), below: Math.round(t.bottom - c.bottom) }; });
+  const b0 = await bar();
+  expect(Math.abs(b0.above - b0.below)).toBeLessThanOrEqual(1);
+  await page.mouse.move(640, 400); await page.mouse.wheel(0, 1200);
+  await expect.poll(async () => (await bar()).top).toBe(b0.head); // stuck right under the top bar
+  await expect(page.locator('#orders #chips .sc').first()).toBeInViewport();
+});
+
+test('decision 48: every order starts closed; the fold button opens one and leaves the others closed', async ({ page }) => {
+  await signIn(page, ADMIN);
+  await page.evaluate(() => { location.hash = 'orders'; });
+  await expect(cards(page)).toHaveCount(3);
+  for (let i = 0; i < 3; i++) await expect(cards(page).nth(i).locator('[data-tg]').first()).toHaveAttribute('aria-label', 'فتح');
+  await cards(page).nth(1).locator('[data-tg]').first().click();
+  await expect(cards(page).nth(1).locator('[data-tg]').first()).toHaveAttribute('aria-label', 'طي');
+  await expect(cards(page).nth(0).locator('[data-tg]').first()).toHaveAttribute('aria-label', 'فتح');
+});
+
+// phase 13 decision 52 (owner 10 Nov): the order's delay from its confirmation date (none while not confirmed); a sub-order's from the
+// maker's notify date (else the confirmation) against the making days — the product's own over the maker's «مدة التجهيز»
+test('decision 52: an unconfirmed order is never late; a sub-order counts against its making days (the product\'s own, else the maker\'s)', async ({ page }) => {
+  mock.orders.find((o) => o.id === 180656).placed_at = new Date(Date.now() - 30 * 864e5).toISOString(); // old, but not confirmed
+  await openOrders(page);
+  await expect(card(page, '180656').locator('.badge').filter({ hasText: /^\s*(متأخر|قابل للتأخير)\s*$/ })).toHaveCount(0);
+  await expect(card(page, '180656').locator('.badge', { hasText: 'غير متأخر' }).first()).toBeVisible();
+  // 180686: confirmed 5 days ago, no notify date, Artisan Loft's 7 days → the last 3 = «قابل للتأخير»
+  const sub = card(page, '180686').locator('.row').filter({ hasText: 'Cushion' }).first();
+  await expect(sub.locator('[data-lead]')).toHaveText('مدة التصنيع: 7 يوم (المبتكر)');
+  await expect(sub).toContainText('5/7'); await expect(sub).toContainText('قابل للتأخير');
+  // the product's own 10 days (set on the products page) → not late, and the page follows without a reload
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('ib:product-lead', { detail: { productId: '9001', days: 10 } })));
+  await expect(sub.locator('[data-lead]')).toHaveText('مدة التصنيع: 10 يوم (المنتج)');
+  await expect(sub).toContainText('5/10'); await expect(sub).toContainText('غير متأخر');
+});
+
+// the owner 15 Nov: «المفروض الاوردرات الفرعية تتحول متأخرة بناء علي تاريخ التأكيد لو عدت مدة التصنيع من تاريخ التأكيد» — a sub-order counts
+// from its order's confirmation (the start point), not from a later notify date; a sub-order closed on the site has no counter («مقفول»)
+test('the owner 15 Nov: a sub-order is late once its making days pass from the confirmation, whatever its notify date; closed on the site = «مقفول»', async ({ page }) => {
+  const day = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+  Object.assign(mock.orders.find((o) => o.id === 181668), { confirm: 'مؤكد بدون عربون', confirm_at: day(60) });
+  mock.orderItems.find((i) => i.id === 5001).expected_at = day(2); // told the maker 2 days ago — the counter stays on the confirmation
+  mock.subOrders.find((s) => s.id === 2).woo_status = 'cancelled'; // the other maker's sub-order: cancelled on the site
+  await openOrders(page);
+  const row = (sku) => card(page, '181668').locator('.row').filter({ hasText: sku }).first();
+  await expect(row('IBTA4040PAHC000013')).toContainText('60/7');
+  await expect(row('IBTA4040PAHC000013').locator('.badge').filter({ hasText: /^\s*متأخر\s*$/ })).toHaveCount(1);
+  await expect(card(page, '181668').locator('[data-delay-start]').first()).toContainText('من تاريخ تأكيد الأوردر');
+  const closed = row('IBTAMCTOWM200X10014');
+  await expect(closed.locator('[data-closed]')).toHaveText('مقفول');
+  await expect(closed.locator('[data-closed]')).toHaveAttribute('title', /ملغي/);
+  await expect(closed).toContainText('—');
+});
+
+// the owner 19 Nov: «اتحكم في عدد الصفوف يبقي 25 او 50 او 100» — next to «عرض …», 25 by default, remembered in the browser
+test('rows per page: 25 / 50 / 100 next to «عرض», 25 by default and remembered', async ({ page }) => {
+  await openOrders(page);
+  const sel = page.locator('#orders #pg [data-pgsize]');
+  await expect(sel).toHaveValue('25');
+  expect(await sel.locator('option').allTextContents()).toEqual(['25', '50', '100']);
+  // the owner 19 Nov (screenshot): ‹ 1 … › · «الصفوف لكل صفحة» · «1–3 من 3»
+  await expect(page.locator('#orders #pg [data-pg-range]')).toHaveText('1–3 من 3');
+  await expect(page.locator('#orders #pg .pgr')).toContainText('الصفوف لكل صفحة');
+  await expect(page.locator('#orders #pg [aria-current=page]')).toHaveText('1');
+  await expect(page.locator('#orders #pg [aria-label="الصفحة السابقة"]')).toBeDisabled();
+  await expect(page.locator('#orders #pg [aria-label="الصفحة التالية"]')).toBeDisabled();
+  await sel.selectOption('50');
+  await expect(cards(page)).toHaveCount(3);
+  expect(await page.evaluate(() => localStorage.getItem('ib.orders.size'))).toBe('50');
+  await page.reload();
+  await expect(page.locator('#root')).toBeVisible();
+  await page.evaluate(() => { location.hash = 'orders'; });
+  await expect(page.locator('#orders #pg [data-pgsize]')).toHaveValue('50');
+});
+
+// the owner 19 Nov: «رقم التتبع يبقي بعد شمال عنوان العميل» — the Bosta tracking number (0140, from the site's Bosta plugin) at the
+// end of the address row with its status in Arabic; an order Bosta never got shows nothing
+test('the Bosta tracking number sits at the end of the address row with its status', async ({ page }) => {
+  await openOrders(page);
+  const c = card(page, '181668');
+  const b = c.locator('[data-tg]').first(); if ((await b.getAttribute('aria-label')) === 'فتح') await b.click();
+  const t = c.locator('.arow [data-trk]');
+  await expect(t).toContainText('70123456');
+  await expect(t).toContainText('مستني الاستلام');
+  const ob = card(page, '180686').locator('[data-tg]').first(); if ((await ob.getAttribute('aria-label')) === 'فتح') await ob.click();
+  await expect(card(page, '180686').locator('.arow')).toBeVisible();
+  await expect(card(page, '180686').locator('[data-trk]')).toHaveCount(0);
+});
+
+// the owner 19 Nov (decision 9): «ابعت لبوسطة» in the bulk bar only — the whole order, its status as it is, the cash = what is left on
+// the customer; an order with a tracking number already is left out; the tracking number shows next to the address after the send
+test('«ابعت لبوسطة» from the bulk bar: a confirm with the cash, the sent orders get their tracking number, a sent one is left out, no key says where', async ({ page }) => {
+  await openOrders(page);
+  const sr = (sel) => page.locator('#orders ' + sel);
+  // no key in the settings yet
+  await sr('[data-osel="180686"]').click();
+  await sr('[data-obulk-bosta]').click();
+  let dlg = sr('[data-bosta-dlg]');
+  await expect(dlg).toBeVisible();
+  await dlg.locator('[data-cok]').click();
+  await expect(toast(page)).toContainText('مفتاح بوسطة مش متحط');
+  await dlg.locator('[data-cc]').first().click();
+  // with the key: 180686 goes, 181668 (sent already — 70123456) is left out, 180656 is refused by Bosta
+  mock.bostaKey = true; mock.bostaRefuse = [180656];
+  await sr('[data-osel="181668"]').click(); await sr('[data-osel="180656"]').click();
+  await sr('[data-obulk-bosta]').click();
+  dlg = sr('[data-bosta-dlg]');
+  await expect(dlg.locator('[data-bosta-row]')).toHaveCount(2);
+  await expect(dlg.locator('[data-bosta-skip]')).toContainText('1 اتبعت قبل كده');
+  await dlg.locator('[data-cok]').click();
+  const res = sr('[data-bosta-result]');
+  await expect(res).toContainText('اتبعت 1 · ماتبعتش 1');
+  await expect(res.locator('[data-bosta-fail="180656"]')).toContainText('مفيش محافظة ولا منطقة معروفة لبوسطة');
+  await res.locator('[data-cc]').first().click();
+  expect(mock.bostaCalls.at(-1).ids.sort()).toEqual([180656, 180686]);
+  const c = card(page, '180686'); const tg = c.locator('[data-tg]').first(); if ((await tg.getAttribute('aria-label')) === 'فتح') await tg.click();
+  await expect(c.locator('[data-trk]')).toContainText('70501');
+  expect(mock.activity.some((a) => a.action === 'order.bosta')).toBe(true);
+  expect(pageErrors).toEqual([]);
+});
+
+// 0144 (the owner 19 Nov): the waybill printed from the system — the order's ⋮ and the bulk bar → Bosta's own PDF (mass-awb)
+test('«اطبع بوليصة بوسطة» from the order ⋮ and the bulk bar: Bosta\'s PDF of the order\'s delivery; an unsent order says so', async ({ page }) => {
+  mock.bostaKey = true;
+  await openOrders(page);
+  const pop = page.waitForEvent('popup');
+  await card(page, '181668').locator('[data-more="o:181668"]').click();
+  await page.locator('#orders #mpop [data-ma="awb"]').click();
+  await pop;
+  await expect.poll(() => (mock.awbCalls || []).length).toBe(1);
+  expect(mock.awbCalls[0].deliveries).toEqual(['dlv181668']);
+  await expect(page.locator('.busy-pill').last()).toContainText('البوليصة جاهزة');
+  // an order never sent has no «اطبع» in its menu; the bulk bar says the selection is not on Bosta yet
+  await card(page, '180686').locator('[data-more="o:180686"]').click();
+  await expect(page.locator('#orders #mpop [data-ma="awb"]')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.locator('#orders [data-osel="180686"]').click();
+  await page.locator('#orders [data-obulk-awb]').click();
+  await expect(toast(page)).toContainText('المحدد لسه ماتبعتش لبوسطة');
+  expect(pageErrors).toEqual([]);
+});
+
+// 0144: the deposit of an order on Bosta changes → its new cash goes to Bosta at once; Bosta refusing shows on the tracking number
+test('a deposit change on an order on Bosta sends the new cash; a refusal shows «التحصيل على بوسطة مااتحدثش»', async ({ page }) => {
+  mock.bostaKey = true;
+  await openOrders(page);
+  await page.evaluate(() => window.IBOrders.patchOrder('181668', { dep: 500 }));
+  await expect.poll(() => (mock.codCalls || []).length).toBe(1);
+  const o = mock.orders.find((x) => x.id === 181668);
+  expect([o.bosta_cod, o.bosta_cod_due]).toEqual([3041, false]);
+  mock.bostaCodRefuse = [181668];
+  await page.evaluate(() => window.IBOrders.patchOrder('181668', { dep: 700 }));
+  await expect.poll(() => o.bosta_cod_error).toBe('Delivery can not be updated');
+  await page.evaluate(() => window.IBOrders.refetch && window.IBOrders.refetch(['181668']));
+  const c = card(page, '181668'); const tg = c.locator('[data-tg]').first(); if ((await tg.getAttribute('aria-label')) === 'فتح') await tg.click();
+  await expect(c.locator('[data-trk-err]')).toContainText('التحصيل على بوسطة مااتحدثش');
+  expect(pageErrors).toEqual([]);
+});
+
+// 0144 + 0145: «بيك أب من المبتكر» — the maker's Bosta location (his name), the warehouse and its receiver by default; several waybills —
+// rows to the warehouse (cash 0, a note: the order numbers coming) and orders typed going straight to their customers — one courier
+// visit, then all the waybills print together
+test('«بيك أب من المبتكر (بوسطة)»: two warehouse waybills with their notes + an order to its customer, one visit, all the waybills print', async ({ page }) => {
+  mock.bostaKey = true;
+  await openOrders(page);
+  await card(page, '181668').locator('[data-more="s:5001"]').click();
+  await page.locator('#orders #mpop [data-ma="pickup"]').click();
+  const m = page.locator('.modal[role=dialog]').last();
+  await expect(m).toContainText('بيك أب من Artisan Loft');
+  await expect(m.locator('[data-bp-note]')).toContainText('مكتب فيصل');
+  await expect(m.locator('#location')).toContainText('Artisan Loft');
+  await expect(m.locator('#receiver')).toHaveValue('أحمد التشغيل');
+  // the day — Bosta's own way (the owner 19 Nov): three buttons, the next three days from tomorrow without Friday, no time slot
+  const next3 = []; { const b0 = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Cairo' })); for (let i = 1; next3.length < 3; i += 1) { const d = new Date(b0.getFullYear(), b0.getMonth(), b0.getDate() + i); if (d.getDay() !== 5) next3.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')); } }
+  await expect(m.locator('[data-bp-day]')).toHaveCount(3);
+  await expect(m.locator('[data-bp-days] [data-day]')).toHaveText(next3.map((d) => new RegExp(Number(d.slice(8)) + '/' + Number(d.slice(5, 7)) + '$')));
+  await expect(m.locator('[data-bp-day="0"]')).toHaveAttribute('aria-checked', 'true');
+  await expect(m.locator('#slot')).toHaveCount(0);
+  await expect(m.locator('input#date')).toHaveCount(0);
+  await m.locator('[data-bp-day="2"]').click();
+  await expect(m.locator('[data-bp-day="2"]')).toHaveAttribute('aria-checked', 'true');
+  await m.locator('#wn0').fill('181668 180656');
+  await m.locator('#wp0').fill('2');
+  await m.getByRole('button', { name: '+ بوليصة للمخزن' }).click();
+  await expect(m.locator('[data-bp-row]')).toHaveCount(2);
+  await m.locator('#wn1').fill('180600');
+  // the orders to the customer as tags (the owner 19 Nov): the first digits suggest, Enter makes a green tag with × to take it off
+  await m.locator('#orders').pressSequentially('1806');
+  await expect(m.locator('[data-bp-sug-id="180686"]')).toBeVisible();
+  await m.locator('[data-bp-sug-id="180686"]').click();
+  await expect(m.locator('[data-bp-tag]')).toHaveText(['180686×']);
+  await m.locator('#orders').pressSequentially('181668'); await m.locator('#orders').press('Enter');
+  await m.locator('#orders').pressSequentially('180600'); await m.locator('#orders').press('Enter');
+  await expect(m.locator('[data-bp-tag]')).toHaveCount(3);
+  await m.locator('[data-bp-untag="180600"]').click();
+  await expect(m.locator('[data-bp-tag]')).toHaveCount(2);
+  await expect(m).toBeVisible(); // Enter in the field does not send the form
+  // the owner 19 Nov: Bosta's shipment choices — a bulky shipment ticks and locks «big items»
+  await m.locator('[data-bp-kind="bulky"] input').check();
+  await expect(m.locator('[data-bp-kind="big"] input')).toBeChecked();
+  await expect(m.locator('[data-bp-kind="big"] input')).toBeDisabled();
+  await m.locator('[data-bp-kind="fragile"] input').check();
+  await m.getByRole('button', { name: 'اطلب البيك أب' }).click();
+  const done = page.locator('[data-bp-done="ok"]');
+  await expect(done.locator('[data-bp-ok="1"]')).toHaveCount(4); // the owner 19 Nov: an order sent before prints its own waybill too
+  await expect(done.locator('[data-bp-waybill="order:181668"] [data-bp-existing]')).toContainText('متبعتة قبل كده — نفس البوليصة');
+  expect(mock.pickupCalls.at(-1)).toMatchObject({ fragile: true, bulky: true, big: true, location: 'ARTC', date: next3[2], receiver: 'أحمد التشغيل', slot: '10:00 to 13:00', warehouse: [{ note: '181668 180656', parcels: 2 }, { note: '180600', parcels: 1 }], orders: '180686 181668' });
+  expect(mock.orders.find((o) => o.id === 180686).bosta_delivery).toBeTruthy();
+  const pop = page.waitForEvent('popup');
+  await page.getByRole('button', { name: 'اطبع البوليصات (4)' }).click();
+  await pop;
+  await expect.poll(() => (mock.awbCalls || []).at(-1) && mock.awbCalls.at(-1).deliveries.length).toBe(4);
+  expect(mock.awbCalls.at(-1).deliveries).toContain('dlv181668');
+  expect(mock.activity.some((a) => a.action === 'order.bosta_pickup')).toBe(true);
+  expect(pageErrors).toEqual([]);
+});
+
+// 0146 (the owner 19 Nov: «ضيفلي هنا تعديل العنوان و خليه يسمع ف بوسطة و ف الويبسايت»): «تعديل العنوان» in «بيانات العميل» — the
+// governorate and the area from Bosta's own list, the address written here, on the site (one maker only) and on the Bosta delivery
+test('«تعديل العنوان»: Bosta\'s governorates and areas, saved here + on Bosta; an order of several makers leaves the site as it is', async ({ page }) => {
+  await openOrders(page);
+  const menu = page.locator('#orders #mpop');
+  await card(page, '181668').locator('[data-more="o:181668"]').click();
+  await menu.locator('[data-ma="edit"]').click();
+  const edit = page.locator('#orders #cdlg').first();
+  await expect(edit.locator('[data-addr-now]')).toHaveText('شارع عباس العقاد');
+  await edit.locator('[data-eaddr]').click();
+  const dlg = page.locator('#orders #cdlg').last();
+  await expect(dlg.locator('#ast')).toHaveValue('EG-01'); // the order's governorate picked
+  await expect(dlg.locator('[data-addr-where]')).toContainText('الموقع بيفضل زي ما هو');
+  await dlg.locator('#ast').selectOption('EG-21');
+  await expect(dlg.locator('#aar option')).toHaveCount(3); // «اختار المنطقة» + Giza's two areas
+  await dlg.locator('#aad').fill('قصير');
+  await dlg.locator('[data-aok]').click();
+  await expect(dlg.locator('#aerr')).toHaveText('اختار المنطقة');
+  await dlg.locator('#aar').selectOption('dFaisal');
+  await dlg.locator('[data-aok]').click();
+  await expect(dlg.locator('#aerr')).toContainText('اكتب العنوان كامل');
+  await dlg.locator('#aad').fill('12 شارع الملك فيصل الدور الخامس');
+  await dlg.locator('[data-aok]').click();
+  await expect.poll(() => (mock.addressCalls || []).length).toBe(1);
+  expect(mock.addressCalls[0]).toMatchObject({ order_id: 181668, address: '12 شارع الملك فيصل الدور الخامس', state: 'EG-21', district: 'dFaisal', site: 'multi', bosta: 'ok' });
+  await expect(page.locator('#orders #cdlg')).toHaveCount(1); // the address popup closed, the edit popup stays
+  await expect(edit.locator('[data-addr-now]')).toHaveText('12 شارع الملك فيصل الدور الخامس');
+  await expect(edit.locator('[data-epanel="cust"]')).toContainText('فيصل');
+  await expect(page.locator('#orders')).toContainText('الموقع زي ما هو — الأوردر فيه أكتر من مبتكر · واتحدّث على بوسطة');
+  expect(pageErrors).toEqual([]);
+});
+
+// the owner 20 Nov: quick filters in the «فلتر» popup (one press applies, a second one adds, the same one again takes it off) and the
+// member's own saved filters (user_prefs «orders.filters» — only theirs; × removes one)
+test('quick filters apply on one press and stack; a saved filter is the member\'s own and can be removed', async ({ page }) => {
+  await openOrders(page);
+  const pop = page.locator('#orders #fbpop'); const fb = page.locator('#orders #fbtn');
+  const quick = async (label) => { await fb.click(); await pop.locator('[data-qf-row] button', { hasText: label }).click(); await expect(pop).toHaveCount(0); };
+  await fb.click();
+  await expect(pop.locator('[data-qf-row] .qc')).toHaveText(['ديبوزيت غير مدفوع', 'أوردرات متأخرة', 'أوردرات 1-9 أيام', 'مبتكر واحد', 'أكتر من مبتكر', 'متأخرة عن مدة التصنيع', 'قابلة للتأخير', 'لسه ماتأكدتش', 'متأكدة ومش على بوسطة']);
+  await pop.locator('[data-fbcancel]').click();
+  await quick('مبتكر واحد');
+  await expect(toast(page)).toHaveText('اتطبق «مبتكر واحد»');
+  await expect(fb).toContainText('فلتر (2)'); // the chip + «أوردر شغّال» (owner 20 Nov: working orders only)
+  const one = await cards(page).count();
+  await fb.click(); await expect(pop.locator('[data-qf="one"]')).toHaveAttribute('aria-pressed', 'true'); await pop.locator('[data-fbcancel]').click();
+  await quick('أكتر من مبتكر'); // stacked on «مبتكر واحد» → nothing is both
+  await expect(fb).toContainText('فلتر (4)'); await expect(cards(page)).toHaveCount(0);
+  await quick('مبتكر واحد'); // off again → «أكتر من مبتكر» only
+  await expect(toast(page)).toHaveText('اتشال «مبتكر واحد»');
+  const multi = await cards(page).count();
+  // «أوردرات متأخرة» (the sheet's tab) = one group: working and 10+ days, or قيد الانتظار, or معلّق — 4 conditions; off again → back
+  await quick('أكتر من مبتكر'); await expect(cards(page)).toHaveCount(3);
+  await quick('أوردرات متأخرة'); await expect(fb).toContainText('فلتر (4)');
+  await fb.click(); await expect(pop.locator('.grp').first()).toBeVisible(); await pop.locator('[data-fbcancel]').click();
+  await quick('أوردرات متأخرة'); await expect(cards(page)).toHaveCount(3);
+  await quick('أكتر من مبتكر');
+  expect(one + multi).toBeLessThanOrEqual(3); // closed / shipping orders are never in a quick filter
+  // save it, it shows for this member, applies, and × removes it
+  await fb.click(); await pop.locator('[data-svnew]').click();
+  await pop.locator('#svname').fill('أوردرات بأكتر من مبتكر'); await pop.locator('#svform button[type=submit]').click();
+  await expect(toast(page)).toHaveText('اتحفظ الفلتر «أوردرات بأكتر من مبتكر»');
+  await expect.poll(() => mock.prefs.find((r) => r.key === 'orders.filters')?.data?.map((x) => x.name)).toEqual(['أوردرات بأكتر من مبتكر']);
+  await pop.locator('[data-fbclear]').click(); await pop.locator('[data-fbapply]').click();
+  await expect(cards(page)).toHaveCount(3);
+  await fb.click(); await pop.locator('[data-svf="0"]').click();
+  await expect(cards(page)).toHaveCount(multi); await expect(fb).toContainText('فلتر (2)');
+  await fb.click(); await pop.locator('[data-svx="0"]').click();
+  await expect(pop.locator('[data-svf]')).toHaveCount(0);
+  await expect.poll(() => mock.prefs.find((r) => r.key === 'orders.filters')?.data).toEqual([]);
+});

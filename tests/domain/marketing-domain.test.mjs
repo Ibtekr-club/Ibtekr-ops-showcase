@@ -1,0 +1,459 @@
+import { test } from 'node:test'; import assert from 'node:assert/strict';
+import { loadUmd } from '../helpers/load-umd.mjs';
+// The marketing domain (phase 9.5): the v5's campaign wizard (IbtekrCampWiz) as it is + our rules (plan decisions 10–18): the
+// real credits, the AI writing at no credit, the video «قريبًا», the campaign's status, the schedule's items, the move check,
+// the ZIP plan, the plan calendar's weeks and a pasted product link.
+const W = loadUmd(new URL('../../app/js/pages/marketing-domain.js', import.meta.url));
+const plain = (v) => JSON.parse(JSON.stringify(v));
+const MODELS = [{ id: 'seedream-5-pro', credits: 75 }, { id: 'gpt-image-2', credits: 60 }, { id: 'gemini-2-5-flash', credits: 20 }];
+
+// the shape the tests below were written on (2 posts + 1 carousel — the defaults before ش38)
+const old = () => { const c = W.defaults(); c.media.post.count = 2; c.media.carousel.count = 1; return c; };
+
+test('defaults (ش38 — the owner 17 Nov: «لما ابدء كامبين خلي الكرياتيفس كلها عددها صفر»): every count 0, an empty idea, the real default model', () => {
+  const c = W.defaults();
+  assert.equal(c.idea, ''); assert.equal(c.mediaTab, 'post');
+  assert.equal(c.media.video.count, 0); assert.equal(c.media.post.count, 0); assert.equal(c.media.carousel.count, 0); assert.equal(c.extra.count, 0);
+  assert.equal(W.validateDetails(Object.assign(c, { idea: 'x' })).media, 'اختار قطعة واحدة على الأقل'); // «التالي» asks for one
+  assert.equal(c.media.post.model, 'seedream-5-pro');
+  assert.equal(W.PRICE_DEMO, false); assert.equal(W.VIDEO_SOON, false); // 9.5.5 assert.equal(W.TEXT_FILL, 0);
+});
+
+test('buildPieces: V / P / C / X ids (9.5.5: the video pieces with their scenes and tracks), the carousel slides, old pieces kept', () => {
+  const c = old(); c.media.video.count = 2; c.extra.count = 1;
+  const ps = W.buildPieces(c, []);
+  assert.deepEqual(ps.map((p) => p.id), ['V1', 'V2', 'P1', 'P2', 'C1', 'X1']);
+  const v = ps[0]; assert.deepEqual([v.kind, v.size, v.model, v.dur, v.res, v.sceneCount, v.scenes, v.method, v.music.type, v.voice.voice, v.video], ['فيديو', '9:16', 'seedance-2.5', 15, '1080p', 3, [], 'separate', 'دافية هادية', 'm-eg-1', null]);
+  const car = ps.find((p) => p.id === 'C1'); assert.equal(car.slides.length, 4); assert.equal(car.slides[0].kind, 'شريحة');
+  ps[0].idea = 'لقطة'; ps[0].img = 'cid/gen-P1.png';
+  c.media.carousel.slides = 2; const again = W.buildPieces(c, ps);
+  assert.equal(again[0].idea, 'لقطة'); assert.equal(again[0].img, 'cid/gen-P1.png');
+  assert.equal(again.find((p) => p.id === 'C1').slides.length, 2);
+  c.media.post.count = 1; assert.deepEqual(W.buildPieces(c, again).map((p) => p.id), ['V1', 'V2', 'P1', 'C1', 'X1']);
+});
+
+test('cost: the model credits per image, the carousel = cover + slides, the AI writing = 0 credits', () => {
+  assert.equal(W.cost('image', { model: 'gpt-image-2' }, MODELS), 60);
+  assert.equal(W.cost('carousel', { model: 'seedream-5-pro', slides: [{}, {}, {}] }, MODELS), 300);
+  assert.equal(W.cost('fill', {}, MODELS), 0);
+  assert.equal(W.cost('image', { model: 'unknown' }, MODELS), 75); // an unknown model = the first one
+});
+
+test('estimate: posts + carousels (cover + slides) + extras + the videos\' scene images (3 a video); the video seconds beside, on the Magnific account (estimateVideo)', () => {
+  const c = old(); c.media.video.count = 3; c.extra.count = 2; c.extra.model = 'gemini-2-5-flash';
+  // 2 × 75 + 1 × 5 × 75 + 3 × 3 × 75 + 2 × 20
+  assert.equal(W.estimate(c, MODELS), 150 + 375 + 675 + 40);
+  assert.equal(W.estimateVideo(c), 3 * 5 * 15);
+  assert.equal(W.videoImgSize('9:16'), '1080x1920t'); assert.equal(W.videoImgSize('4:5'), '1080x1350'); assert.equal(W.videoImgSize('x'), '1080x1920t');
+  assert.equal(W.videoMethod('kling-2.5', 'chained'), 'separate'); assert.equal(W.videoMethod('seedance-2.5', 'chained'), 'chained');
+});
+
+test('validateDetails: the idea, the goal and one piece at least (a video counts from 9.5.5)', () => {
+  const c = old();
+  assert.deepEqual(plain(W.validateDetails(c)), { idea: 'اكتب الفكرة العامة' });
+  c.idea = 'كولكشن الشتا'; c.media.post.count = 0; c.media.carousel.count = 0; c.media.video.count = 0;
+  assert.deepEqual(plain(W.validateDetails(c)), { media: 'اختار قطعة واحدة على الأقل' });
+  c.media.video.count = 2; assert.deepEqual(plain(W.validateDetails(c)), {});
+  c.media.video.count = 0; c.extra.count = 1; assert.deepEqual(plain(W.validateDetails(c)), {});
+});
+
+test('built / approved / approveAll: a carousel needs its cover and every slide', () => {
+  const c = old(); const [p1, , c1] = W.buildPieces(c, []);
+  assert.equal(W.built(p1), false); p1.img = 'x.png'; assert.equal(W.built(p1), true);
+  c1.img = 'cover.png'; assert.equal(W.built(c1), false); c1.slides.forEach((s, k) => { s.img = 's' + k + '.png'; }); assert.equal(W.built(c1), true);
+  assert.equal(W.approveAll([p1, c1]), 2); assert.equal(W.approved(c1), true); assert.equal(W.canReviewNext([p1, c1]), true);
+  c1.slides[1].approved = false; assert.equal(W.approved(c1), false);
+});
+
+test('spend: only the display — with a cap it refuses over the balance, with no cap it counts what was spent', () => {
+  const w = { cap: 100, balance: 100, spent: 0 };
+  assert.equal(W.spend(w, 75), true); assert.equal(w.balance, 25); assert.equal(W.spend(w, 60), false); assert.equal(w.spent, 75);
+  const free = { cap: null, balance: 0, spent: 10 }; assert.equal(W.spend(free, 60), true); assert.equal(free.spent, 70);
+});
+
+test('campaignStatus: draft → building → review → ready → scheduled → published', () => {
+  assert.deepEqual(W.campaignStatus({ step: 1 }), ['مسودة', 'neutral']);
+  assert.deepEqual(W.campaignStatus({ step: 2 }), ['بتتبني', 'info']);
+  assert.deepEqual(W.campaignStatus({ step: 3 }), ['مستنية المراجعة', 'orange']);
+  assert.deepEqual(W.campaignStatus({ step: 4 }), ['جاهزة للنشر', 'gold']);
+  const row = { id: 'c1', step: 4, scheduledAt: '2026-11-06T10:00:00Z' };
+  assert.deepEqual(W.campaignStatus(row, [{ campaignId: 'c1', status: 'مجدول' }, { campaignId: 'c1', status: 'اتنشر' }]), ['اتجدولت', 'success']);
+  assert.deepEqual(W.campaignStatus(row, [{ campaignId: 'c1', status: 'اتحذف' }, { campaignId: 'c1', status: 'اتنشر' }, { campaignId: 'c2', status: 'مجدول' }]), ['اتنشرت', 'brand']);
+  assert.deepEqual(W.campaignStatus(row, [{ campaignId: 'c1', status: 'اتحذف' }]), ['اتجدولت', 'success']);
+});
+
+test('campaignName: the idea first line, 120 at most, a name when empty', () => {
+  assert.equal(W.campaignName('كولكشن الشتا\nمشغولة يدويًا'), 'كولكشن الشتا');
+  assert.equal(W.campaignName('   '), 'كامبين من غير اسم');
+  assert.ok(W.campaignName('كلمة '.repeat(60)).length <= 120);
+});
+
+test('scheduleItems: a row per piece × platform, the images in order, the kind of the log, the caption capped', () => {
+  const c = old(); c.extra.count = 1; const ps = W.buildPieces(c, []);
+  ps[0].img = 'c/p1.png'; ps[0].title = 'دفا الشتا'; ps[0].caption = 'x'.repeat(2500);
+  const car = ps[2]; car.img = 'c/cover.png'; car.slides.forEach((s, k) => { s.img = 'c/s' + k + '.png'; });
+  ps[3].img = 'c/x1.png';
+  const sched = { P1: { date: '2026-11-08', time: '19:00', pl: ['انستجرام', 'فيسبوك'] }, C1: { date: '2026-11-09', time: '21:00', pl: ['فيسبوك', 'X'] }, X1: { date: '2026-11-10', time: '20:00', pl: [] } };
+  const items = W.scheduleItems(ps, sched, 'الفكرة');
+  assert.equal(items.length, 3);
+  assert.deepEqual(items.map((x) => [x.piece, x.platform, x.kind]), [['P1', 'انستجرام', 'بوست'], ['P1', 'فيسبوك', 'بوست'], ['C1', 'فيسبوك', 'كاروسيل']]);
+  assert.equal(items[0].caption.length, W.CAP_MAX); assert.equal(items[0].name, 'دفا الشتا');
+  assert.deepEqual(items[2].images, ['c/cover.png', 'c/s0.png', 'c/s1.png', 'c/s2.png', 'c/s3.png']);
+  assert.equal(items[2].caption, 'الفكرة'); // no caption → the campaign's idea
+  assert.equal(W.postKind({ kind: 'ملف إضافي' }), 'ستوري');
+  assert.ok(items.every((x) => x.how === 'download')); // 9.5.2: no «انشر» on the piece, no connection → a download
+});
+
+// ---------------------------------------------------------------- 9.5.2: publishing (decisions 30–38)
+
+const LIVE = { autopublish: true, facebook: { linked: true, publish: true }, instagram: { linked: true, publish: true } };
+
+test('scheduleItems (the owner 17 Nov — no «الطريقة» column): publish wherever the platform can take it — an old «داونلود» choice is gone; TikTok stays a download; `only` = the picked pieces', () => {
+  const c = old(); const ps = W.buildPieces(c, []);
+  ps[0].img = 'c/p1.jpg'; ps[2].img = 'c/cover.jpg'; ps[2].slides.forEach((s, k) => { s.img = 'c/s' + k + '.jpg'; });
+  const sched = { P1: { date: '2026-11-08', time: '19:00', pl: ['انستجرام', 'فيسبوك', 'تيك توك'], how: ['انشر'] }, C1: { date: '2026-11-09', time: '21:00', pl: ['فيسبوك'], how: ['داونلود'] } };
+  const items = W.scheduleItems(ps, sched, 'الفكرة', LIVE);
+  assert.deepEqual(items.map((x) => [x.piece, x.platform, x.how]), [['P1', 'انستجرام', 'publish'], ['P1', 'فيسبوك', 'publish'], ['P1', 'تيك توك', 'download'], ['C1', 'فيسبوك', 'publish']]);
+  assert.deepEqual(W.scheduleItems(ps, sched, 'x', LIVE, ['C1']).map((x) => x.piece), ['C1']);
+  assert.deepEqual(W.scheduleItems(ps, sched, 'x', LIVE, []), []);
+  // the switch off (or no permission) → nothing is published
+  assert.ok(W.scheduleItems(ps, sched, 'x', { ...LIVE, autopublish: false }).every((x) => x.how === 'download'));
+  assert.ok(W.scheduleItems(ps, sched, 'x', null).every((x) => x.how === 'download'));
+});
+
+test('9.5.2 publishable: the platform, the kind, the image count, Instagram\'s 2200 characters, then the connection with its reason', () => {
+  assert.deepEqual(W.publishable('بوست', ['a.jpg'], 'فيسبوك', LIVE), { ok: true });
+  assert.equal(W.publishable('بوست', ['a.jpg'], 'تيك توك', LIVE).why, 'تيك توك مش مربوط — داونلود بس');
+  assert.equal(W.publishable('ريل', ['a.jpg'], 'انستجرام', LIVE).why, 'الفيديو لسه ما اتجمّعش — جمّعه في المراجعة الأول'); // 9.5.5: a reel needs its MP4 first
+  assert.deepEqual(W.publishable('ريل', ['c/vid-V1-mix-1.mp4', 'c/s1.png'], 'فيسبوك', LIVE), { ok: true });
+  assert.equal(W.publishable('ريل', ['c/vid-V1-mix-1.mp4'], 'تيك توك', LIVE).why, 'تيك توك مش مربوط — داونلود بس');
+  assert.equal(W.publishable('ريل', ['c/vid-V1-mix-1.mp4'], 'انستجرام', { ...LIVE, autopublish: false }).why, 'النشر التلقائي متوقف — الأدمن يشغّله من كارت الربط');
+  assert.deepEqual(W.pubImages({ kind: 'فيديو', video: 'c/v.mp4', scenes: [{ img: 'c/s1.png' }, { img: null }] }), ['c/v.mp4', 'c/s1.png']);
+  assert.deepEqual(W.pubImages({ kind: 'فيديو', video: null, scenes: [{ img: 'c/s1.png' }] }), ['c/s1.png']);
+  assert.equal(W.publishable('بوست', [], 'انستجرام', LIVE).why, 'مفيش صورة');
+  assert.equal(W.publishable('كاروسيل', ['a.jpg'], 'انستجرام', LIVE).why, 'الكاروسيل محتاج صورتين على الأقل');
+  assert.equal(W.publishable('بوست', ['a.jpg', 'b.jpg'], 'انستجرام', LIVE).why, 'البوست والستوري صورة واحدة');
+  assert.equal(W.publishable('كاروسيل', Array(11).fill('a.jpg'), 'فيسبوك', LIVE).why, 'أقصى عدد 10 صور في الكاروسيل');
+  assert.ok(W.publishable('كاروسيل', Array(10).fill('a.jpg'), 'انستجرام', LIVE).ok);
+  // Instagram's limit counts the caption + the tags (a story has none)
+  const long = { caption: 'ك'.repeat(2190), tags: '#إبتكر #هاندميد' };
+  assert.match(W.publishable('بوست', ['a.jpg'], 'انستجرام', LIVE, long).why, /2200/);
+  assert.ok(W.publishable('بوست', ['a.jpg'], 'فيسبوك', LIVE, long).ok);
+  assert.ok(W.publishable('ستوري', ['a.jpg'], 'انستجرام', LIVE, long).ok);
+  // the connection's reasons, in order
+  assert.equal(W.publishable('بوست', ['a.jpg'], 'فيسبوك', null).why, 'حالة الربط لسه بتتحمّل');
+  assert.equal(W.publishable('بوست', ['a.jpg'], 'انستجرام', { ...LIVE, instagram: { linked: false } }).why, 'مفيش حساب انستجرام مربوط بالصفحة');
+  assert.equal(W.publishable('بوست', ['a.jpg'], 'فيسبوك', { ...LIVE, facebook: { linked: false } }).why, 'الصفحة مش مربوطة');
+  assert.match(W.publishable('بوست', ['a.jpg'], 'فيسبوك', { ...LIVE, facebook: { linked: true, publish: false } }).why, /صلاحية النشر/);
+  assert.match(W.publishable('بوست', ['a.jpg'], 'فيسبوك', { ...LIVE, autopublish: false }).why, /متوقف/);
+});
+
+test('9.5.2 igFit / jpegSize: 4:5 … 1.91:1 as it is, white margins up to 10%, refused beyond; a story any ratio; the long side ≤ 2160', () => {
+  assert.deepEqual(W.igFit(1080, 1350, 'بوست'), { ok: true, pad: null });
+  assert.deepEqual(W.igFit(1080, 1080, 'كاروسيل'), { ok: true, pad: null });
+  assert.deepEqual(W.igFit(1080, 1440, 'بوست'), { ok: true, pad: { w: 1152, h: 1440 } }); // 3:4 → 4:5 with side margins
+  assert.ok(1152 / 1440 >= 0.8);
+  assert.deepEqual(W.igFit(1200, 627, 'بوست'), { ok: true, pad: { w: 1200, h: 629 } }); // just over 1.91 → top / bottom margins
+  assert.ok(1200 / 629 <= 1.91);
+  assert.equal(W.igFit(1080, 1920, 'بوست').ok, false); // 9:16: a story size
+  assert.match(W.igFit(1000, 1500, 'كاروسيل').why, /4:5/);
+  assert.deepEqual(W.igFit(1080, 1920, 'ستوري'), { ok: true, pad: null });
+  assert.equal(W.igFit(0, 100, 'بوست').ok, false);
+  assert.deepEqual(W.jpegSize(1080, 1350, null), { w: 1080, h: 1350, k: 1 });
+  const big = W.jpegSize(2048, 2560, null); assert.equal(Math.max(big.w, big.h), 2160);
+  assert.deepEqual(W.jpegSize(1080, 1440, { w: 1152, h: 1440 }), { w: 1152, h: 1440, k: 1 });
+  assert.ok(W.isJpeg('c/pub-ab.jpg') && W.isJpeg('c/x.JPEG') && !W.isJpeg('c/x.png'));
+});
+
+test('9.5.2 the text, the reasons, the numbers: caption + blank line + tags, every code in words, the totals of the seen posts', () => {
+  assert.equal(W.pubText(' كابشن ', '#a #b'), 'كابشن\n\n#a #b');
+  assert.equal(W.pubText('كابشن', ''), 'كابشن');
+  assert.equal(W.pubError('rate'), 'وصلنا لحد النشر على المنصة — جرّب بعد شوية');
+  assert.match(W.pubError('uncertain'), /انشر دلوقتي/);
+  assert.equal(W.pubError('graph_368'), 'ميتا رفضت (كود 368)');
+  assert.equal(W.pubError('weird'), 'النشر فشل');
+  const L = [{ status: 'اتنشر', views: 1000, likes: 40, comments: 5, shares: 3, saves: 2 }, { status: 'اتنشر', views: 500, eng: 20 },
+    { status: 'اتحذف', wasLive: true, views: 100, eng: 10 }, { status: 'اتحذف', wasLive: false, views: 900, eng: 90 }, { status: 'مجدول', views: 0 }];
+  assert.deepEqual(W.postTotals(L), { posts: 3, views: 1600, eng: 80 });
+  assert.equal(W.engOf({ likes: 1, comments: 2, shares: 3, saves: 4 }), 10);
+  assert.equal(W.SRC_LABEL.platform, 'من المنصة مباشرة');
+});
+
+test('moveCheck: a day, not past, not the same; isPast on Cairo today and now', () => {
+  const x = { day: '2026-11-08', time: '19:00' };
+  assert.deepEqual(plain(W.moveCheck(x, '', '19:00', '2026-11-06', '12:00')), { day: 'اختار اليوم' });
+  assert.deepEqual(plain(W.moveCheck(x, '2026-11-05', '19:00', '2026-11-06', '12:00')), { day: 'اليوم ده فات — اختار النهارده أو بعده' });
+  assert.deepEqual(plain(W.moveCheck(x, '2026-11-06', '11:00', '2026-11-06', '12:00')), { time: 'الساعة دي فاتت النهارده — اختار ساعة بعد 12:00' });
+  assert.deepEqual(plain(W.moveCheck(x, '2026-11-08', '19:00', '2026-11-06', '12:00')), { day: 'ده نفس الميعاد الحالي' });
+  assert.equal(W.moveCheck(x, '2026-11-06', '13:00', '2026-11-06', '12:00'), null);
+  assert.equal(W.canMove({ status: 'مجدول' }), true); assert.equal(W.canMove({ status: 'اتنشر' }), false);
+});
+
+test('zipPlan: a folder per piece, the images numbered with their extension, caption.txt, no clash in the names', () => {
+  const plan = W.zipPlan([{ label: 'بوست 1', images: ['c/a.png'], caption: 'كابشن', tags: '#إبتكر' }, { label: 'بوست 1', images: ['c/b.jpeg', 'c/c'], caption: '' }, { label: 'a/b:c', images: [] }]);
+  assert.equal(plan[0].dir, 'بوست 1'); assert.deepEqual(plan[0].files, [{ path: 'c/a.png', name: 'بوست 1/01.png' }]);
+  assert.deepEqual(plan[0].caption, { name: 'بوست 1/caption.txt', data: 'كابشن\n\n#إبتكر' });
+  assert.equal(plan[1].dir, 'بوست 1 (2)'); assert.deepEqual(plan[1].files.map((f) => f.name), ['بوست 1 (2)/01.jpeg', 'بوست 1 (2)/02.jpg']);
+  assert.equal(plan[2].dir, 'a-b-c');
+});
+
+test('the calendar: Saturday weeks, the plan default (from last week, three weeks), the day labels', () => {
+  assert.equal(W.dayIdx('2026-11-07'), 0); // Saturday
+  assert.equal(W.wkStart('2026-11-06'), '2026-10-31');
+  assert.deepEqual(W.weeksOf('2026-11-01', '2026-11-20'), ['2026-10-31', '2026-11-07', '2026-11-14']);
+  assert.deepEqual(plain(W.planDefault('2026-11-06')), { from: '2026-10-24', to: '2026-11-13', preset: 'custom' });
+  assert.equal(W.dayLabel('2026-11-06'), 'الجمعة 06/11/2026');
+  assert.equal(W.relDay('2026-11-07', '2026-11-06'), 'بكرة'); assert.equal(W.relDay('2026-11-05', '2026-11-06'), 'فات ميعاده');
+  assert.equal(W.suggest(0, '2026-11-06').date, '2026-11-07'); assert.equal(W.suggest(1, '2026-11-06').time, '21:00');
+});
+
+test('linkKeys: a product link of the site (as typed / decoded / trailing slash) or a SKU; anything else is null', () => {
+  assert.deepEqual(plain(W.linkKeys('ibta4040bahc000009')), { sku: 'IBTA4040BAHC000009' });
+  const k = W.linkKeys('https://ibtekr.club/product/%D9%85%D8%AE%D8%AF%D8%A9/?ref=x#top');
+  assert.ok(k.permalinks.includes('https://ibtekr.club/product/%D9%85%D8%AE%D8%AF%D8%A9/'));
+  assert.ok(k.permalinks.includes('https://ibtekr.club/product/مخدة/'));
+  assert.ok(k.permalinks.includes('https://ibtekr.club/product/مخدة'));
+  assert.equal(W.linkKeys('javascript:alert(1)'), null); assert.equal(W.linkKeys(''), null); assert.equal(W.linkKeys('كلام عادي'), null);
+  // the owner 15 Nov: the live site's link against the staging mirror → its product path, any host; not for a page that is not a product
+  assert.deepEqual(plain(W.linkKeys('https://ibtekr.club/product/cushion-cover-16/').paths), ['/product/cushion-cover-16']);
+  assert.deepEqual(plain(k.paths), ['/product/%D9%85%D8%AE%D8%AF%D8%A9', '/product/مخدة']);
+  assert.deepEqual(plain(W.linkKeys('https://ibtekr.club/shop/').paths), []);
+  assert.deepEqual(plain(W.linkKeys('https://ibtekr.club/').paths), []);
+});
+
+// ---------------------------------------------------------------- 9.5.3: the ads numbers (decisions 44–46)
+const OBJ = [
+  { kind: 'campaign', id: '120252323303340228', name: 'Macrame — Retargeting', status: 'ACTIVE' },
+  { kind: 'campaign', id: '120251977233530228', name: 'Lamps — Broad', status: 'ACTIVE' },
+  { kind: 'campaign', id: '120251297405730228', name: 'Rug — Paused', status: 'PAUSED' },
+  { kind: 'ad', id: '1206', parent_id: '120252323303340228', name: 'Macrame carousel', status: 'ACTIVE', thumb: 'https://scontent.example/t.jpg' },
+  { kind: 'ad', id: '1207', parent_id: '120251977233530228', name: 'Lamps video', status: 'ACTIVE', thumb: 'http://bad' },
+];
+const C1 = '120252323303340228', C2 = '120251977233530228', C3 = '120251297405730228';
+const st = (level, id, camp, day, spend, extra = {}) => ({ level, object_id: id, campaign_id: camp, day, spend, impressions: 1000, clicks: 30, link_clicks: 20, purchases: 0, purchase_value: 0, frequency: 1.5, ...extra });
+const STATS = [
+  st('campaign', C1, C1, '2026-11-01', 400, { purchases: 3, purchase_value: 3600 }), st('campaign', C1, C1, '2026-11-02', 600, { purchases: 3, purchase_value: 4000 }),
+  st('campaign', C2, C2, '2026-11-02', 900, { purchases: 6, purchase_value: 5000 }), st('campaign', C2, C2, '2026-11-05', 800, { purchases: 4, purchase_value: 2000 }),
+  st('campaign', C3, C3, '2026-10-20', 300), // outside the period
+  st('ad', '1206', C1, '2026-11-01', 400, { impressions: 2000, link_clicks: 60, frequency: 1.2, purchases: 3, purchase_value: 3600 }),
+  st('ad', '1206', C1, '2026-11-02', 600, { impressions: 1000, link_clicks: 30, frequency: 2.1, purchases: 3, purchase_value: 4000 }),
+  st('ad', '1207', C2, '2026-11-02', 900, { impressions: 3000, link_clicks: 30, frequency: 3, purchases: 6, purchase_value: 5000 }),
+];
+const ORD = [
+  { day: '2026-11-01', platform: 'meta', source: 'fb', campaign: C1, grp: 'completed', orders: 3, sales: 3000, share: 450 },
+  { day: '2026-11-02', platform: 'meta', source: 'ig', campaign: C1, grp: 'in_progress', orders: 2, sales: 2000, share: 300 },
+  { day: '2026-11-02', platform: 'meta', source: 'fb', campaign: C1, grp: 'cancelled', orders: 1, sales: 700, share: 70 },
+  { day: '2026-11-03', platform: 'meta', source: 'fb', campaign: C3, grp: 'pending', orders: 1, sales: 500, share: 50 }, // a paused campaign's late order
+  { day: '2026-11-04', platform: 'google', source: 'google', campaign: 'winter', grp: 'completed', orders: 2, sales: 900, share: 90 },
+  { day: '2026-10-25', platform: 'meta', source: 'fb', campaign: C1, grp: 'completed', orders: 9, sales: 9000, share: 900 }, // before the period
+];
+const RG = { from: '2026-11-01', to: '2026-11-05' };
+
+test('9.5.3 adCampaignRows: Meta\'s numbers + Woo\'s orders of the same campaign id, the cancelled apart, a late order\'s campaign listed, by spend', () => {
+  const rows = W.adCampaignRows(OBJ, STATS, ORD, RG);
+  assert.deepEqual(rows.map((r) => [r.id, r.spend, r.orders, r.sales, r.cancelled, r.purchases]), [[C2, 1700, 0, 0, 0, 10], [C1, 1000, 5, 5000, 1, 6], [C3, 0, 1, 500, 0, 0]]);
+  const m = rows.find((r) => r.id === C1);
+  assert.equal(m.mer, 5); assert.equal(m.cpa, 200); assert.equal(m.roas, 7.6); assert.deepEqual(plain(m.sources), { fb: 3, ig: 2 });
+  assert.deepEqual(m.days.map((d) => [d.day, d.spend, d.orders]), [['2026-11-01', 400, 3], ['2026-11-02', 600, 2]]);
+  assert.equal(rows.find((r) => r.id === C2).mer, 0); assert.equal(rows.find((r) => r.id === C2).cpa, null);
+  assert.equal(W.adCampaignRows([], STATS, [], RG)[0].name, '#' + C2); // a campaign not synced yet keeps its id
+});
+
+test('9.5.3 adTotals: the spend, the real return and cost, Meta says, the profit after ads (null without the share), Google\'s orders without spend', () => {
+  const t = W.adTotals(STATS, ORD, RG);
+  assert.deepEqual([t.spend, t.purchases, t.value, t.metaOrders, t.metaSales, t.orders, t.sales, t.cancelled], [2700, 16, 14600, 6, 5500, 8, 6400, 1]);
+  assert.equal(Math.round(t.mer * 1000) / 1000, 2.037); assert.equal(t.cpa, 450); assert.equal(t.platformCpa, 168.75);
+  assert.equal(t.share, 890); assert.equal(t.profit, 800 - 2700);
+  assert.deepEqual(t.platforms.map((p) => [p.key, p.linked, p.spend, p.orders]), [['meta', true, 2700, 6], ['google', false, null, 2], ['tiktok', false, null, 0]]);
+  assert.equal(t.metaShare, 800);
+  const noMoney = W.adTotals(STATS, ORD.map((o) => ({ ...o, share: null })), RG);
+  assert.equal(noMoney.share, null); assert.equal(noMoney.profit, null);
+  // the caller's permission decides when given: an admin with no ad order sees the spend as the loss; no accounts.view = no profit
+  assert.deepEqual([W.adTotals(STATS, [], RG, true).profit, W.adTotals(STATS, [], RG, true).metaShare], [-2700, 0]);
+  assert.equal(W.adTotals(STATS, ORD, RG, false).profit, null); assert.equal(W.adTotals(STATS, ORD, RG, false).share, null);
+  assert.equal(W.adTotals([], [], RG).mer, null); // nothing spent: no ratio
+});
+
+test('9.5.3 merWeeks: five 7-day weeks ending on the day, the oldest first, the real return of each', () => {
+  const w = W.merWeeks(STATS, ORD, '2026-11-05', 5);
+  assert.equal(w.length, 5); assert.deepEqual([w[0].from, w[4].from, w[4].to], ['2026-10-02', '2026-10-30', '2026-11-05']);
+  assert.deepEqual([w[2].from, w[2].spend, w[2].sales, w[2].mer], ['2026-10-16', 300, 0, 0]); // 16–22 Oct: the paused campaign's spend, no order
+  assert.deepEqual([w[3].spend, w[3].sales, w[3].mer], [0, 9000, null]); // 23–29 Oct: an old order, nothing spent → no ratio
+  assert.deepEqual([w[4].spend, w[4].sales], [2700, 5500]);
+  assert.equal(w[0].mer, null);
+});
+
+test('9.5.3 adAlerts: stop? (active, ≥ 1,500 in 5 days, no order), the cost over 450, check the tracking, scale? — no action, the worst first', () => {
+  const a = W.adAlerts(OBJ, STATS, ORD, RG, '2026-11-05');
+  assert.deepEqual(a.map((x) => x.key), ['stop:' + C2, 'track:' + C2, 'scale:' + C1]);
+  assert.match(a[0].title, /وقّف «Lamps — Broad»؟/); assert.match(a[0].sub, /1,700 ج\.م/);
+  assert.match(a[2].sub, /5\.00× · 5 أوردر/);
+  // the rules can move: a 150 cost limit flags Macrame; a paused campaign never gets stop / scale
+  const b = W.adAlerts(OBJ, STATS, ORD, RG, '2026-11-05', { maxCpa: 150 });
+  assert.ok(b.some((x) => x.key === 'cpa:' + C1));
+  const paused = W.adAlerts(OBJ.map((o) => ({ ...o, status: 'PAUSED' })), STATS, ORD, RG, '2026-11-05');
+  assert.ok(!paused.some((x) => /^(stop|scale):/.test(x.key)));
+});
+
+test('9.5.3 adCreatives: one row per ad with spend, CTR from link clicks, frequency weighted by impressions, Meta\'s return, https pictures only', () => {
+  const c = W.adCreatives(OBJ, STATS, RG);
+  assert.deepEqual(c.map((x) => [x.id, x.spend, x.campaign]), [['1207', 900, 'Lamps — Broad'], ['1206', 1000, 'Macrame — Retargeting']].sort((a, b) => b[1] - a[1]));
+  const m = c.find((x) => x.id === '1206');
+  assert.equal(m.ctr, 90 / 3000); assert.equal(Math.round(m.frequency * 1000) / 1000, 1.5); assert.equal(m.roas, 7.6); assert.equal(m.thumb, 'https://scontent.example/t.jpg');
+  assert.equal(c.find((x) => x.id === '1207').thumb, null);
+  // tired: the frequency at 4 or more (1207 is seen 3 times on average; a 2.5 limit flags it, never 1206 at 1.5)
+  assert.deepEqual(c.map((x) => x.tired), [false, false]);
+  const t2 = W.adCreatives(OBJ, STATS, RG, { tiredFreq: 2.5 }); assert.deepEqual([t2.find((x) => x.id === '1207').tired, t2.find((x) => x.id === '1206').tired], [true, false]);
+  assert.equal(W.xr(5), '5.00×'); assert.equal(W.xr(null), '—');
+});
+
+// ---------------------------------------------------------------- 9.5.6: the platforms' links and numbers (decisions 67 / 71)
+import { LINK_FIELDS } from '../../mock/shared/mkt-ads-link.js';
+test('9.5.6 AD_LINK_FIELDS: the page\'s fields are the server\'s (keys, secrets, optional); linkFieldsBody keeps a stored secret left empty and removes an emptied plain field', () => {
+  for (const k of Object.keys(LINK_FIELDS)) {
+    assert.deepEqual(W.AD_LINK_FIELDS[k].map((f) => f.key), Object.keys(LINK_FIELDS[k]), k);
+    for (const f of W.AD_LINK_FIELDS[k]) { assert.equal(!!f.secret, !!LINK_FIELDS[k][f.key].secret, k + '.' + f.key + ' secret'); assert.equal(!!f.optional, !!LINK_FIELDS[k][f.key].optional, k + '.' + f.key + ' optional'); }
+  }
+  assert.deepEqual(W.linkFieldsBody('tiktok', { app_id: ' 7012345678 ', secret: '' }, { app_id: '70', secret: '••••6789' }), { app_id: '7012345678', access_token: '', advertiser_id: '' }); // the stored secret stays (left out), the empty plain ones are sent as removed
+  assert.deepEqual(W.linkFieldsBody('tiktok', { secret: 'new-secret-12345' }, {}), { app_id: '', secret: 'new-secret-12345', access_token: '', advertiser_id: '' });
+  assert.deepEqual(W.linkFieldsBody('tiktok', { access_token: 'tt-token-0123456789' }, { app_id: '70', secret: '••••6789' }), { app_id: '70', access_token: 'tt-token-0123456789', advertiser_id: '' }); // untouched plain fields stay, the stored secret is left out
+  assert.deepEqual(W.linkFieldsBody('tiktok', { app_id: '' }, { app_id: '70' }), { app_id: '', secret: '', access_token: '', advertiser_id: '' }); // emptied by hand = removed
+  assert.equal(W.AD_OAUTH.tiktok, 'اربط بحساب تيك توك');
+});
+
+test('9.5.6 adTotals by the linked platforms: TikTok\'s spend counts when linked, its orders join the real return; an unlinked platform shows no spend; the rows carry their platform', () => {
+  const stats = [{ platform: 'meta', level: 'campaign', object_id: '120000000001', campaign_id: '120000000001', day: '2026-11-05', spend: 100, purchases: 2, purchase_value: 500 }, { platform: 'tiktok', level: 'campaign', object_id: '180000000002', campaign_id: '180000000002', day: '2026-11-05', spend: 50, purchases: 1, purchase_value: 200 }];
+  const orders = [{ day: '2026-11-05', platform: 'meta', source: 'fb', campaign: '120000000001', grp: 'completed', orders: 2, sales: 600, share: 60 }, { day: '2026-11-05', platform: 'tiktok', source: 'tiktok', campaign: '180000000002', grp: 'completed', orders: 1, sales: 300, share: 30 }, { day: '2026-11-05', platform: 'google', source: 'google', campaign: '210000000003', grp: 'completed', orders: 1, sales: 100, share: 10 }];
+  const rg = { from: '2026-11-01', to: '2026-11-07' };
+  const t = W.adTotals(stats, orders, rg, true, ['meta', 'tiktok']);
+  assert.equal(t.spend, 150); assert.equal(t.metaOrders, 3); assert.equal(t.metaSales, 900); assert.equal(t.mer, 6); assert.equal(t.cpa, 50); assert.equal(t.profit, 90 - 150); assert.deepEqual(t.linked.sort(), ['meta', 'tiktok']);
+  assert.deepEqual(t.platforms.map((p) => [p.key, p.linked, p.spend, p.orders]), [['meta', true, 100, 2], ['google', false, null, 1], ['tiktok', true, 50, 1]]);
+  // Meta only linked: TikTok's numbers still show (the stored rows are read), its orders are not in the return; Google unlinked
+  const m = W.adTotals(stats, orders, rg, true, ['meta']);
+  assert.equal(m.spend, 150); assert.deepEqual(m.linked.sort(), ['meta', 'tiktok']); // a platform with numbers is counted as linked
+  const none = W.adTotals(stats.slice(0, 1), orders, rg, true);
+  assert.deepEqual(none.linked, ['meta']); assert.equal(none.metaOrders, 2);
+  const rows = W.adCampaignRows([{ platform: 'tiktok', kind: 'campaign', id: '180000000002', name: 'TT', status: 'ACTIVE' }], stats, orders, rg);
+  assert.deepEqual(rows.map((r) => [r.id, r.platform, r.key, r.orders]), [['120000000001', 'ميتا', 'meta', 2], ['180000000002', 'تيك توك', 'tiktok', 1], ['210000000003', 'جوجل', 'google', 1]]); // an order with a campaign id makes a row even unlinked
+});
+
+//: the plan's weeks start on the settings' week start
+test('settings lists: the plan calendar\'s weeks follow the week start', () => {
+  const prev = globalThis.IBSettings;
+  try {
+    assert.deepEqual([...W.DAYS], ['السبت', 'الأحد', 'الاتنين', 'التلات', 'الأربع', 'الخميس', 'الجمعة']);
+    globalThis.IBSettings = { weekStart: () => 0 }; // الأحد
+    assert.deepEqual([...W.DAYS], ['الأحد', 'الاتنين', 'التلات', 'الأربع', 'الخميس', 'الجمعة', 'السبت']);
+    assert.equal(W.dayIdx('2026-11-08'), 0); // a Sunday
+    assert.equal(W.DAYS[W.dayIdx('2026-11-14')], 'السبت');
+    assert.equal(W.wkStart('2026-11-14'), '2026-11-08');
+    assert.deepEqual(W.weeksOf('2026-11-01', '2026-11-20'), ['2026-11-01', '2026-11-08', '2026-11-15']);
+    assert.deepEqual(W.planDefault('2026-11-17'), { from: '2026-11-08', to: '2026-11-28', preset: 'custom' });
+    globalThis.IBSettings = { weekStart: () => 1 }; // الاتنين
+    assert.equal(W.DAYS[0], 'الاتنين'); assert.equal(W.wkStart('2026-11-17'), '2026-11-16');
+    assert.equal(W.dayLabel('2026-11-14'), 'السبت 14/11/2026'); // a day's own name never moves
+  } finally { if (prev === undefined) delete globalThis.IBSettings; else globalThis.IBSettings = prev; }
+});
+
+// comments decisions 33 and 65 (the owner 15 Nov): the seconds of one scene
+test('one scene\'s seconds: what a model takes (Kling 5 or 10), cut so the scenes stay within 30 s; «مدة المشهد الواحد» sets every scene and the video\'s length; a scene\'s own seconds make the length their sum; a changed count waits for a new plan', () => {
+  assert.equal(W.VIDEO_MAX, 30);
+  assert.deepEqual([W.clipSeconds(2, 'seedance-2.5'), W.clipSeconds(40, 'seedance-2.5'), W.clipSeconds(7, 'kling-2.5'), W.clipSeconds(8, 'kling-2.5'), W.clipSeconds(3, 'minimax-h3'), W.clipSeconds(20, 'seedance-2.0')], [4, 30, 5, 10, 5, 15]);
+  assert.deepEqual(W.sceneSeconds('seedance-2.5', 3), [4, 5, 6, 7, 8, 9, 10]);
+  assert.deepEqual(W.sceneSeconds('seedance-2.5', 8), []); // 8 × 4 s is past 30 s
+  assert.deepEqual([W.sceneSeconds('kling-2.5', 3), W.sceneSeconds('kling-2.5', 4), W.sceneSeconds('kling-2.5', 7)], [[5, 10], [5], []]);
+  // the piece as it is built (no scenes yet): 15 s in 3 scenes → 5 s a scene
+  const p = { model: 'seedance-2.5', dur: 15, sceneCount: 3, scenes: [] };
+  assert.deepEqual([W.sceneDurOf(p), W.videoSeconds(p), W.scenesPending(p)], [5, 15, false]);
+  assert.equal(W.setSceneDur(p, 8), ''); assert.deepEqual([p.sceneDur, p.dur], [8, 24]);
+  assert.match(W.setSceneDur(p, 12), /من 4 لـ 10 ثانية/); assert.deepEqual([p.sceneDur, p.dur], [8, 24], 'a refused length changes nothing');
+  // the count changes: the chosen seconds stay where the count allows, else the nearest it allows
+  W.setSceneCount(p, 2); assert.deepEqual([p.sceneCount, p.sceneDur, p.dur], [2, 8, 16]);
+  W.setSceneCount(p, 5); assert.deepEqual([p.sceneCount, p.sceneDur, p.dur], [5, 6, 30]);
+  W.setSceneCount(p, 99); assert.equal(p.sceneCount, W.MAX.scenes);
+  // a piece never given a length: the count keeps the even share of the video
+  const e = { model: 'seedance-2.5', dur: 30, sceneCount: 3, scenes: [] };
+  W.setSceneCount(e, 5); assert.deepEqual([e.sceneDur, e.dur, W.videoSeconds(e)], [6, 30, 30]);
+  // planned scenes: one length for all, then one scene's own
+  const q = { model: 'seedance-2.5', dur: 12, sceneCount: 3, scenes: [{ n: 1, d: 4 }, { n: 2, d: 4 }, { n: 3, d: 4 }] };
+  assert.deepEqual([W.sceneDurOf(q), W.videoSeconds(q)], [4, 12]);
+  assert.equal(W.setSceneDur(q, 6), ''); assert.deepEqual([q.scenes.map((s) => s.d), q.dur], [[6, 6, 6], 18]);
+  assert.equal(W.setSceneD(q, 1, 10), ''); assert.deepEqual([q.scenes.map((s) => s.d), q.scenes.map((s) => !!s.dh), q.dur, q.sceneDur, W.videoSeconds(q)], [[6, 10, 6], [false, true, false], 22, null, 22]);
+  assert.match(W.setSceneD(q, 0, 20), /لحد 30 ثانية/); assert.deepEqual(q.scenes.map((s) => s.d), [6, 10, 6]);
+  assert.equal(W.setSceneD(q, 9, 5), 'المشهد مش موجود');
+  assert.equal(W.sceneDurOf(q), 7, 'scenes of different lengths: the nearest even share the count allows');
+  // the count changed after the plan: the scenes wait («وزّع المشاهد تاني») — the length shown is the next plan's, the scenes stay
+  W.setSceneCount(q, 5);
+  assert.deepEqual([W.scenesPending(q), q.sceneCount, q.sceneDur, q.dur, W.sceneDurOf(q), W.videoSeconds(q), q.scenes.map((s) => s.d)], [true, 5, 6, 30, 6, 30, [6, 10, 6]]);
+  assert.equal(W.setSceneDur(q, 4), ''); assert.deepEqual([q.sceneDur, q.dur, q.scenes.map((s) => s.d)], [4, 20, [6, 10, 6]], 'the waiting scenes are not touched');
+  // back on the planned count: the video is its scenes again
+  W.setSceneCount(q, 3); assert.deepEqual([W.scenesPending(q), q.dur, q.sceneDur, W.videoSeconds(q)], [false, 22, null, 22]);
+  // the scenes planned again: the hand-set seconds stay when the count did not change
+  const next = [{ n: 1, d: 7, idea: 'أ' }, { n: 2, d: 7, idea: 'ب' }, { n: 3, d: 8, idea: 'ج' }];
+  assert.deepEqual(W.keepSceneDurs(next, q.scenes).map((s) => [s.d, !!s.dh, s.idea]), [[7, false, 'أ'], [10, true, 'ب'], [8, false, 'ج']]);
+  assert.deepEqual(W.keepSceneDurs(next, q.scenes.slice(0, 2)).map((s) => s.d), [7, 7, 8], 'another count: the server\'s split');
+  // «مدة المشهد الواحد» again clears the hand marks
+  assert.equal(W.setSceneDur(q, 5), ''); assert.deepEqual([q.scenes.map((s) => s.d), q.scenes.some((s) => s.dh), q.dur], [[5, 5, 5], false, 15]);
+  // Kling: 5 or 10 only
+  const k = { model: 'kling-2.5', dur: 10, sceneCount: 2, scenes: [] };
+  assert.equal(W.sceneDurOf(k), 5); assert.equal(W.setSceneDur(k, 10), ''); assert.equal(k.dur, 20);
+  W.setSceneCount(k, 4); assert.deepEqual([k.sceneDur, k.dur], [5, 20]);
+});
+
+// comments decision 70 («إعلانات المنافسين»): Meta's Ad Library opened on a competitor — the page's own list by its number, else
+// a search by the word (or the name); what the member typed for the page; the form's row
+test('the Ad Library link: active ads of every type in Egypt — the page\'s list by its number, else a keyword search; the page field reads a number or a Facebook / Instagram link', () => {
+  const q = (u) => Object.fromEntries(new URL(u).searchParams);
+  const byPage = W.adLibraryUrl({ name: 'Macrame House', pageId: '123456789012', keyword: 'x' });
+  assert.equal(byPage.startsWith('https://www.facebook.com/ads/library/?'), true);
+  assert.deepEqual(q(byPage), { active_status: 'active', ad_type: 'all', country: 'EG', media_type: 'all', view_all_page_id: '123456789012' });
+  assert.deepEqual(q(W.adLibraryUrl({ name: 'Boho Corner', keyword: ' بوهو   ديكور ' })), { active_status: 'active', ad_type: 'all', country: 'EG', media_type: 'all', q: 'بوهو ديكور', search_type: 'keyword_unordered' });
+  assert.equal(q(W.adLibraryUrl({ name: 'Boho Corner', pageId: 'abc' })).q, 'Boho Corner'); // a bad number falls back to the name
+  assert.equal(q(W.adLibraryUrl({ keyword: 'x' }, 'SA')).country, 'SA');
+  assert.equal(q(W.adLibraryUrl({ keyword: 'x' }, 'egypt')).country, 'EG');
+  // the page field
+  assert.deepEqual(W.competitorPage(''), { pageId: '', pageUrl: '' });
+  assert.deepEqual(W.competitorPage(' 123456789012 '), { pageId: '123456789012', pageUrl: '' });
+  assert.deepEqual(W.competitorPage('https://www.facebook.com/macramehouse'), { pageId: '', pageUrl: 'https://www.facebook.com/macramehouse' });
+  assert.deepEqual(W.competitorPage('facebook.com/profile.php?id=100064812345678'), { pageId: '100064812345678', pageUrl: 'https://facebook.com/profile.php?id=100064812345678' });
+  assert.deepEqual(W.competitorPage('http://www.facebook.com/pages/Boho-Corner/987654321098/'), { pageId: '987654321098', pageUrl: 'https://www.facebook.com/pages/Boho-Corner/987654321098/' });
+  assert.deepEqual(W.competitorPage('https://www.instagram.com/bohocorner/'), { pageId: '', pageUrl: 'https://www.instagram.com/bohocorner/' });
+  assert.deepEqual(W.competitorPage('https://evil.example/facebook.com/x'), { error: 'page' });
+  assert.deepEqual(W.competitorPage('1234'), { error: 'page' });
+  // the form's row
+  assert.deepEqual(W.competitorRow({ name: '  Macrame   House ', page: '123456789012', keyword: '', note: ' ديكور ' }), { row: { name: 'Macrame House', page_id: '123456789012', page_url: null, keyword: null, note: 'ديكور' } });
+  assert.deepEqual(W.competitorRow({ name: '' }), { error: 'name' });
+  assert.deepEqual(W.competitorRow({ name: 'x'.repeat(81) }), { error: 'name' });
+  assert.deepEqual(W.competitorRow({ name: 'a', keyword: 'k'.repeat(81) }), { error: 'keyword' });
+  assert.deepEqual(W.competitorRow({ name: 'a', note: 'n'.repeat(301) }), { error: 'note' });
+  assert.deepEqual(W.competitorRow({ name: 'a <b>' }), { error: 'text' });
+  assert.deepEqual(W.competitorRow({ name: 'a', page: 'https://example.com/x' }), { error: 'page' });
+});
+
+test('the owner 17 Nov — a trend video plays on hover: the platform\'s own player from the post\'s link; anything else none', () => {
+  assert.match(W.trendEmbed({ kind: 'video', url: 'https://www.tiktok.com/@shop/video/7412345678901234567' }), /^https:\/\/www\.tiktok\.com\/player\/v1\/7412345678901234567\?autoplay=1&muted=1/);
+  assert.equal(W.trendEmbed({ kind: 'video', url: 'https://www.instagram.com/reel/C9xYz12_ab/' }), 'https://www.instagram.com/reel/C9xYz12_ab/embed/');
+  assert.equal(W.trendEmbed({ kind: 'video', url: 'https://www.instagram.com/p/C9xYz12_ab/?igsh=1' }), 'https://www.instagram.com/p/C9xYz12_ab/embed/');
+  assert.match(W.trendEmbed({ kind: 'video', url: 'https://www.facebook.com/reel/123456789012' }), /^https:\/\/www\.facebook\.com\/plugins\/video\.php\?href=https%3A%2F%2Fwww\.facebook\.com%2Freel%2F123456789012&autoplay=true&mute=true/);
+  for (const x of [{ kind: 'image', url: 'https://www.tiktok.com/@shop/video/7412345678901234567' }, { kind: 'video', url: 'http://www.tiktok.com/@shop/video/7412345678901234567' },
+    { kind: 'video', url: 'https://tiktok.com.evil.io/@a/video/7412345678901234567' }, { kind: 'video', url: 'https://later.com/blog/a/' }, { kind: 'video', url: 'javascript:alert(1)' }, null])
+    assert.equal(W.trendEmbed(x), null);
+});
+
+test('0122 (the owner 17 Nov — «وقف نشر»): a waiting system post pauses, a paused one resumes and moves; a piece\'s state from its posts', () => {
+  assert.equal(W.canPause({ src: 'system', status: 'مجدول' }), true);
+  assert.equal(W.canPause({ src: 'system', status: 'فشل' }), true);
+  assert.equal(W.canPause({ src: 'system', status: 'مجدول', busy: true }), false);
+  assert.equal(W.canPause({ src: 'platform', status: 'مجدول' }), false);
+  assert.equal(W.canPause({ src: 'system', status: 'متوقف' }), false);
+  assert.equal(W.canResume({ status: 'متوقف' }), true);
+  assert.equal(W.canResume({ status: 'مجدول' }), false);
+  assert.equal(W.canMove({ status: 'متوقف' }), true);
+  assert.ok(W.POST_STATUSES.includes('متوقف'));
+  const P = [{ campaignId: 'c', piece: 'P1', status: 'متوقف' }, { campaignId: 'c', piece: 'P1', status: 'مجدول' }, { campaignId: 'c', piece: 'P2', status: 'متوقف' },
+    { campaignId: 'c', piece: 'P3', status: 'اتنشر' }, { campaignId: 'c', piece: 'P4', status: 'اتحذف' }, { campaignId: 'd', piece: 'P5', status: 'مجدول' }, { campaignId: 'c', piece: 'P6', status: 'فشل' }, { campaignId: 'c', piece: 'P6', status: 'اتنشر' }];
+  assert.deepEqual(['P1', 'P2', 'P3', 'P4', 'P5', 'P6'].map((k) => W.pieceState(P, 'c', k).status), ['مجدول', 'متوقف', 'اتنشر', 'مسودة', 'مسودة', 'فشل']);
+  assert.equal(W.pieceState(P, 'c', 'P1').posts.length, 2);
+  // a campaign with paused posts only is still «اتجدولت» (something waits)
+  assert.deepEqual(W.campaignStatus({ id: 'c', step: 4, scheduledAt: 'x' }, [{ campaignId: 'c', status: 'متوقف' }, { campaignId: 'c', status: 'اتنشر' }]), ['اتجدولت', 'success']);
+});

@@ -1,0 +1,25 @@
+{
+  "name": "ops-showcase",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "serve": "npx http-server app -p 4173 -c-1",
+    "demo": "node tools/demo/build.mjs",
+    "demo:web": "node tools/demo/build-web.mjs",
+    "demo:web:serve": "npm run demo:web && npx http-server dist/demo-web -p 4191 -c-1 -s",
+    "e2e": "npx playwright test -c tests/playwright.config.mjs",
+    "e2e:demo": "npx playwright test -c tests/demo-web.config.mjs",
+    "semgrep": "semgrep scan --metrics=off --config p/javascript --config p/secrets --severity ERROR --error --exclude app/js/blocks --exclude app/js/vendor ."
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "http-server": "14.1.1"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.118.0"
+  }
+}

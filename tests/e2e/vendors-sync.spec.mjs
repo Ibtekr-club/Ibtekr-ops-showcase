@@ -1,0 +1,389 @@
+import { test, expect } from '@playwright/test';
+import { installSupabaseMock, LIVE, DEV_PW, ART_PARTS, ART_ADDRESS, ART_SOCIAL, ART_LOGO, IMG } from './supabase-mock.mjs';
+
+// Phase 3.3 (decisions 5 / 6): the store data synced with Dokan on the makers page — the drawer shows the synced fields (the site's
+// logo, the owner's name, the address from its parts, the social links, the last sync, the fields waiting for the site, «موقوف على
+// الموقع»), the contact popup writes the three synced columns with the derived address / instagram and then pushes them through
+// woo-sync push_vendor (the field names only; ok / 502 / push_disabled read on the page), a rate change and a status change push
+// too, the per-category commission (sensitive.commission) with its popup, the server's sync rows in «سجل النشاط», a member who may
+// not push, and html / javascript: values from the site rendered as text and never as links. Mock only (E2E_SUPABASE_LIVE=1 skips).
+const ADMIN = 'admin.dev@ibtekr.local'; const OPS = 'ops.dev@ibtekr.local'; const ACCOUNTS = 'accounts.dev@ibtekr.local';
+const V1 = 'a0000000-0000-4000-8000-000000000001'; const V2 = 'a0000000-0000-4000-8000-000000000002'; const V3 = 'a0000000-0000-4000-8000-000000000003'; // Artisan Loft (synced data), Anticora (a pending phone), Biala eg (inactive, a store)
+const T0 = '2026-10-22T00:00:00Z';
+const EVIL = '"><img src=x onerror="window.__xss=1">';
+const PNG = Buffer.from(IMG.curtain.split(',')[1], 'base64'); // a 1×1 PNG for the logo route
+const ymd = (d) => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+const TODAY = ymd(new Date());
+let mock = null; let pageErrors = [];
+test.beforeEach(async ({ page }) => {
+  test.skip(LIVE, 'asserts on the mocked Supabase (its seed and the writes / pushes it recorded)');
+  pageErrors = []; page.on('pageerror', (e) => pageErrors.push(e.message));
+  mock = await installSupabaseMock(page, { syncRows: true }); // with the server's vendor.sync / vendor.sync.conflict rows on Artisan Loft
+  await page.route(ART_LOGO, (route) => route.fulfill({ status: 200, contentType: 'image/png', body: PNG })); // the site's logo, never the real host
+});
+test.afterEach(() => {
+  if (LIVE) return;
+  expect(pageErrors).toEqual([]);
+  expect(mock.unhandled).toEqual([]);
+});
+
+async function signIn(page, email) {
+  await page.goto('/');
+  await expect(page.locator('#login')).toBeVisible();
+  await page.fill('#lg-id', email);
+  await page.fill('#lg-pw', DEV_PW);
+  await page.getByRole('button', { name: 'دخول', exact: true }).click();
+  await expect(page.locator('#root')).toBeVisible();
+}
+const rows = (page) => page.locator('#vendors table tbody tr[data-id]');
+const row = (page, id) => page.locator(`#vendors tr[data-id="${id}"]`);
+async function openVendors(page, email = ADMIN, n = 2) {
+  await signIn(page, email);
+  await page.locator('.sidebar .nav-item[data-page="vendors"]').click();
+  await page.locator('#vendors [role=tab]', { hasText: 'سجل المبتكرين' }).click(); // decision 57: the page opens on «نظرة عامة»
+  await expect(page.locator('#vendors')).toBeVisible();
+  await expect(rows(page)).toHaveCount(n);
+}
+const drawer = (page) => page.locator('.drawer[aria-label^="ملف المبتكر"]');
+async function openDrawer(page, id) { await row(page, id).click(); await expect(drawer(page)).toBeVisible(); return drawer(page); }
+async function openByHash(page, id) { await page.evaluate((h) => { location.hash = h; }, 'makers/' + id); await expect(drawer(page)).toBeVisible(); return drawer(page); }
+const section = (page, title) => drawer(page).locator('section.vsection').filter({ has: page.locator('.head h3', { hasText: title }) });
+const info = (scope, page, label) => scope.locator('.info-row').filter({ has: page.locator('.lab', { hasText: label }) }).locator('.val');
+const modal = (page) => page.locator('.modal[role=dialog]');
+const note = (page) => page.locator('#vendors .note');
+const contact = (page) => section(page, 'التواصل'); const agreement = (page) => section(page, 'الاتفاق التجاري'); const activity = (page) => section(page, 'سجل النشاط');
+const writes = () => mock.vendorWrites.map((w) => { const { updated_at, ...x } = w; return x; });
+const pushes = () => mock.vendorPushes.map(({ by, ...p }) => p);
+const acts = (action) => mock.activity.filter((a) => a.action === action).map((a) => ({ action: a.action, entity: a.entity, entity_id: a.entity_id, new_value: a.new_value }));
+async function pickOption(page, selectId, label) { await modal(page).locator('#' + selectId).click(); await page.locator('[role=listbox] [role=option]', { hasText: label }).click(); }
+const inert = async (page) => {
+  expect(await page.evaluate(() => document.querySelectorAll('img[src="x"]').length)).toBe(0);
+  expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+};
+// the synced fields of Artisan Loft's contact popup
+async function openContact(page) { await contact(page).getByRole('button', { name: 'تعديل بيانات الاتصال' }).click(); await expect(modal(page)).toBeVisible(); }
+
+test('the drawer shows the synced store data: the site\'s logo, the owner\'s name, the address from its parts, the social links (https, new tab), the last sync; the flat fee with the rate; a pending field on Anticora; «موقوف على الموقع» on Biala eg; the sync rows in the log', async ({ page }) => {
+  await openVendors(page);
+  await openDrawer(page, V1);
+  const d = drawer(page);
+  const img = d.locator('.drawer-h .vlogo img');
+  await expect(img).toHaveAttribute('src', ART_LOGO);
+  await expect(img).toHaveAttribute('alt', 'لوجو Artisan Loft');
+  await expect(d.locator('.drawer-h h2')).toHaveText('Artisan Loft');
+  await expect(d.locator('[data-site-off]')).toHaveCount(0);
+  await expect(info(contact(page), page, 'اسم صاحب المتجر')).toHaveText('داليا فؤاد');
+  await expect(info(contact(page), page, 'العنوان (الاستلام)')).toHaveText(ART_ADDRESS);
+  await expect(info(contact(page), page, 'الرمز البريدي / الدولة')).toHaveText('11511 · EG');
+  const links = info(contact(page), page, 'سوشيال').locator('a.social-a');
+  await expect(links).toHaveText(['فيسبوك', 'إنستجرام']); // the two filled keys only
+  await expect(links.nth(0)).toHaveAttribute('href', ART_SOCIAL.fb);
+  await expect(links.nth(1)).toHaveAttribute('href', ART_SOCIAL.instagram);
+  for (const i of [0, 1]) { await expect(links.nth(i)).toHaveAttribute('target', '_blank'); await expect(links.nth(i)).toHaveAttribute('rel', /noopener/); }
+  await expect(info(contact(page), page, 'آخر مزامنة مع الموقع').locator('[data-synced-at]')).toHaveAttribute('data-synced-at', T0);
+  await expect(contact(page).locator('[data-push-pending]')).toHaveCount(0);
+  await expect(info(contact(page), page, 'إنستجرام')).toHaveCount(0); // instagram is a social link now
+  // the agreement: the rate, the category commission in force (the site's row), the note that the rate goes to the site
+  await expect(info(agreement(page), page, 'نسبة إبتكر')).toContainText('35%');
+  await expect(agreement(page).locator('tr[data-cat-rate="15"]')).toContainText('ديكور');
+  await expect(agreement(page).locator('tr[data-cat-rate="15"]')).toContainText('30%');
+  await expect(agreement(page)).toContainText('النسبة بتتبعت للموقع');
+  // the server's rows read in the site's voice with the Arabic labels (the admin sees every row)
+  await expect(activity(page)).toContainText('اتعدل من الموقع: التليفون، العنوان');
+  await expect(activity(page)).toContainText('تعارض — الموقع كسب في: الاسم');
+  await expect(activity(page)).toContainText('الموقع رفض التعديل في: السوشيال');
+  await expect(activity(page)).not.toContainText('vendor.sync');
+  expect(mock.requests.filter((r) => r === 'GET /rest/v1/vendor_category_rates').length).toBeGreaterThanOrEqual(1);
+  expect(mock.requests.filter((r) => r === 'GET /rest/v1/woo_categories').length).toBeGreaterThanOrEqual(1);
+  // Anticora: a letter logo (no picture on the site), the flat fee next to the rate, a phone waiting for the site
+  await openByHash(page, V2);
+  await expect(drawer(page).locator('.drawer-h .vlogo img')).toHaveCount(0);
+  await expect(drawer(page).locator('.drawer-h .vlogo')).toHaveText('A');
+  await expect(info(agreement(page), page, 'نسبة إبتكر')).toContainText('45%');
+  await expect(info(agreement(page), page, 'نسبة إبتكر')).toContainText('رسوم ثابتة');
+  await expect(info(contact(page), page, 'في انتظار الإرسال').locator('[data-push-pending]')).toHaveAttribute('data-push-pending', 'phone');
+  await expect(info(contact(page), page, 'في انتظار الإرسال')).toHaveText('التليفون');
+  await expect(info(contact(page), page, 'اسم صاحب المتجر')).toHaveText('—');
+  await expect(info(contact(page), page, 'سوشيال')).toHaveText('—');
+  await expect(agreement(page)).not.toContainText('عمولة حسب الفئة'); // fixed (plan 3.4): no category block
+  // Biala eg: inactive here with a store on the site → the tag
+  await openByHash(page, V3);
+  await expect(drawer(page).locator('[data-site-off]')).toHaveText('موقوف على الموقع');
+  await inert(page);
+});
+
+test('the contact popup (admin): the six address parts and the social links; one PATCH of the changed columns with the derived address + instagram, the event, then push_vendor with those fields only — ok: the last sync line moves to now', async ({ page }) => {
+  await openVendors(page);
+  await openDrawer(page, V1);
+  await openContact(page);
+  const m = modal(page);
+  await expect(m.locator('#g-contact')).toHaveValue('داليا فؤاد');
+  await expect(m.locator('#g-street1')).toHaveValue(ART_PARTS.street_1);
+  await expect(m.locator('#g-city')).toHaveValue('القاهرة');
+  await expect(m.locator('#g-zip')).toHaveValue('11511');
+  await expect(m.locator('#g-country')).toHaveValue('EG');
+  await expect(m.locator('#g-fb')).toHaveValue(ART_SOCIAL.fb);
+  await expect(m.locator('#g-instagram')).toHaveValue(ART_SOCIAL.instagram);
+  await expect(m.locator('#g-threads')).toHaveValue('');
+  await expect(m.locator('#g-ig')).toHaveCount(0); // the old handle field is gone
+  await expect(m).toContainText('بيتبعتوا لمتجره على الموقع مع الحفظ');
+  await m.locator('#g-contact').fill('داليا فؤاد شاكر');
+  await m.locator('#g-street2').fill('الدور 3');
+  await m.locator('#g-threads').fill('https://www.threads.net/@artisanloft.dev');
+  await m.getByRole('button', { name: 'حفظ' }).click();
+  await expect(modal(page)).toHaveCount(0);
+  await expect(info(contact(page), page, 'اسم صاحب المتجر')).toHaveText('داليا فؤاد شاكر');
+  await expect(info(contact(page), page, 'العنوان (الاستلام)')).toHaveText('12 شارع المعز، الدور 3، القاهرة، الجمالية');
+  await expect(info(contact(page), page, 'سوشيال').locator('a.social-a')).toHaveText(['فيسبوك', 'إنستجرام', 'ثريدز']);
+  const parts = { ...ART_PARTS, street_2: 'الدور 3' }; const social = { ...ART_SOCIAL, threads: 'https://www.threads.net/@artisanloft.dev' };
+  await expect.poll(() => writes()).toEqual([{ table: 'vendors', op: 'update', id: V1, contact_name: 'داليا فؤاد شاكر', address_parts: parts, social, address: '12 شارع المعز، الدور 3، القاهرة، الجمالية', instagram: ART_SOCIAL.instagram }]);
+  await expect.poll(() => pushes()).toEqual([{ vendor_id: V1, fields: ['contact_name', 'address_parts', 'social'], result: 'ok' }]);
+  expect(mock.requests.indexOf('POST /functions/v1/woo-sync')).toBeGreaterThan(mock.requests.indexOf('PATCH /rest/v1/vendors')); // the row first, then the push
+  await expect.poll(() => acts('vendor.update')).toEqual([{ action: 'vendor.update', entity: 'vendor', entity_id: V1, new_value: 'contactName, addressParts, social' }]);
+  await expect(info(contact(page), page, 'آخر مزامنة مع الموقع').locator('[data-synced-at]')).not.toHaveAttribute('data-synced-at', T0); // the reload after the push
+  await expect(contact(page).locator('[data-push-pending]')).toHaveCount(0);
+  // an ok push adds no note of its own: what is on the screen is the save's own (it stays through the redraw after the push — the owner 15 Nov)
+  await expect(page.locator('#vendors .note.warning, #vendors .note.error')).toHaveCount(0);
+  expect(mock.vendors.find((v) => v.id === V1).woo_snapshot.contact_name).toBe('داليا فؤاد شاكر');
+  // a link that is not https:// is refused on the page before any write
+  await openContact(page);
+  await modal(page).locator('#g-youtube').fill('http://youtube.com/@artisanloft');
+  await modal(page).locator('#g-country').fill('E1'); // the input takes two characters (maxlength): a non-letter pair
+  await modal(page).getByRole('button', { name: 'حفظ' }).click();
+  await expect(modal(page)).toContainText('الرابط لازم يبدأ بـ https://');
+  await expect(modal(page)).toContainText('كود الدولة حرفين إنجليزي');
+  await modal(page).getByRole('button', { name: 'إلغاء' }).click();
+  expect(writes()).toHaveLength(1);
+  expect(pushes()).toHaveLength(1);
+});
+
+test('the push fails (502): saved here, the message, the fields wait in «في انتظار الإرسال»; the push gate closed (push_disabled): saved, no error, the fields wait; a status toggle and a rate change push too', async ({ page }) => {
+  await openVendors(page);
+  await openDrawer(page, V1);
+  mock.wooDown = true;
+  await openContact(page);
+  await modal(page).locator('#g-contact').fill('داليا فؤاد شاكر');
+  await modal(page).getByRole('button', { name: 'حفظ' }).click();
+  await expect(note(page)).toContainText('اتحفظ في السيستم، ومابعتش للموقع — هيتبعت مع المزامنة الجاية');
+  await expect.poll(() => pushes()).toEqual([{ vendor_id: V1, fields: ['contact_name'], result: 'error' }]);
+  await expect(info(contact(page), page, 'في انتظار الإرسال')).toHaveText('اسم صاحب المتجر');
+  await expect(info(contact(page), page, 'اسم صاحب المتجر')).toHaveText('داليا فؤاد شاكر'); // the row was taken
+  expect(writes()).toEqual([{ table: 'vendors', op: 'update', id: V1, contact_name: 'داليا فؤاد شاكر' }]);
+  mock.wooDown = false; mock.pushEnabled = false;
+  await openContact(page);
+  await modal(page).locator('#g-city').fill('الجيزة');
+  await modal(page).getByRole('button', { name: 'حفظ' }).click();
+  await expect.poll(() => pushes().slice(1)).toEqual([{ vendor_id: V1, fields: ['address_parts'], result: 'skipped', reason: 'push_disabled' }]);
+  await expect(info(contact(page), page, 'في انتظار الإرسال')).toHaveText('اسم صاحب المتجر، العنوان');
+  await expect(page.locator('#vendors .note.warning, #vendors .note.error')).toHaveCount(0); // skipped: nothing beyond the save's own note
+  mock.pushEnabled = true;
+  // «المزيد» → a status change pushes status; the terms popup → a new rate pushes rate; after the ok the pending fields it sent are gone
+  await drawer(page).getByRole('button', { name: 'المزيد' }).click();
+  await page.locator('[role=menu] [role=menuitem]', { hasText: 'تحويل لـ «في إجازة»' }).click();
+  await expect.poll(() => pushes().slice(2)).toEqual([{ vendor_id: V1, fields: ['status'], result: 'ok' }]);
+  await agreement(page).getByRole('button', { name: 'تعديل بيانات الاتفاق التجاري' }).click();
+  await expect(modal(page).locator('#g-rate')).toHaveValue('35');
+  await expect(modal(page).locator('#g-flat')).toHaveValue('');
+  await expect(modal(page)).toContainText('والعمولة بتتبعت للموقع');
+  await pickOption(page, 'g-ctype', 'نسبة ثابتة (Fixed)'); // from category_based to fixed (plan 3.4)
+  await expect(modal(page).locator('[data-cat-tree]')).toHaveCount(0);
+  await modal(page).locator('#g-rate').fill('40');
+  await modal(page).locator('#g-flat').fill('٥');
+  await modal(page).getByRole('button', { name: 'حفظ' }).click();
+  await expect.poll(() => writes().filter((w) => w.table === 'vendor_commission')).toEqual([{ table: 'vendor_commission', vendor_id: V1, type: 'fixed', rate: 40, flat: 5, categories: [], since: TODAY, set_by: 'صفوت كمال' }]);
+  await expect.poll(() => pushes().slice(3)).toEqual([{ vendor_id: V1, fields: ['rate', 'category_rates'], result: 'ok' }]);
+  await expect.poll(() => acts('vendor.rate')).toEqual([{ action: 'vendor.rate', entity: 'vendor', entity_id: V1, new_value: '40% + 5 ج.م' }]);
+  await expect(info(agreement(page), page, 'نسبة إبتكر')).toContainText('40%');
+  await expect(info(agreement(page), page, 'نسبة إبتكر')).toContainText('رسوم ثابتة');
+  await expect(info(contact(page), page, 'في انتظار الإرسال')).toHaveText('اسم صاحب المتجر، العنوان'); // still waiting: a push names its own fields only
+});
+
+test('review I-1 / I-3: the function unreachable → saved, the fields queued through vendor_push_pending and «في انتظار الإرسال»; the site\'s final refusal (502 pending:false) → saved, its own message, nothing waiting; the queue refused too → the honest message', async ({ page }) => {
+  await openVendors(page);
+  await openDrawer(page, V1);
+  mock.functionsDown = true;
+  await openContact(page);
+  await modal(page).locator('#g-contact').fill('داليا فؤاد شاكر');
+  await modal(page).getByRole('button', { name: 'حفظ' }).click();
+  await expect(note(page)).toContainText('اتحفظ في السيستم، ومابعتش للموقع — هيتبعت مع المزامنة الجاية');
+  await expect.poll(() => mock.rpcs.filter((r) => r.fn === 'vendor_push_pending').map(({ by, ...r }) => r)).toEqual([{ fn: 'vendor_push_pending', vendor_id: V1, fields: ['contact_name'], result: 'ok' }]);
+  expect(pushes()).toEqual([]); // the function never answered
+  await expect(info(contact(page), page, 'في انتظار الإرسال')).toHaveText('اسم صاحب المتجر');
+  await expect(info(contact(page), page, 'اسم صاحب المتجر')).toHaveText('داليا فؤاد شاكر');
+  mock.functionsDown = false; mock.wooRefuses = true;
+  await openContact(page);
+  await modal(page).locator('#g-city').fill('الجيزة');
+  await modal(page).getByRole('button', { name: 'حفظ' }).click();
+  await expect(note(page)).toContainText('اتحفظ في السيستم بس — الموقع رفض التعديل ده، راجع القيم');
+  await expect.poll(() => pushes()).toEqual([{ vendor_id: V1, fields: ['address_parts'], result: 'refused' }]);
+  await expect(info(contact(page), page, 'في انتظار الإرسال')).toHaveText('اسم صاحب المتجر'); // the refused field is not queued
+  await expect(info(contact(page), page, 'العنوان')).toContainText('الجيزة'); // the row was taken
+  // the function and the queue both unreachable (the session expired, say): the message says the fields will not go by themselves
+  mock.wooRefuses = false; mock.functionsDown = true;
+  await page.route('**/rest/v1/rpc/vendor_push_pending', (route) => route.abort('failed'));
+  await openContact(page);
+  await modal(page).locator('#g-contact').fill('داليا فؤاد');
+  await modal(page).getByRole('button', { name: 'حفظ' }).click();
+  await expect(note(page)).toContainText('ومش هيتبعت لوحده: افتح التعديل واحفظ تاني');
+  await page.unroute('**/rest/v1/rpc/vendor_push_pending');
+  mock.functionsDown = false;
+});
+test('the commission by category (plan 3.4): the type picker, the tree of the site\'s categories with «+» for the children, a parent\'s figure flowing to its children, a child set by hand keeping its own figure, one vendor_commission_set with the changed categories, pushed as rate + category_rates; ops sees nothing and a tampered write is refused', async ({ page }) => {
+  await openVendors(page);
+  await openDrawer(page, V1);
+  // the drawer shows the hand-set figures only (display): ديكور 30%, no date column, no buttons
+  await expect(agreement(page)).toContainText('عمولة حسب الفئة');
+  await expect(agreement(page).locator('tr[data-cat-rate="15"]')).toContainText('30%');
+  await expect(agreement(page).locator('tr[data-cat-rate]')).toHaveCount(1);
+  await expect(agreement(page).getByRole('button', { name: 'إضافة عمولة فئة' })).toHaveCount(0);
+  await agreement(page).getByRole('button', { name: 'تعديل بيانات الاتفاق التجاري' }).click();
+  await expect(modal(page).locator('#g-ctype')).toContainText('حسب الفئة (Category based)');
+  await expect(modal(page).locator('#g-rate')).toHaveValue('35');
+  // the top level only: ديكور (hand-set 30) and هدايا (empty, inherits the default 35)
+  await expect(modal(page).locator('[data-cat]')).toHaveCount(2);
+  await expect(modal(page).locator('#cr-15')).toHaveValue('30');
+  await expect(modal(page).locator('#cr-22')).toHaveValue('');
+  await expect(modal(page).locator('#cr-22')).toHaveAttribute('placeholder', '35');
+  await expect(modal(page).locator('[data-cat-toggle="22"]')).toHaveCount(0); // no children, no «+»
+  // «+» opens ديكور's children, then إضاءة's: they inherit 30
+  await modal(page).locator('[data-cat-toggle="15"]').click();
+  await expect(modal(page).locator('[data-cat="151"]')).toHaveCount(1);
+  await expect(modal(page).locator('#cr-151')).toHaveAttribute('placeholder', '30');
+  await modal(page).locator('[data-cat-toggle="151"]').click();
+  await expect(modal(page).locator('#cr-152')).toHaveAttribute('placeholder', '30');
+  // a child set by hand keeps its figure; a new figure on the parent flows to the child without one
+  await modal(page).locator('#cr-152').fill('٢٠');
+  await modal(page).locator('#cr-15').fill('28');
+  await expect(modal(page).locator('#cr-151')).toHaveAttribute('placeholder', '28');
+  await expect(modal(page).locator('#cr-152')).toHaveValue('٢٠');
+  await expect(modal(page).locator('[data-cat="152"]')).toHaveClass(/is-own/);
+  await expect(modal(page).locator('[data-cat="151"]')).not.toHaveClass(/is-own/);
+  // the default flows to the categories with nothing on them or above them
+  await modal(page).locator('#g-rate').fill('36');
+  await expect(modal(page).locator('#cr-22')).toHaveAttribute('placeholder', '36');
+  await expect(modal(page).locator('#cr-151')).toHaveAttribute('placeholder', '28');
+  // a figure out of range is refused before any write
+  await modal(page).locator('#cr-22').fill('70');
+  await modal(page).getByRole('button', { name: 'حفظ' }).click();
+  await expect(modal(page)).toContainText('نسبة فئة «هدايا» لازم من 0% لـ 65%');
+  expect(writes()).toEqual([]);
+  await modal(page).locator('#cr-22').fill('');
+  await modal(page).getByRole('button', { name: 'حفظ' }).click();
+  await expect(modal(page)).toHaveCount(0);
+  await expect.poll(() => writes()).toEqual([{ table: 'vendor_commission', vendor_id: V1, type: 'category_based', rate: 36, flat: null,
+    categories: [{ id: 15, rate: 28, flat: 0 }, { id: 152, rate: 20, flat: null }], since: TODAY, set_by: 'صفوت كمال' }]);
+  await expect.poll(() => pushes()).toEqual([{ vendor_id: V1, fields: ['rate', 'category_rates'], result: 'ok' }]);
+  await expect.poll(() => acts('vendor.rate')).toEqual([{ action: 'vendor.rate', entity: 'vendor', entity_id: V1, new_value: 'حسب الفئة — الأساسية 36% (2 فئة)' }]);
+  expect(mock.requests.filter((r) => r === 'POST /rest/v1/rpc/vendor_commission_set')).toHaveLength(1);
+  expect(mock.requests.filter((r) => r === 'POST /rest/v1/vendor_category_rates' || r === 'POST /rest/v1/vendor_rates')).toHaveLength(0);
+  await expect(agreement(page).locator('tr[data-cat-rate="15"]')).toContainText('28%');
+  await expect(agreement(page).locator('tr[data-cat-rate="152"]')).toContainText('20%');
+  await expect(agreement(page).locator('tr[data-cat-rate="152"] td').first()).toHaveText('ديكور › إضاءة › أباجورات'); // a child shows its path (decision 9)
+  await expect(agreement(page).locator('tr[data-cat-rate="15"] td').first()).toHaveText('ديكور');
+  // emptying the child the same day: back to inheriting (a null rate), the day's row replaced
+  await agreement(page).getByRole('button', { name: 'تعديل بيانات الاتفاق التجاري' }).click();
+  await modal(page).locator('[data-cat-toggle="15"]').click();
+  await modal(page).locator('[data-cat-toggle="151"]').click();
+  await expect(modal(page).locator('#cr-152')).toHaveValue('20');
+  await modal(page).locator('#cr-152').fill('');
+  await expect(modal(page).locator('#cr-152')).toHaveAttribute('placeholder', '28');
+  await modal(page).getByRole('button', { name: 'حفظ' }).click();
+  await expect.poll(() => writes().slice(1)).toEqual([{ table: 'vendor_commission', vendor_id: V1, type: 'category_based', rate: 36, flat: null,
+    categories: [{ id: 152, rate: null, flat: null }], since: TODAY, set_by: 'صفوت كمال' }]);
+  await expect(agreement(page).locator('tr[data-cat-rate="152"]')).toHaveCount(0);
+  await expect.poll(() => pushes()).toHaveLength(2);
+  // ops: no block, no request for the rates; a write forged past the page → 42501; a push → 401
+  await Promise.all([page.waitForEvent('load'), page.evaluate(() => { window.IBAuth.signOut(); })]); // the SIGNED_OUT reloads the page first
+  await expect(page.locator('#login')).toBeVisible();
+  mock.requests.length = 0;
+  await openVendors(page, OPS);
+  await openDrawer(page, V1);
+  await expect(agreement(page)).not.toContainText('عمولة حسب الفئة');
+  await expect(agreement(page).getByRole('button', { name: 'إضافة عمولة فئة' })).toHaveCount(0);
+  expect(mock.requests.filter((r) => r.includes('vendor_category_rates'))).toEqual([]);
+  const forged = await page.evaluate(async (id) => {
+    const cl = window.IBSupabase.client;
+    const w = await cl.from('vendor_category_rates').insert({ vendor_id: id, woo_category_id: 22, rate: 10, since: '2026-12-01' });
+    const p = await cl.functions.invoke('woo-sync', { body: { action: 'push_vendor', vendor_id: id, fields: ['category_rates'] } }); // a rate field: F + commission
+    const n = await cl.functions.invoke('woo-sync', { body: { action: 'push_vendor', vendor_id: id, fields: ['name'] } }); // name: F
+    return [w.error && w.error.code, p.error && p.error.context && p.error.context.status, n.error && n.error.context && n.error.context.status];
+  }, V1);
+  expect(forged).toEqual(['42501', 401, 401]);
+  expect(writes()).toHaveLength(2);
+});
+
+test('ops (vendors.edit = P) saves the contact and its push goes through (the contact fields alone — the server\'s rule); accounts reads the synced rows with no «تعديل»', async ({ page }) => {
+  await openVendors(page, OPS);
+  await openDrawer(page, V1);
+  await openContact(page);
+  await modal(page).locator('#g-contact').fill('داليا فؤاد شاكر');
+  await modal(page).getByRole('button', { name: 'حفظ' }).click();
+  await expect.poll(() => writes()).toEqual([{ table: 'vendors', op: 'update', id: V1, contact_name: 'داليا فؤاد شاكر' }]);
+  await expect.poll(() => pushes()).toEqual([{ vendor_id: V1, fields: ['contact_name'], result: 'ok' }]);
+  await expect(page.locator('#vendors .note.warning')).toHaveCount(0); // no «اتحفظ في السيستم بس»: the push went through
+  await expect(info(contact(page), page, 'اسم صاحب المتجر')).toHaveText('داليا فؤاد شاكر');
+  await Promise.all([page.waitForEvent('load'), page.evaluate(() => { window.IBAuth.signOut(); })]); // the SIGNED_OUT reloads the page first
+  await expect(page.locator('#login')).toBeVisible();
+  await openVendors(page, ACCOUNTS);
+  await openDrawer(page, V1);
+  await expect(info(contact(page), page, 'اسم صاحب المتجر')).toHaveText('داليا فؤاد شاكر');
+  await expect(info(contact(page), page, 'سوشيال').locator('a.social-a')).toHaveCount(2);
+  await expect(contact(page).getByRole('button', { name: 'تعديل بيانات الاتصال' })).toHaveCount(0);
+  await expect(info(agreement(page), page, 'نسبة إبتكر')).toHaveText('—');
+  await expect(agreement(page)).not.toContainText('عمولة حسب الفئة');
+});
+
+test('html and javascript: values from the site render as text and never as links or images: a javascript: logo shows the letter, a javascript: link is nothing, html inside an https link is text, html in the owner\'s name / a part stays text in the drawer, the popup and the list', async ({ page }) => {
+  const v = mock.vendors.find((x) => x.id === V1);
+  v.logo_url = 'javascript:window.__xss=1'; v.contact_name = EVIL; v.address_parts = { ...ART_PARTS, city: EVIL };
+  v.social = { ...ART_SOCIAL, fb: 'javascript:window.__xss=1', instagram: 'https://www.instagram.com/' + EVIL, twitter: 'http://x.com/artisanloft' };
+  await openVendors(page);
+  await openDrawer(page, V1);
+  await expect(drawer(page).locator('.drawer-h .vlogo img')).toHaveCount(0);
+  await expect(drawer(page).locator('.drawer-h .vlogo')).toHaveText('A');
+  await expect(info(contact(page), page, 'اسم صاحب المتجر')).toHaveText(EVIL);
+  await expect(info(contact(page), page, 'العنوان (الاستلام)')).toHaveText('12 شارع المعز، ' + EVIL + '، الجمالية');
+  const links = info(contact(page), page, 'سوشيال').locator('a.social-a');
+  await expect(links).toHaveText(['إنستجرام']); // the javascript: and the http: values are nothing; the https one with html inside is a link whose text is the label
+  await expect(links.first()).toHaveAttribute('href', 'https://www.instagram.com/' + EVIL);
+  expect(await page.evaluate(() => [...document.querySelectorAll('a')].filter((a) => /^javascript:/i.test(a.getAttribute('href') || '')).length)).toBe(0);
+  await openContact(page);
+  await expect(modal(page).locator('#g-contact')).toHaveValue(EVIL);
+  await expect(modal(page).locator('#g-city')).toHaveValue(EVIL);
+  await expect(modal(page).locator('#g-fb')).toHaveValue(''); // blanked: not https
+  await expect(modal(page).locator('#g-instagram')).toHaveValue('https://www.instagram.com/' + EVIL);
+  await modal(page).getByRole('button', { name: 'إلغاء' }).click();
+  await inert(page);
+});
+
+test('«مزامنة دلوقتي» (plan 3.4 decision 10): the admin pulls the site\'s store changes now — one woo-sync `vendors` call, the page reloads and says how many changed; the site down says so; ops has no button', async ({ page }) => {
+  await openVendors(page);
+  const btn = page.locator('#vendors [data-sync-now]');
+  await expect(btn).toHaveText('مزامنة دلوقتي');
+  mock.onVendorsSync = (m) => { m.vendors.find((x) => x.id === V1).name = 'Artisan Loft Studio'; return 1; }; // the site renamed the store
+  await btn.click();
+  await expect(note(page)).toContainText('اتزامن مع الموقع — اتحدّث 1 مبتكر من الموقع.');
+  await expect(row(page, V1)).toContainText('Artisan Loft Studio'); // reloaded
+  expect(mock.syncs).toEqual([{ action: 'vendors' }]);
+  mock.onVendorsSync = null;
+  await page.locator('#vendors [data-sync-now]').click();
+  await expect(note(page)).toContainText('اتزامن مع الموقع — مفيش تعديلات جديدة.');
+  mock.wooDown = true;
+  await page.locator('#vendors [data-sync-now]').click();
+  await expect(note(page)).toContainText('الموقع مش بيرد دلوقتي');
+  mock.wooDown = false;
+  expect(writes()).toEqual([]);
+  await Promise.all([page.waitForEvent('load'), page.evaluate(() => { window.IBAuth.signOut(); })]); // the SIGNED_OUT reloads the page first
+  await expect(page.locator('#login')).toBeVisible();
+  await openVendors(page, OPS);
+  await expect(page.locator('#vendors [data-sync-now]')).toHaveCount(0);
+});
+
+test('«إضافة مبتكر»: the old «رفع لوجو» is gone; since phase 13 decision 51 the photo is picked here and becomes the store photo on the site', async ({ page }) => {
+  await openVendors(page);
+  await page.getByRole('button', { name: 'إضافة مبتكر' }).click();
+  await expect(modal(page)).toBeVisible();
+  await expect(modal(page).getByRole('button', { name: 'رفع لوجو' })).toHaveCount(0);
+  await expect(modal(page).locator('[data-v-photo-pick]')).toHaveText('ارفع صورة');
+  await expect(modal(page)).toContainText('بتتحفظ هنا وبتبقى صورة متجره على الموقع');
+});

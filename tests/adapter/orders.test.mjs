@@ -1,0 +1,805 @@
+import { test } from 'node:test'; import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs'; import { runInNewContext } from 'node:vm';
+import { stubClient, opsOf } from './stub-supabase.mjs';
+// orders.js against a stub IBSupabase: orders_v (last 12 months) + order_items + sub_orders + vendors + products + status_map
+// + woo_states → block 29's screen shape (with each line's link to its product on the website and the governorate's name from
+// the website's list); write-through updates (named, granted
+// columns, no .select()), the woo-sync push, Realtime refetch.
+const src = readFileSync(new URL('../../app/js/adapter/orders.js', import.meta.url), 'utf8');
+const plain = (v) => JSON.parse(JSON.stringify(v));
+const V1 = 'a0000000-0000-4000-8000-000000000001', V2 = 'a0000000-0000-4000-8000-000000000002';
+// multi-maker: two lines in two Dokan sub-orders; single-maker: one line, no sub-order (+ one removed line)
+const O1 = { id: 181668, customer_name: 'ليلى منصوري', customer_phone: '010••••7052', customer_state: 'EG-01', customer_city: 'القاهرة', customer_address: 'مدينة نصر', payment_method: 'cod', payment_title: 'الدفع عند الاستلام', status: 'جاري التنفيذ', woo_status: 'processing', confirm: 'غير مؤكد', confirm_at: null, deposit: 0, total: 3541, note: null, customer_note: 'اتصلوا قبل التوصيل\nالدور التالت', placed_at: '2026-10-19T12:00:00+00:00', cancel: null, ret: null };
+const O2 = { id: 180686, customer_name: 'هدير عميل', customer_phone: '01000007030', customer_state: null, customer_city: null, customer_address: null, payment_method: 'cod', payment_title: null, status: 'معلّق', woo_status: 'on-hold', confirm: 'مؤكد بعربون', confirm_at: '2026-10-18', deposit: '300.00', total: '1002.00', note: 'تبع اوردر 180668', placed_at: '2026-10-17T12:00:00+00:00', cancel: null, ret: { reason: 'x' } };
+const SUBS = [{ id: 1, order_id: 181668, vendor_id: V1, woo_order_id: 181669, woo_status: 'processing' }, { id: 2, order_id: 181668, vendor_id: V2, woo_order_id: 181670, woo_status: 'on-hold' }];
+const item = (o) => ({ sub_order_id: null, product_id: null, sku: null, qty: 1, total: 0, vendor_id: null, status: '', expected_at: null, comment: null, ready_at: null, waybill: null, pulled: false, ret: null, store: null, removed: false, commission_rate: null, commission_fee: null, ...o });
+const ITEMS = [
+  item({ id: 5002, order_id: 181668, sub_order_id: 2, product_id: 9002, sku: 'IBTAMCTOWM200X10014', name: 'Macrame Curtain', qty: 1, total: '2539.00', vendor_id: V2, status: 'مؤكد', expected_at: '2026-10-20', comment: 'تم تبليغ المورد', commission_rate: '40.00', commission_fee: '10.00' }),
+  item({ id: 5001, order_id: 181668, sub_order_id: 1, product_id: 9001, sku: 'IBTA4040PAHC000013', name: 'Cushion', qty: 2, total: 1002, vendor_id: V1, commission_rate: 35, commission_fee: 0 }),
+  item({ id: 5003, order_id: 180686, product_id: 9001, sku: 'IBTA4040PAHC000013', name: 'Cushion', qty: 2, total: 1002 }),
+  item({ id: 5004, order_id: 180686, sku: 'IBTK5050MRHC000010', name: 'Cushion Cover', removed: true }),
+];
+const VENDORS = [{ id: V2, name: 'Anticora' }, { id: V1, name: 'Artisan Loft' }];
+const SITE = 'https://stage.ibtekr.test'; // a fake staging host
+const PRODUCTS = [{ sku: 'IBTA4040PAHC000013', image_url: 'https://stage.ibtekr.club/cushion.jpg', permalink: SITE + '/product/cushion/' }, { sku: 'IBTAMCTOWM200X10014', image_url: null, permalink: null }];
+const STATES = [{ code: 'EG-02', name: 'الجيزة' }, { code: 'EG-01', name: 'القاهرة' }]; // woo_states: the website's list (0010)
+const STATUSES = [{ system_status: 'قيد الانتظار', woo_status: 'pending', direction: 'both', sort: 1 }, { system_status: 'فشل', woo_status: 'failed', direction: 'from_woo', sort: 10 }];
+const ok = (data) => ({ data, error: null });
+// the granted columns the adapter names (0007 grants: no raw, no customer_phone on orders — the view masks it)
+const COLS = { order: 'id, customer_name, customer_phone, customer_state, customer_city, customer_address, payment_method, payment_title, status, woo_status, confirm, confirm_at, deposit, total, note, customer_note, placed_at, cancel, ret, bosta_tracking, bosta_state, bosta_delivery, bosta_cod, bosta_cod_error, bosta_district',
+  item: 'id, order_id, sub_order_id, product_id, sku, name, qty, total, vendor_id, status, expected_at, comment, ready_at, waybill, pulled, ret, store, removed, commission_rate, commission_fee', sub: 'id, order_id, vendor_id, woo_order_id, woo_status' };
+const seed = () => ({ orders_v: ok([O1, O2]), order_items: ok(ITEMS), sub_orders: ok(SUBS), vendors: ok(VENDORS), products: ok(PRODUCTS), status_map: ok(STATUSES), woo_states: ok(STATES), 'fn:woo-sync': ok({ action: 'push_status', result: 'ok', counts: { pushed: 1 } }) });
+// the adapter's clock: local 2026-10-25 12:00 unless a test asks for the real one (now: null)
+const NOW = new Date(2026, 9, 25, 12, 0).getTime();
+const clockAt = (t) => class FakeDate extends Date { constructor(...a) { if (a.length) super(...a); else super(t); } static now() { return t; } };
+function load({ responses = seed(), client = true, config = { supabaseUrl: 'https://proj.supabase.co' }, app = null, signedIn = true, channelThrows = false, now = NOW } = {}) {
+  const stub = stubClient({ responses, channelThrows }); const events = []; const logs = [];
+  const window = { IBSupabase: { client: client ? stub.client : null }, IBAuth: { session: () => (signedIn ? { user: { id: 'u1' } } : null) }, IB_CONFIG: config,
+    IBKit: { TODAY: '2026-10-21', logEvent: (action, detail) => { logs.push([action, detail]); return Promise.resolve(); } } };
+  if (app) window.OrdersApp = app;
+  const ctx = { window, document: { dispatchEvent(e) { events.push(e.type); } }, Event };
+  if (now !== null) ctx.Date = clockAt(now);
+  runInNewContext(src, ctx);
+  return { O: window.IBOrders, window, calls: stub.calls, responses: stub.responses, emitChange: stub.emitChange, emitStatus: stub.emitStatus, events, logs };
+}
+const selectOf = (calls, table) => opsOf(calls, table).filter((c) => c.op === 'select').map((c) => c.args[0]);
+const invokes = (calls) => calls.filter((c) => c.op === 'invoke').map((c) => c.args);
+const ymdLocal = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const stampLocal = (d) => ymdLocal(d) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+
+test('load names every column (no *, removed included) and asks for the last 12 months, newest first, by pages of 1000', async () => {
+  const { O, calls } = load();
+  await O.load();
+  for (const t of ['orders_v', 'order_items', 'sub_orders', 'vendors', 'products', 'status_map', 'woo_states']) for (const s of selectOf(calls, t)) assert.doesNotMatch(s, /\*/, t);
+  assert.deepEqual(selectOf(calls, 'orders_v'), [COLS.order]);
+  assert.deepEqual(selectOf(calls, 'order_items'), [COLS.item]);
+  assert.match(COLS.item, /\bremoved\b/);
+  assert.match(COLS.item, /\bproduct_id\b/); // the ?p= fallback of a line without a known permalink
+  assert.deepEqual(selectOf(calls, 'sub_orders'), [COLS.sub]);
+  assert.deepEqual(selectOf(calls, 'vendors'), ['id, name, lead_days']); // phase 13 decision 52: the maker's making days
+  assert.deepEqual(selectOf(calls, 'products'), ['sku, image_url, permalink, lang']);
+  assert.deepEqual(selectOf(calls, 'status_map'), ['system_status, woo_status, direction, sort, base']); // base: 0095
+  assert.match(COLS.order, /\bcustomer_state\b/); // the governorate's code (0010)
+  assert.deepEqual(selectOf(calls, 'woo_states'), ['code, name']); // once per load, no filter
+  assert.deepEqual(opsOf(calls, 'woo_states').filter((c) => c.op !== 'select' && c.op !== 'order'), []);
+  const ov = opsOf(calls, 'orders_v');
+  const gte = ov.find((c) => c.op === 'gte'); assert.equal(gte.args[0], 'placed_at');
+  assert.equal(gte.args[1], new Date(2025, 9, 25, 12, 0).toISOString()); // 12 months before the adapter's clock
+  assert.deepEqual(ov.filter((c) => c.op === 'order'), [{ op: 'order', args: ['placed_at', { ascending: false }] }, { op: 'order', args: ['id', { ascending: false }] }]);
+  assert.deepEqual(ov.filter((c) => c.op === 'range'), [{ op: 'range', args: [0, 999] }]);
+  assert.deepEqual(opsOf(calls, 'order_items').filter((c) => c.op === 'in'), [{ op: 'in', args: ['order_id', [181668, 180686]] }]);
+  assert.deepEqual(opsOf(calls, 'sub_orders').filter((c) => c.op === 'in'), [{ op: 'in', args: ['order_id', [181668, 180686]] }]);
+  assert.deepEqual(opsOf(calls, 'products').filter((c) => c.op === 'in'), [{ op: 'in', args: ['sku', ['IBTAMCTOWM200X10014', 'IBTA4040PAHC000013']] }]); // the skus of the shown lines only
+  // the base table: only the added status (0095 — a column grant: id, status_custom; orders_v masks the phone)
+  assert.deepEqual(selectOf(calls, 'orders'), ['id, status_custom']);
+  assert.deepEqual(opsOf(calls, 'orders').filter((c) => c.op === 'not').map((c) => c.args), [['status_custom', 'is', null]]);
+});
+
+test('0095 (owner batch 2 decision 22): an order on an added status — st keeps the base, stc the added one; the write sends the base + status_custom and pushes the added one; back to a base status clears it', async () => {
+  const STATUSES2 = STATUSES.concat([{ system_status: 'متابعة', woo_status: null, direction: 'both', sort: 11, base: 'جاري التنفيذ' }, { system_status: 'جاري التنفيذ', woo_status: 'processing', direction: 'both', sort: 2 }]);
+  const { O, calls } = load({ responses: { ...seed(), status_map: ok(STATUSES2), orders: ok([{ id: 181668, status_custom: 'متابعة' }]) } });
+  await O.load();
+  const o = O.data().orders.find((x) => x.id === '181668');
+  assert.equal(o.st, 'جاري التنفيذ'); assert.equal(o.stc, 'متابعة');
+  assert.equal('stc' in O.data().orders.find((x) => x.id === '180686'), false);
+  assert.deepEqual(O.siteStatuses().map((x) => x.label), ['قيد الانتظار', 'فشل', 'جاري التنفيذ']); // an added row is not a site status
+  calls.length = 0;
+  await O.setOrderStatus('180686', 'متابعة', {});
+  assert.deepEqual(opsOf(calls, 'orders').filter((c) => c.op === 'update').map((c) => c.args[0]), [{ status: 'جاري التنفيذ', status_custom: 'متابعة' }]);
+  assert.deepEqual(invokes(calls).map((x) => x[1].body.status), ['متابعة']);
+  calls.length = 0;
+  await O.setOrderStatus('181668', 'قيد الشحن', {}); // it had an added one → cleared
+  assert.deepEqual(opsOf(calls, 'orders').filter((c) => c.op === 'update').map((c) => c.args[0]), [{ status: 'قيد الشحن', status_custom: null }]);
+  calls.length = 0;
+  await O.setOrderStatus('181668', 'مكتمل', {}); // none before, none now → status only, as before 0095
+  assert.deepEqual(opsOf(calls, 'orders').filter((c) => c.op === 'update').map((c) => c.args[0]), [{ status: 'مكتمل' }]);
+});
+
+test('load builds the screen shape: multi-maker sid/raw from the Dokan sub-order, ages from K.TODAY, images, links, vendors, statuses', async () => {
+  const hydrated = [];
+  const { O, events } = load({ app: { hydrate: (d) => hydrated.push(d) } });
+  assert.equal(O.data(), null);
+  await O.load();
+  const d = plain(O.data());
+  assert.deepEqual(d.orders.map((o) => o.id), ['181668', '180686']);
+  assert.deepEqual(d.orders[0], { id: '181668', name: 'ليلى منصوري', phone: '010••••7052', pay: 'الدفع عند الاستلام', payMethod: 'cod', date: '2026-10-19', st: 'جاري التنفيذ', cf: 'غير مؤكد', dep: 0, tot: 3541, age: 6, note: '', cnote: 'اتصلوا قبل التوصيل\nالدور التالت', cdate: '', confAt: '', state: 'EG-01', stateName: 'القاهرة', city: 'القاهرة', addr: 'مدينة نصر', trk: '', trkState: '', bdl: '', bcod: null, bcodErr: '', area: '', cancel: null, ret: null,
+    subs: [
+      { n: 5001, itemId: '5001', sid: '181669', oid: '181668', prod: 'Cushion', qty: 2, tot: 1002, raw: 'processing', vendor: 'Artisan Loft', vendorId: V1, cm: '', ss: '', exp: '', sku: 'IBTA4040PAHC000013', link: SITE + '/product/cushion/', readyAt: '', waybill: null, pulled: false, ret: null, store: null, rate: 35, fee: 0, pid: '9001', lead: 7, leadSrc: 'default' }, // the website's commission on the line (phase 3)
+      { n: 5002, itemId: '5002', sid: '181670', oid: '181668', prod: 'Macrame Curtain', qty: 1, tot: 2539, raw: 'on-hold', vendor: 'Anticora', vendorId: V2, cm: 'تم تبليغ المورد', ss: 'مؤكد', exp: '2026-10-20', sku: 'IBTAMCTOWM200X10014', link: SITE + '/?p=9002', readyAt: '', waybill: null, pulled: false, ret: null, store: null, rate: 40, fee: 10, pid: '9002', lead: 7, leadSrc: 'default' }, // no permalink: the site's ?p=
+    ] });
+  assert.deepEqual(d.images, { IBTA4040PAHC000013: 'https://stage.ibtekr.club/cushion.jpg' }); // no image_url → no entry
+  assert.deepEqual(d.links, { IBTA4040PAHC000013: SITE + '/product/cushion/' }); // no permalink → no entry
+  assert.deepEqual(d.vendors, ['Anticora', 'Artisan Loft']);
+  assert.deepEqual(d.orders[0].subs.map((s) => s.vendorId), [V1, V2]); // phase 3.2: the store's uuid next to its name (a line's vendor_id, else its sub-order's)
+  assert.deepEqual(d.statuses, STATUSES);
+  assert.equal(hydrated.length, 1);
+  assert.deepEqual(plain(hydrated[0]), d);
+  assert.ok(events.includes('ib:notify'));
+});
+
+test('phase 13 decision 52: a line\'s making days — the product\'s own (opts.leads by product id) over the maker\'s lead_days, else 7', async () => {
+  const { O } = load();
+  const vs = [{ id: V1, name: 'Artisan Loft', lead_days: 10 }, { id: V2, name: 'Anticora', lead_days: null }];
+  const [o] = plain(O.toScreen([O1], ITEMS, SUBS, vs, { today: '2026-10-25', leads: new Map([['9002', 15]]) }));
+  const by = Object.fromEntries(o.subs.map((x) => [x.pid, [x.lead, x.leadSrc]]));
+  assert.deepEqual(by, { 9001: [10, 'maker'], 9002: [15, 'product'] });
+});
+test('toScreen, single maker without a sub-order: sid = the parent order id (the website\'s number, as the n8n → Airtable automation sends it), raw = orders.woo_status; removed lines are skipped', async () => {
+  const { O } = load();
+  const [o] = plain(O.toScreen([O2], ITEMS, SUBS, VENDORS, { today: '2026-10-25' }));
+  assert.equal(o.age, 8);
+  assert.deepEqual({ pay: o.pay, dep: o.dep, tot: o.tot, note: o.note, cnote: o.cnote, cdate: o.cdate, confAt: o.confAt, state: o.state, stateName: o.stateName, city: o.city, addr: o.addr, ret: o.ret }, { pay: 'cod', dep: 300, tot: 1002, note: 'تبع اوردر 180668', cnote: '', cdate: '2026-10-18', confAt: '2026-10-18', state: '', stateName: '', city: '', addr: '', ret: { reason: 'x' } });
+  assert.deepEqual(o.subs, [{ n: 5003, itemId: '5003', sid: '180686', oid: '180686', prod: 'Cushion', qty: 2, tot: 1002, raw: 'on-hold', vendor: '', vendorId: null, cm: '', ss: '', exp: '', sku: 'IBTA4040PAHC000013', link: '', readyAt: '', waybill: null, pulled: false, ret: null, store: null, rate: null, fee: null, pid: '9001', lead: 7, leadSrc: 'default' }]); // no opts.links: no link; no commission: null
+});
+
+test('toScreen links: the sku\'s permalink (https only), else <origin>/?p=<product_id> (a positive integer) with the origin of any known permalink, else none', async () => {
+  const { O } = load();
+  const line = (id, sku, product_id) => item({ id, order_id: 181668, sku, product_id, name: 'p' + id });
+  const links = { A: 'https://site.test/product/a/', H: 'http://site.test/product/h/', J: 'javascript:alert(1)' };
+  const frozen = JSON.stringify(links);
+  const its = [line(1, 'A', 11), line(2, 'B', 77), line(3, 'B', '88'), line(4, 'B', null), line(5, null, 99), line(6, 'H', 12), line(7, 'J', 13),
+    line(8, 'B', 0), line(9, 'B', -1), line(10, 'B', 1.5), line(11, 'B', '12abc'), line(12, 'constructor', null), line(13, '__proto__', 14)];
+  const got = (lk) => plain(O.toScreen([O1], its, [], [], { today: '2026-10-25', links: lk })[0].subs.map((x) => x.link));
+  assert.deepEqual(got(links), ['https://site.test/product/a/', 'https://site.test/?p=77', 'https://site.test/?p=88', '', 'https://site.test/?p=99',
+    'https://site.test/?p=12', 'https://site.test/?p=13', '', '', '', '', '', 'https://site.test/?p=14']); // http: / javascript: are never a link
+  assert.equal(JSON.stringify(links), frozen); // pure: the map is not changed
+  assert.deepEqual(got(links), got(links));
+  assert.deepEqual(got({ H: 'http://site.test/h', J: 'javascript:alert(1)' }), Array(13).fill('')); // no https permalink: no origin, no link
+  assert.deepEqual(got({}), Array(13).fill(''));
+  // the origin of the first permalink with a plain host (and port)
+  assert.deepEqual(got({ X: 'https://user@evil.test/x', A: 'https://site.test:8443/product/a' }).slice(0, 2), ['https://site.test:8443/product/a', 'https://site.test:8443/?p=77']);
+});
+
+test('toScreen governorate: state = the code (trimmed) or \'\', stateName = its name from opts.states (a Map or woo_states rows), else the code, else \'\'', async () => {
+  const { O } = load();
+  const rows = [{ ...O1, id: 1, customer_state: 'EG-01' }, { ...O1, id: 2, customer_state: 'EG-14' }, { ...O1, id: 3, customer_state: null }, { ...O1, id: 4, customer_state: ' ' },
+    { ...O1, id: 5, customer_state: ' EG-02 ' }, { ...O1, id: 6, customer_state: 'EG-03' }, { ...O1, id: 7, customer_state: 'constructor' }, { ...O1, id: 8, customer_state: '__proto__' }];
+  const got = (states) => plain(O.toScreen(rows, [], [], [], { today: '2026-10-25', states }).map((o) => [o.state, o.stateName]));
+  const map = new Map([['EG-01', 'القاهرة'], ['EG-02', 'الجيزة'], ['EG-03', ' ']]);
+  const frozen = JSON.stringify([...map]);
+  const want = [['EG-01', 'القاهرة'], ['EG-14', 'EG-14'], ['', ''], ['', ''], ['EG-02', 'الجيزة'], ['EG-03', 'EG-03'], ['constructor', 'constructor'], ['__proto__', '__proto__']]; // an unknown code / a blank name: the code
+  assert.deepEqual(got(map), want);
+  assert.equal(JSON.stringify([...map]), frozen); // pure: the map is not changed
+  assert.deepEqual(got([{ code: 'EG-01', name: 'القاهرة' }, { code: 'EG-02', name: 'الجيزة' }, { code: 'EG-03', name: null }, { code: null, name: 'x' }]), want); // woo_states rows
+  const none = want.map(([c]) => [c, c]);
+  assert.deepEqual(got(undefined), none); // no list: the codes
+  assert.deepEqual(got([]), none);
+  assert.deepEqual(got({ 'EG-01': 'القاهرة' }), none); // neither a Map nor rows
+});
+
+test('load: woo_states empty or refused is no error — the codes show; a refused one keeps the last good list', async () => {
+  const { O, responses } = load();
+  responses.woo_states = ok([]);
+  await O.load();
+  assert.equal(O.state(), 'ready');
+  assert.deepEqual(plain(O.data().orders.map((o) => [o.state, o.stateName])), [['EG-01', 'EG-01'], ['', '']]);
+  responses.woo_states = ok(STATES);
+  await O.load();
+  assert.equal(O.data().orders[0].stateName, 'القاهرة');
+  responses.woo_states = { data: null, error: { code: '42501', message: 'permission denied for table woo_states' } };
+  await O.load();
+  assert.equal(O.state(), 'ready');
+  assert.equal(O.data().orders[0].stateName, 'القاهرة'); // the last list stays
+  const fresh = load({ responses: { ...seed(), woo_states: { data: null, error: { code: '42P01', message: 'relation "public.woo_states" does not exist' } } } });
+  await fresh.O.load();
+  assert.equal(fresh.O.state(), 'ready');
+  assert.deepEqual(plain(fresh.O.data().orders.map((o) => o.stateName)), ['EG-01', '']);
+});
+
+test('toScreen: age counts whole days from the order date to today, never below 0; ready_at shows as the local clock', async () => {
+  const { O } = load();
+  const at = new Date(2026, 9, 20, 11, 5);
+  const [o] = plain(O.toScreen([{ ...O1, placed_at: '2026-10-13T12:00:00Z' }], [item({ id: 7, order_id: 181668, name: 'x', ready_at: at.toISOString(), waybill: { no: 'B1' }, pulled: true, store: { reason: 'r' } })], [], [], { today: '2026-10-25' }));
+  assert.equal(o.age, 12);
+  assert.deepEqual({ readyAt: o.subs[0].readyAt, waybill: o.subs[0].waybill, pulled: o.subs[0].pulled, store: o.subs[0].store }, { readyAt: stampLocal(at), waybill: { no: 'B1' }, pulled: true, store: { reason: 'r' } });
+  assert.equal(O.toScreen([{ ...O1, placed_at: '2026-10-28T12:00:00Z' }], [], [], [], { today: '2026-10-25' })[0].age, 0);
+  assert.equal(O.toScreen([{ ...O1, placed_at: '2026-10-19T12:00:00Z' }], [], [], [], { today: '2026-10-25' })[0].date, ymdLocal(new Date('2026-10-19T12:00:00Z')));
+  assert.equal(O.toScreen([O1], [], [], [], { today: '2026-10-31' })[0].age, 12);
+});
+
+test('today() is the real local date and the default of toScreen — never IBKit.TODAY (the prototype\'s fixed 2026-10-21)', async () => {
+  const { O, window } = load();
+  assert.equal(window.IBKit.TODAY, '2026-10-21');
+  assert.equal(O.today(), '2026-10-25'); // the adapter's clock
+  assert.equal(O.toScreen([O1], [], [], [])[0].age, 6); // 19 → 25 October; IBKit.TODAY would give 2
+  assert.equal(O.toScreen([O1], [], [], [], {})[0].age, 6);
+  const later = load({ now: new Date(2026, 10, 3, 9, 0).getTime() }); // after IBKit.TODAY + 11 days: no clamp to 0
+  assert.equal(later.O.today(), '2026-11-03');
+  await later.O.load();
+  assert.equal(later.O.data().orders[0].age, 15);
+  const real = load({ now: null });
+  const before = ymdLocal(new Date()); const got = real.O.today(); const after = ymdLocal(new Date());
+  assert.ok(got === before || got === after, got);
+});
+
+test('long lists: orders_v paged (cap 5000), in() lists chunked by 200 ids and 100 skus', async () => {
+  const many = (from, n) => Array.from({ length: n }, (_, i) => ({ ...O1, id: from + i }));
+  const responses = { ...seed(), orders_v: (ops) => { const r = ops.find((c) => c.op === 'range').args[0]; return ok(r === 0 ? many(1, 1000) : r === 1000 ? many(1001, 450) : []); },
+    order_items: (ops) => ok(ops.find((c) => c.op === 'in').args[1].map((id) => item({ id: id * 10, order_id: id, sku: 'S' + id, name: 'p' }))) };
+  const { O, calls } = load({ responses });
+  await O.load();
+  assert.deepEqual(opsOf(calls, 'orders_v').filter((c) => c.op === 'range').map((c) => c.args), [[0, 999], [1000, 1999]]);
+  const lens = (t, col) => opsOf(calls, t).filter((c) => c.op === 'in' && c.args[0] === col).map((c) => c.args[1].length);
+  assert.deepEqual(lens('order_items', 'order_id'), [200, 200, 200, 200, 200, 200, 200, 50]);
+  assert.deepEqual(lens('sub_orders', 'order_id'), [200, 200, 200, 200, 200, 200, 200, 50]);
+  assert.deepEqual(lens('products', 'sku'), Array(14).fill(100).concat([50]));
+  assert.equal(O.data().orders.length, 1450);
+  assert.equal(O.data().orders[1449].subs[0].sid, '1450'); // no Dokan sub-order → the parent order id, never the line id (14500)
+  const capped = load({ responses: { ...seed(), orders_v: (ops) => ok(many(ops.find((c) => c.op === 'range').args[0] + 1, 1000)) } });
+  await capped.O.load();
+  assert.deepEqual(opsOf(capped.calls, 'orders_v').filter((c) => c.op === 'range').map((c) => c.args[0]), [0, 1000, 2000, 3000, 4000]);
+  assert.equal(capped.O.data().orders.length, 5000);
+});
+
+test('a row repeated across two pages (an order placed while paging) is kept once', async () => {
+  const many = (from, n) => Array.from({ length: n }, (_, i) => ({ ...O1, id: from + i }));
+  const responses = { ...seed(), order_items: ok([]), orders_v: (ops) => ok(ops.find((c) => c.op === 'range').args[0] === 0 ? many(1, 1000) : many(1000, 11)) }; // 1000 is on both pages
+  const { O, calls } = load({ responses });
+  await O.load();
+  assert.equal(O.data().orders.length, 1010);
+  assert.equal(new Set(O.data().orders.map((o) => o.id)).size, 1010);
+  assert.equal(opsOf(calls, 'order_items').filter((c) => c.op === 'in').flatMap((c) => c.args[1]).length, 1010); // each id asked once
+});
+
+test('state(): idle → loading → ready; a failed load → error (load() again retries); clear → idle; each change dispatches ib:orders', async () => {
+  const { O, responses, events } = load();
+  assert.equal(O.state(), 'idle');
+  const pending = O.load();
+  assert.equal(O.state(), 'loading');
+  await pending;
+  assert.equal(O.state(), 'ready');
+  assert.equal(events.filter((e) => e === 'ib:orders').length, 2);
+  responses.orders_v = { data: null, error: { code: 'PGRST000', message: 'down' } };
+  await O.load();
+  assert.equal(O.state(), 'error');
+  assert.equal(O.data().orders.length, 2); // the last good load stays
+  responses.orders_v = ok([O1, O2]);
+  await O.load();
+  assert.equal(O.state(), 'ready');
+  O.clear();
+  assert.equal(O.state(), 'idle');
+  const abandoned = O.load(); O.clear(); await abandoned;
+  assert.equal(O.state(), 'idle'); // cleared mid-load: never 'error'
+  const first = load({ responses: { ...seed(), order_items: { data: null, error: { message: 'x' } } } });
+  await first.O.load();
+  assert.deepEqual([first.O.state(), first.O.data()], ['error', null]);
+  const none = load({ client: false });
+  await none.O.load();
+  assert.equal(none.O.state(), 'idle');
+});
+
+test('a failed read keeps data() as it was and never throws', async () => {
+  const { O, responses } = load();
+  responses.order_items = { data: null, error: { code: 'PGRST000', message: 'down' } };
+  await O.load();
+  assert.equal(O.data(), null);
+  responses.order_items = ok(ITEMS); await O.load();
+  assert.equal(O.data().orders.length, 2);
+  responses.orders_v = { data: null, error: { code: '42501', message: 'permission denied' } }; await O.load();
+  assert.equal(O.data().orders.length, 2);
+});
+
+test('setOrderStatus updates orders (status only, no .select()) while the row still holds the status on the screen, then pushes it through woo-sync', async () => {
+  const { O, calls, logs } = load();
+  await O.load(); calls.length = 0;
+  assert.deepEqual(plain(await O.setOrderStatus('181668', 'قيد الشحن', {})), { ok: true, push: 'ok' });
+  // decision 3 (0104 plan): the write names what the member was looking at — the base status and no added one
+  assert.deepEqual(opsOf(calls, 'orders'), [{ op: 'update', args: [{ status: 'قيد الشحن' }, { count: 'exact' }] }, { op: 'eq', args: ['id', '181668'] }, { op: 'eq', args: ['status', 'جاري التنفيذ'] }, { op: 'is', args: ['status_custom', null] }]);
+  assert.deepEqual(invokes(calls), [['woo-sync', { body: { action: 'push_status', order_id: 181668, status: 'قيد الشحن' } }]]);
+  assert.ok(calls.findIndex((c) => c.op === 'invoke') > calls.findIndex((c) => c.op === 'update')); // the row first: woo-sync refuses a stale status
+  assert.deepEqual(logs, [['order.status', 'IB-181668 · قيد الشحن']]);
+});
+
+test('the owner 11 Nov: an order with sub-orders — the push names them (subs + woo_status): the answer carries subs and their «حالة الموقع» follows at once', async () => {
+  const { O, responses } = load();
+  await O.load();
+  responses['fn:woo-sync'] = ok({ action: 'push_status', result: 'ok', conflict: false, subs: [181669, 181670], woo_status: 'ready-shipping', counts: { pushed: 2 } });
+  assert.deepEqual(plain(await O.setOrderStatus('181668', 'جاهز للشحن', {})), { ok: true, push: 'ok', subs: [181669, 181670] });
+  const o = O.data().orders.find((x) => x.id === '181668');
+  assert.deepEqual(plain(o.subs.map((s) => [String(s.sid), s.raw])).sort(), [['181669', 'ready-shipping'], ['181670', 'ready-shipping']], 'both sub-orders (they were processing / on-hold)');
+  // an answer without subs (one maker, a skip, a failure) → the plain shape
+  responses['fn:woo-sync'] = ok({ action: 'push_status', result: 'ok', conflict: false, counts: { pushed: 1 } });
+  assert.deepEqual(plain(await O.setOrderStatus('181668', 'قيد الشحن', {})), { ok: true, push: 'ok' });
+});
+
+test('setOrderStatus carries cancel / ret when given; the push result is answered, a push failure never fails the write', async () => {
+  const { O, calls, responses } = load();
+  await O.load(); calls.length = 0;
+  const cancel = { reason: 'العميل لغى', note: '', date: '2026-10-25' };
+  responses['fn:woo-sync'] = ok({ action: 'push_status', result: 'skipped', reason: 'no_woo_status' });
+  assert.deepEqual(plain(await O.setOrderStatus('181668', 'ملغي', { cancel })), { ok: true, push: 'skipped' });
+  assert.deepEqual(opsOf(calls, 'orders')[0], { op: 'update', args: [{ status: 'ملغي', cancel }, { count: 'exact' }] });
+  calls.length = 0;
+  responses['fn:woo-sync'] = { data: null, error: { name: 'FunctionsHttpError', context: { status: 502 } } };
+  assert.deepEqual(plain(await O.setOrderStatus('181668', 'استرجاع', { ret: { reason: 'تالف' } })), { ok: true, push: 'error' });
+  assert.deepEqual(opsOf(calls, 'orders')[0], { op: 'update', args: [{ status: 'استرجاع', ret: { reason: 'تالف' } }, { count: 'exact' }] });
+  assert.deepEqual(opsOf(calls, 'orders')[2], { op: 'eq', args: ['status', 'ملغي'] }, 'my own saved write moved «what I am looking at» on');
+  responses['fn:woo-sync'] = () => { throw new Error('offline'); };
+  assert.deepEqual(plain(await O.setOrderStatus('181668', 'مكتمل')), { ok: true, push: 'error' });
+});
+
+test('«مكتمل» with a rating goes through order_complete (rating + status together), logs the figures only, then pushes', async () => {
+  const { O, calls, logs, responses } = load();
+  await O.load(); calls.length = 0;
+  responses['rpc:order_complete'] = { data: 7, error: null };
+  assert.deepEqual(plain(await O.setOrderStatus('181668', 'مكتمل', { rating: { sat: 5, manners: 4, note: '  ذوق جداً ' } })), { ok: true, push: 'ok' });
+  assert.deepEqual(calls.filter((c) => c.op === 'rpc').map((c) => ({ op: c.op, args: c.args })), [{ op: 'rpc', args: ['order_complete', { p_from: 'جاري التنفيذ', p_order: 181668, p_sat: 5, p_manners: 4, p_note: 'ذوق جداً' }] }]); // p_from: the status on the screen (0105)
+  assert.deepEqual(opsOf(calls, 'orders'), []); // no separate status update
+  assert.deepEqual(invokes(calls), [['woo-sync', { body: { action: 'push_status', order_id: 181668, status: 'مكتمل' } }]]);
+  assert.deepEqual(logs, [['order.rating', 'IB-181668 · رضا 5 · أخلاق 4'], ['order.status', 'IB-181668 · مكتمل']]); // never the note
+  calls.length = 0; logs.length = 0;
+  responses['rpc:order_complete'] = { data: null, error: { code: '42501', message: 'orders.status = F is required' } };
+  assert.deepEqual(plain(await O.setOrderStatus('181668', 'مكتمل', { rating: { sat: 3, manners: 3 } })), { ok: false, reason: 'forbidden' });
+  assert.deepEqual(invokes(calls), []); assert.deepEqual(logs, []);
+  responses['rpc:order_complete'] = { data: null, error: { code: '22023', message: 'the rating figures are 1 to 5' } };
+  assert.deepEqual(plain(await O.setOrderStatus('181668', 'مكتمل', { rating: { sat: 3, manners: 3 } })), { ok: false, reason: 'invalid' });
+  calls.length = 0;
+  assert.deepEqual(plain(await O.setOrderStatus('181668', 'مكتمل', { rating: { sat: 0, manners: 3 } })), { ok: false, reason: 'invalid' }); // refused before the call
+  assert.deepEqual(calls.filter((c) => c.op === 'rpc'), []);
+});
+
+test('a refused write (42501) answers forbidden: no push, no log; any other error answers network', async () => {
+  const { O, calls, responses, logs } = load();
+  await O.load(); calls.length = 0;
+  responses.orders = { data: null, error: { code: '42501', message: 'orders.status = F is required to change an order status or confirmation' } };
+  assert.deepEqual(plain(await O.setOrderStatus('181668', 'قيد الشحن', {})), { ok: false, reason: 'forbidden' });
+  assert.deepEqual(invokes(calls), []);
+  responses.orders = { data: null, error: { code: 'PGRST000', message: 'down' } };
+  assert.deepEqual(plain(await O.setOrderStatus('181668', 'قيد الشحن', {})), { ok: false, reason: 'network' });
+  assert.deepEqual(plain(await O.setConfirm('181668', 'مؤكد بعربون', {})), { ok: false, reason: 'network' });
+  responses.order_items = () => { throw new Error('offline'); };
+  assert.deepEqual(plain(await O.setItemStatus('5001', 'مؤكد')), { ok: false, reason: 'network' });
+  responses.order_items = { data: null, error: { code: '42501', message: 'x' } };
+  assert.deepEqual(plain(await O.setWaybill('5001', null)), { ok: false, reason: 'forbidden' });
+  assert.deepEqual(logs, []);
+  assert.deepEqual(invokes(calls), []);
+});
+
+test('setConfirm and patchOrder write only the granted orders columns they were given', async () => {
+  const { O, calls, logs } = load();
+  await O.load(); calls.length = 0;
+  assert.deepEqual(plain(await O.setConfirm('181668', 'مؤكد بعربون', { confAt: '2026-10-25', note: 'كلمناها' })), { ok: true });
+  assert.deepEqual(plain(await O.setConfirm('181668', 'غير مؤكد', { confAt: '' })), { ok: true });
+  assert.deepEqual(plain(await O.patchOrder('180686', { note: 'اتصل بعد 5', city: 'الجيزة', addr: 'الدقي', dep: '500' })), { ok: true });
+  assert.deepEqual(plain(await O.patchOrder('180686', { dep: 0 })), { ok: true });
+  assert.deepEqual(opsOf(calls, 'orders').filter((c) => c.op === 'update').map((c) => c.args[0]), [
+    { confirm: 'مؤكد بعربون', confirm_at: '2026-10-25', confirm_note: 'كلمناها' }, { confirm: 'غير مؤكد', confirm_at: null },
+    { note: 'اتصل بعد 5', customer_city: 'الجيزة', customer_address: 'الدقي', deposit: 500 }, { deposit: 0 }]);
+  calls.length = 0;
+  assert.deepEqual(plain(await O.patchOrder('180686', {})), { ok: true }); // nothing to write: no request
+  assert.deepEqual(calls, []);
+  assert.deepEqual(logs, [['order.confirm', 'IB-181668 · مؤكد بعربون'], ['order.confirm', 'IB-181668 · غير مؤكد'], ['order.patch', 'IB-180686 · note, city, addr, dep'], ['order.patch', 'IB-180686 · dep']]);
+});
+
+test('patchOrder refuses a deposit that is not a finite number and writes nothing (never a silent 0)', async () => {
+  const { O, calls, logs } = load();
+  await O.load(); calls.length = 0;
+  for (const dep of ['abc', '', ' ', '12abc', null, NaN, Infinity, {}]) assert.deepEqual(plain(await O.patchOrder('180686', { note: 'x', dep })), { ok: false, reason: 'invalid' }, String(dep));
+  assert.deepEqual(calls, []);
+  assert.deepEqual(logs, []);
+  assert.deepEqual(plain(await O.patchOrder('180686', { dep: ' 250 ' })), { ok: true });
+  assert.deepEqual(opsOf(calls, 'orders')[0], { op: 'update', args: [{ deposit: 250 }, { count: 'exact' }] });
+});
+
+test('setItemStatus writes status + extras on order_items; setWaybill / setPulled their one column', async () => {
+  const { O, calls, logs } = load();
+  await O.load(); calls.length = 0;
+  const ret = { reason: 'مقاس غلط', note: '' };
+  assert.deepEqual(plain(await O.setItemStatus('5001', 'مرتجع للمخزن', { ret })), { ok: true });
+  assert.deepEqual(opsOf(calls, 'order_items'), [{ op: 'update', args: [{ status: 'مرتجع للمخزن', ret }, { count: 'exact' }] }, { op: 'eq', args: ['id', '5001'] }, { op: 'eq', args: ['status', ''] }]); // the line's status on the screen
+  calls.length = 0;
+  assert.deepEqual(plain(await O.setItemStatus(5002, 'جاهز للشحن من المبتكر للعميل', { exp: '', cm: 'هيتسلم بكرة', store: { reason: 'تجميع' }, readyAt: '2026-10-20 11:00' })), { ok: true });
+  await O.setItemStatus(5002, undefined, { cm: 'تعليق بس' });
+  await O.setWaybill(5002, { no: 'BST-1', at: '2026-10-25' });
+  await O.setPulled(5003, true);
+  assert.deepEqual(opsOf(calls, 'order_items').filter((c) => c.op === 'update').map((c) => c.args[0]), [
+    { status: 'جاهز للشحن من المبتكر للعميل', expected_at: null, comment: 'هيتسلم بكرة', store: { reason: 'تجميع' }, ready_at: new Date(2026, 9, 20, 11, 0).toISOString() },
+    { comment: 'تعليق بس' }, { waybill: { no: 'BST-1', at: '2026-10-25' } }, { pulled: true }]);
+  assert.deepEqual(logs, [['suborder.status', 'IB-181668 · #5001 · مرتجع للمخزن'], ['suborder.status', 'IB-181668 · #5002 · جاهز للشحن من المبتكر للعميل'], ['suborder.status', 'IB-181668 · #5002'], ['suborder.waybill', 'IB-181668 · #5002'], ['suborder.pulled', 'IB-180686 · #5003 · سحب من المتاح']]);
+  for (const [, d] of logs) assert.doesNotMatch(d, /ليلى|هدير|01\d|القاهرة|مقاس|تعليق|هيتسلم/); // ids and statuses only
+});
+
+test('nothing to write → { ok:true } without a request; setConfirm with a date only leaves confirm alone', async () => {
+  const { O, calls, logs } = load();
+  await O.load(); calls.length = 0;
+  assert.deepEqual(plain(await O.setItemStatus('5001', undefined, {})), { ok: true });
+  assert.deepEqual(plain(await O.setConfirm('181668', undefined, {})), { ok: true });
+  assert.deepEqual(calls, []);
+  assert.deepEqual(plain(await O.setConfirm('181668', undefined, { confAt: '2026-10-24' })), { ok: true });
+  assert.deepEqual(opsOf(calls, 'orders')[0], { op: 'update', args: [{ confirm_at: '2026-10-24' }, { count: 'exact' }] });
+  assert.deepEqual(logs, [['order.confirm', 'IB-181668']]);
+});
+
+test('a throwing OrdersApp hook does not stop the load or ib:notify, and is re-thrown later (not hidden)', async () => {
+  const later = [];
+  const { O, window, events, emitChange } = load({ app: { hydrate() { throw new Error('hydrate bug'); }, applyOrder() { throw new Error('applyOrder bug'); } } });
+  window.setTimeout = (fn) => { later.push(fn); };
+  await O.load();
+  assert.equal(O.data().orders.length, 2);
+  assert.ok(events.includes('ib:notify'));
+  O.subscribe(); events.length = 0;
+  await emitChange({ table: 'orders', eventType: 'UPDATE', new: { id: 181668 } });
+  assert.equal(later.length, 3); // the two re-throws, then the burst's ib:notify timer
+  assert.throws(later[0], /hydrate bug/);
+  assert.throws(later[1], /applyOrder bug/);
+  assert.equal(events.includes('ib:notify'), false);
+  later[2]();
+  assert.ok(events.includes('ib:notify'));
+});
+
+// a fake window timer: the scheduled { fn, ms } in order; run(i) fires one; cleared ones are marked
+const timers = (window) => {
+  const list = [];
+  window.setTimeout = (fn, ms) => { list.push({ fn, ms, cleared: false }); return list.length; };
+  window.clearTimeout = (id) => { if (list[id - 1]) list[id - 1].cleared = true; };
+  return list;
+};
+const flush = () => new Promise((r) => setImmediate(r)); // every pending microtask (the stub answers with promises)
+
+test('Realtime: a burst of refetches dispatches one ib:notify, 250 ms after the first; clear() drops a pending one', async () => {
+  const applied = [];
+  const { O, window, responses, emitChange, events } = load({ app: { applyOrder: (o) => applied.push(o.id) } });
+  await O.load(); O.subscribe();
+  const t = timers(window); events.length = 0;
+  responses.orders_v = (ops) => ok([O1, O2].filter((o) => String(o.id) === String(ops.find((c) => c.op === 'eq').args[1])));
+  await emitChange({ table: 'orders', eventType: 'UPDATE', new: { id: 181668 } });
+  await emitChange({ table: 'orders', eventType: 'UPDATE', new: { id: 180686 } });
+  await emitChange({ table: 'order_items', eventType: 'UPDATE', new: { id: 5001, order_id: 181668 } });
+  assert.deepEqual(applied, ['181668', '180686', '181668']); // every order is still drawn at once
+  assert.deepEqual(t.map((x) => x.ms), [250]); // one timer for the burst
+  assert.equal(events.includes('ib:notify'), false);
+  t[0].fn();
+  assert.deepEqual(events.filter((e) => e === 'ib:notify'), ['ib:notify']);
+  await emitChange({ table: 'orders', eventType: 'UPDATE', new: { id: 180686 } }); // a later change: a new burst
+  assert.equal(t.length, 2);
+  O.clear();
+  assert.equal(t[1].cleared, true);
+  assert.deepEqual(events.filter((e) => e === 'ib:notify'), ['ib:notify']);
+});
+
+test('Realtime: subscribed again after the socket was down → one load(); a first SUBSCRIBED or an old channel → nothing', async () => {
+  const hydrated = [];
+  const { O, calls, emitStatus } = load({ app: { hydrate: (d) => hydrated.push(d.orders.length) } });
+  await O.load(); O.subscribe(); calls.length = 0; hydrated.length = 0;
+  const loads = () => opsOf(calls, 'orders_v').filter((c) => c.op === 'gte').length;
+  emitStatus('SUBSCRIBED'); await flush(); // the first join: nothing was missed
+  assert.equal(loads(), 0);
+  emitStatus('CHANNEL_ERROR'); await flush();
+  assert.equal(loads(), 0); // down: nothing to read yet
+  emitStatus('SUBSCRIBED'); await flush();
+  assert.equal(loads(), 1);
+  assert.deepEqual(hydrated, [2]);
+  emitStatus('SUBSCRIBED'); await flush(); // once per drop
+  assert.equal(loads(), 1);
+  emitStatus('TIMED_OUT'); emitStatus('CLOSED'); emitStatus('SUBSCRIBED'); await flush();
+  assert.equal(loads(), 2);
+  O.unsubscribe(); // the channel this adapter let go of: its CLOSED / SUBSCRIBED are not a drop
+  emitStatus('CLOSED'); emitStatus('SUBSCRIBED'); await flush();
+  assert.equal(loads(), 2);
+});
+
+test('syncNow and registerWebhooks call woo-sync; a refusal answers forbidden', async () => {
+  const { O, calls, responses } = load();
+  responses['fn:woo-sync'] = (opts) => ok(opts.body.action === 'all' ? { action: 'all', result: 'ok', counts: { orders: { upserted: 3 } } } : { action: 'register_webhooks', result: 'ok', counts: { created: 4 }, webhooks: [{ id: 81, topic: 'order.updated' }] });
+  assert.deepEqual(plain(await O.syncNow()), { ok: true, counts: { orders: { upserted: 3 } } });
+  assert.deepEqual(plain(await O.registerWebhooks()), { ok: true, list: [{ id: 81, topic: 'order.updated' }] });
+  assert.deepEqual(invokes(calls), [['woo-sync', { body: { action: 'all' } }], ['woo-sync', { body: { action: 'register_webhooks', delivery_url: 'https://proj.supabase.co/functions/v1/woo-webhook' } }]]);
+  responses['fn:woo-sync'] = { data: null, error: { name: 'FunctionsHttpError', context: { status: 401 } } };
+  assert.deepEqual(plain(await O.syncNow()), { ok: false, reason: 'forbidden' });
+  responses['fn:woo-sync'] = { data: null, error: { name: 'FunctionsFetchError', context: {} } };
+  assert.deepEqual(plain(await O.registerWebhooks()), { ok: false, reason: 'network' });
+});
+
+test('Realtime: INSERT/UPDATE on the three tables re-read that order from orders_v and hand it to OrdersApp.applyOrder', async () => {
+  const applied = [];
+  const { O, calls, responses, emitChange, events } = load({ app: { hydrate() {}, applyOrder: (o) => applied.push(plain(o)) } });
+  await O.load(); O.subscribe();
+  assert.ok(calls.some((c) => c.op === 'channel' && c.args[0] === 'orders'));
+  assert.deepEqual(calls.filter((c) => c.op === 'on').map((c) => c.args), ['orders', 'order_items', 'sub_orders'].flatMap((table) => ['INSERT', 'UPDATE'].map((event) => ['postgres_changes', { event, schema: 'public', table }])));
+  calls.length = 0; events.length = 0;
+  responses.orders_v = (ops) => ok([O1, O2].filter((o) => String(o.id) === String(ops.find((c) => c.op === 'eq').args[1])).map((o) => ({ ...o, status: 'قيد الشحن' })));
+  responses.order_items = (ops) => ok(ITEMS.filter((i) => String(i.order_id) === String(ops.find((c) => c.op === 'eq').args[1])).map((i) => ({ ...i, comment: 'اتحدث' })));
+  responses.sub_orders = (ops) => ok(SUBS.filter((s) => String(s.order_id) === String(ops.find((c) => c.op === 'eq').args[1])));
+  await emitChange({ table: 'order_items', eventType: 'UPDATE', new: { id: 5001, order_id: 181668, status: 'مؤكد' } });
+  assert.deepEqual(opsOf(calls, 'orders_v'), [{ op: 'select', args: [COLS.order] }, { op: 'eq', args: ['id', '181668'] }]); // the payload is not used
+  assert.deepEqual(opsOf(calls, 'order_items'), [{ op: 'select', args: [COLS.item] }, { op: 'eq', args: ['order_id', '181668'] }]);
+  assert.deepEqual(opsOf(calls, 'sub_orders'), [{ op: 'select', args: [COLS.sub] }, { op: 'eq', args: ['order_id', '181668'] }]);
+  assert.equal(applied.length, 1);
+  assert.deepEqual({ id: applied[0].id, st: applied[0].st, phone: applied[0].phone, cms: applied[0].subs.map((s) => s.cm), sids: applied[0].subs.map((s) => s.sid) }, { id: '181668', st: 'قيد الشحن', phone: '010••••7052', cms: ['اتحدث', 'اتحدث'], sids: ['181669', '181670'] });
+  assert.deepEqual(applied[0].subs.map((s) => s.link), [SITE + '/product/cushion/', SITE + '/?p=9002']); // the load's links (and their origin) still apply
+  assert.deepEqual([applied[0].state, applied[0].stateName], ['EG-01', 'القاهرة']); // customer_state re-read; the load's names still apply
+  assert.equal(calls.some((c) => c.table === 'woo_states'), false); // not asked again per event
+  assert.equal(O.data().orders[0].st, 'قيد الشحن'); // the cache follows
+  assert.ok(events.includes('ib:notify'));
+  await emitChange({ table: 'orders', eventType: 'UPDATE', new: { id: 180686, status: 'مكتمل' } }); // an orders payload: its own id
+  assert.equal(applied[1].id, '180686');
+  await emitChange({ table: 'sub_orders', eventType: 'INSERT', new: { id: 3, order_id: 181668 } });
+  assert.equal(applied[2].id, '181668');
+  assert.equal(O.data().orders.length, 2);
+});
+
+test('Realtime: a new order with an unknown maker and product asks for just those, then lands first', async () => {
+  const applied = [];
+  const { O, calls, responses, emitChange } = load({ app: { applyOrder: (o) => applied.push(plain(o)) } });
+  await O.load(); O.subscribe(); calls.length = 0;
+  const V3 = 'a0000000-0000-4000-8000-000000000003';
+  responses.orders_v = ok([{ ...O1, id: 182000, customer_name: 'عميل جديد' }]);
+  responses.order_items = ok([item({ id: 9100, order_id: 182000, sku: 'NEW-SKU', name: 'Pouf', vendor_id: V3 })]);
+  responses.sub_orders = ok([]);
+  responses.vendors = ok([{ id: V3, name: 'sala' }]);
+  responses.products = ok([{ sku: 'NEW-SKU', image_url: 'https://stage.ibtekr.club/pouf.jpg', permalink: SITE + '/product/pouf/' }]);
+  await emitChange({ table: 'orders', eventType: 'INSERT', new: { id: 182000 } });
+  assert.deepEqual(opsOf(calls, 'vendors').filter((c) => c.op === 'in'), [{ op: 'in', args: ['id', [V3]] }]);
+  assert.deepEqual(opsOf(calls, 'products').filter((c) => c.op === 'in'), [{ op: 'in', args: ['sku', ['NEW-SKU']] }]);
+  assert.deepEqual(selectOf(calls, 'products'), ['sku, image_url, permalink, lang']);
+  assert.equal(applied[0].subs[0].vendor, 'sala');
+  assert.equal(applied[0].subs[0].link, SITE + '/product/pouf/');
+  assert.equal(O.data().orders[0].id, '182000');
+  assert.equal(O.data().images['NEW-SKU'], 'https://stage.ibtekr.club/pouf.jpg');
+  assert.equal(O.data().links['NEW-SKU'], SITE + '/product/pouf/');
+  assert.deepEqual(plain(O.data().vendors), ['Anticora', 'Artisan Loft', 'sala']);
+});
+
+test('Realtime: an order the screen does not have and placed before the 12-month window is left out', async () => {
+  const applied = [];
+  const { O, calls, responses, emitChange, events } = load({ app: { applyOrder: (o) => applied.push(plain(o)) } });
+  await O.load(); O.subscribe(); calls.length = 0; events.length = 0;
+  responses.orders_v = ok([{ ...O1, id: 150001, placed_at: '2025-10-20T12:00:00Z' }]); // before 2025-10-25 (12 months back)
+  responses.order_items = ok([item({ id: 9200, order_id: 150001, sku: 'OLD-SKU', name: 'قديم', vendor_id: 'a0000000-0000-4000-8000-000000000009' })]);
+  responses.sub_orders = ok([]);
+  await emitChange({ table: 'orders', eventType: 'UPDATE', new: { id: 150001 } });
+  assert.deepEqual(plain(O.data().orders.map((o) => o.id)), ['181668', '180686']);
+  assert.deepEqual(applied, []);
+  assert.equal(events.includes('ib:notify'), false);
+  assert.deepEqual(calls.filter((c) => c.table === 'vendors' || c.table === 'products'), []); // nothing asked for it
+  responses.orders_v = ok([{ ...O2, placed_at: '2025-10-20T12:00:00Z', status: 'مكتمل' }]); // one the screen has: still followed
+  responses.order_items = ok(ITEMS.filter((i) => i.order_id === 180686));
+  await emitChange({ table: 'orders', eventType: 'UPDATE', new: { id: 180686 } });
+  assert.equal(applied.length, 1);
+  assert.equal(O.data().orders.find((o) => o.id === '180686').st, 'مكتمل');
+});
+
+test('subscribe: realtime:false → no channel; a throwing channel is swallowed; no client or signed out → nothing', async () => {
+  const off = load({ config: { realtime: false } });
+  await off.O.load(); off.O.subscribe();
+  assert.equal(off.calls.some((c) => c.op === 'channel'), false);
+  const bad = load({ channelThrows: true });
+  assert.doesNotThrow(() => bad.O.subscribe());
+  await bad.O.load();
+  assert.equal(bad.O.data().orders.length, 2);
+  const none = load({ client: false });
+  await none.O.load(); none.O.subscribe();
+  assert.equal(none.O.data(), null);
+  assert.deepEqual(plain(await none.O.setOrderStatus('1', 'مكتمل')), { ok: false, reason: 'network' });
+  assert.deepEqual(plain(await none.O.syncNow()), { ok: false, reason: 'network' });
+  const out = load({ signedIn: false });
+  await out.O.load(); out.O.subscribe();
+  assert.deepEqual(out.calls, []);
+});
+
+test('clear unsubscribes and drops the data; a load still in flight is abandoned; IBOrdersStore is IBOrders', async () => {
+  const hydrated = [];
+  const { O, window, calls } = load({ app: { hydrate: (d) => hydrated.push(d) } });
+  assert.equal(window.IBOrdersStore, O);
+  await O.load(); O.subscribe(); hydrated.length = 0;
+  O.clear();
+  assert.equal(O.data(), null);
+  assert.ok(calls.some((c) => c.op === 'removeChannel'));
+  calls.length = 0;
+  const pending = O.load(); O.clear(); await pending;
+  assert.equal(O.data(), null);
+  assert.deepEqual(hydrated, []);
+  assert.deepEqual(calls.filter((c) => c.table && !['orders_v', 'vendors', 'status_map', 'woo_states'].includes(c.table)), []); // nothing asked after the clear
+});
+
+// المرحلة 5.5 قرار 10 (2 نوفمبر): «مسح» الأوردر — إلغاء الأول لو مش ملغي، سلة مهملات الموقع (order_trash)، ثم RPC order_delete
+test('deleteOrder: order_trash on the site, then order_delete with the trimmed reason; drops the order from data(); logs id + reason + the site answer; a Woo failure → site and nothing deleted', async () => {
+  const { O, calls, logs, responses, events } = load();
+  await O.load(); calls.length = 0; events.length = 0;
+  responses['fn:woo-sync'] = ok({ action: 'order_trash', result: 'ok', counts: { trashed: 3, already: 0 } });
+  responses['rpc:order_delete'] = { data: 180686, error: null };
+  assert.deepEqual(plain(await O.deleteOrder('180686', '  أوردر مكرر ')), { ok: true, site: 'ok' });
+  assert.deepEqual(invokes(calls), [['woo-sync', { body: { action: 'order_trash', order_id: 180686 } }]]);
+  assert.deepEqual(calls.filter((c) => c.op === 'rpc').map((c) => c.args), [['order_delete', { p_order: 180686, p_reason: 'أوردر مكرر' }]]);
+  assert.ok(calls.findIndex((c) => c.op === 'invoke') < calls.findIndex((c) => c.op === 'rpc'), 'the site first, the mark after');
+  assert.deepEqual(opsOf(calls, 'orders'), []); // no status PATCH: the order was «ملغي» already (no cancel asked)
+  assert.deepEqual(logs, [['order.delete', 'IB-180686 · أوردر مكرر · الموقع: ok']]);
+  assert.deepEqual(plain(O.data().orders.map((o) => o.id)), ['181668']);
+  calls.length = 0; logs.length = 0;
+  // push disabled on the server: the site is untouched, the order is still deleted here
+  responses['fn:woo-sync'] = ok({ action: 'order_trash', result: 'skipped', reason: 'push_disabled', counts: { trashed: 0, already: 0 } });
+  responses['rpc:order_delete'] = { data: 181668, error: null };
+  assert.deepEqual(plain(await O.deleteOrder('181668', 'سبب')), { ok: true, site: 'push_disabled' });
+  assert.deepEqual(logs, [['order.delete', 'IB-181668 · سبب · الموقع: push_disabled']]);
+  assert.equal(O.data().orders.length, 0);
+});
+
+test('deleteOrder with cancel on an open order: setOrderStatus «ملغي» + cancel reason (row then push) first, then the trash, then the mark; refusals stop the chain', async () => {
+  const { O, calls, logs, responses } = load();
+  await O.load(); calls.length = 0;
+  responses['fn:woo-sync'] = (ops, body) => ok(body && body.body && body.body.action === 'order_trash' ? { action: 'order_trash', result: 'ok', counts: { trashed: 3, already: 0 } } : { action: 'push_status', result: 'ok', counts: { pushed: 1 } });
+  responses['rpc:order_delete'] = { data: 181668, error: null };
+  assert.deepEqual(plain(await O.deleteOrder('181668', 'إلغاء من العميل', { cancel: true })), { ok: true, site: 'ok' });
+  assert.deepEqual(opsOf(calls, 'orders').slice(0, 2), [{ op: 'update', args: [{ status: 'ملغي', cancel: { reason: 'إلغاء من العميل' } }, { count: 'exact' }] }, { op: 'eq', args: ['id', '181668'] }]);
+  assert.deepEqual(invokes(calls).map((i) => i[1].body.action), ['push_status', 'order_trash']);
+  assert.deepEqual(logs.map((l) => l[0]), ['order.status', 'order.delete']);
+  assert.deepEqual(plain(O.data().orders.map((o) => o.id)), ['180686']);
+  calls.length = 0; logs.length = 0;
+  // cancel asked on an order that is «ملغي» already (180686 is «معلّق» in the seed → it is cancelled; make the refusal case): the status write refused → forbidden, nothing else
+  responses.orders = { data: null, error: { code: '42501', message: 'orders.status = F is required' } };
+  assert.deepEqual(plain(await O.deleteOrder('180686', 'سبب', { cancel: true })), { ok: false, reason: 'forbidden' });
+  assert.deepEqual(invokes(calls), []); assert.deepEqual(calls.filter((c) => c.op === 'rpc'), []); assert.deepEqual(logs, []);
+  assert.equal(O.data().orders.length, 1);
+});
+
+test('deleteOrder failures: the trash 502 → site (no mark); 401 → forbidden; order_delete 42501 / 22023 / P0002 / other → forbidden / invalid / missing / network; an empty or long reason never calls', async () => {
+  const { O, calls, logs, responses } = load();
+  await O.load(); calls.length = 0;
+  responses['fn:woo-sync'] = { data: null, error: { context: { status: 502 } } };
+  assert.deepEqual(plain(await O.deleteOrder('180686', 'سبب')), { ok: false, reason: 'site' });
+  responses['fn:woo-sync'] = { data: null, error: { context: { status: 401 } } };
+  assert.deepEqual(plain(await O.deleteOrder('180686', 'سبب')), { ok: false, reason: 'forbidden' });
+  assert.deepEqual(calls.filter((c) => c.op === 'rpc'), []);
+  responses['fn:woo-sync'] = ok({ action: 'order_trash', result: 'ok', counts: { trashed: 1, already: 0 } });
+  for (const [code, reason] of [['42501', 'forbidden'], ['22023', 'invalid'], ['P0002', 'missing'], ['PGRST000', 'network']]) {
+    responses['rpc:order_delete'] = { data: null, error: { code, message: 'x' } };
+    assert.deepEqual(plain(await O.deleteOrder('180686', 'سبب')), { ok: false, reason });
+  }
+  assert.deepEqual(logs, []); assert.equal(O.data().orders.length, 2);
+  calls.length = 0;
+  assert.deepEqual(plain(await O.deleteOrder('181668', '   ')), { ok: false, reason: 'invalid' });
+  assert.deepEqual(plain(await O.deleteOrder('181668', 'ن'.repeat(121))), { ok: false, reason: 'invalid' });
+  assert.deepEqual(calls.filter((c) => c.op === 'rpc' || c.op === 'invoke'), []);
+});
+
+test('Realtime: an order the view no longer returns (deleted on another screen) is dropped from data() and handed to OrdersApp.removeOrder', async () => {
+  const removed = []; const applied = [];
+  const { O, responses, emitChange, events } = load({ app: { hydrate() {}, applyOrder: (o) => applied.push(o.id), removeOrder: (id) => removed.push(id) } });
+  await O.load(); O.subscribe(); events.length = 0;
+  responses.orders_v = ok([]); // orders_v: where deleted_at is null
+  await emitChange({ table: 'orders', eventType: 'UPDATE', new: { id: 180686 } });
+  assert.deepEqual(removed, ['180686']); assert.deepEqual(applied, []);
+  assert.deepEqual(plain(O.data().orders.map((o) => o.id)), ['181668']);
+  assert.ok(events.includes('ib:notify'));
+  await emitChange({ table: 'orders', eventType: 'UPDATE', new: { id: 999 } }); // unknown and gone: nothing to drop
+  assert.deepEqual(removed, ['180686']);
+});
+
+test('load({ quiet }) (IBLive — 0104): a live re-read of a shown list stays «ready» and hands the page the fresh list; a failed one keeps what is shown; refetch is public', async () => {
+  const hyd = []; const t = load({ app: { hydrate: (d) => hyd.push(d.orders.length) } });
+  await t.O.load(); assert.equal(t.O.state(), 'ready'); const n = t.O.data().orders.length; assert.ok(n > 0);
+  t.events.length = 0;
+  const p = t.O.load({ quiet: true });
+  assert.equal(t.O.state(), 'ready', 'no «loading» state'); await p;
+  assert.equal(t.O.state(), 'ready'); assert.equal(hyd.length, 2, 'the page takes the fresh list');
+  assert.ok(!t.events.includes('ib:orders'), 'the state never changed');
+  t.responses.status_map = { data: null, error: { code: '500' } };
+  await t.O.load({ quiet: true });
+  assert.equal(t.O.state(), 'ready'); assert.equal(t.O.data().orders.length, n, 'a failed live read keeps the list');
+  await t.O.load(); assert.equal(t.O.state(), 'error', 'a plain load still says it failed');
+  assert.equal(typeof t.O.refetch, 'function');
+});
+
+// ---- «لسه زي ما أنا شايفه» ----
+const whereOf = (calls, table) => { const ops = opsOf(calls, table); const i = ops.findIndex((c) => c.op === 'update'); const w = {}; ops.slice(i + 1).forEach((c) => { if (c.op === 'eq' || c.op === 'is') w[c.args[0]] = c.args[1]; }); return w; };
+test('a write names the old value of every column it changes — the confirmation, the order\'s data, a line\'s status / date / comment / waybill / pulled; untracked columns add no condition', async () => {
+  const t = load();
+  await t.O.load(); t.calls.length = 0;
+  await t.O.setConfirm('180686', 'غير مؤكد', { confAt: '', note: 'x' });
+  assert.deepEqual(whereOf(t.calls, 'orders'), { id: '180686', confirm: 'مؤكد بعربون', confirm_at: '2026-10-18' }, 'confirm_note is not on the screen: no condition');
+  t.calls.length = 0;
+  await t.O.patchOrder('180686', { note: 'جديد', city: 'الجيزة', dep: 100 });
+  assert.deepEqual(whereOf(t.calls, 'orders'), { id: '180686', note: 'تبع اوردر 180668', customer_city: null, deposit: '300.00' });
+  t.calls.length = 0;
+  await t.O.setItemStatus(5002, 'جاهز للشحن من المبتكر للعميل', { exp: '2026-10-22', cm: 'x', store: { reason: 'r' } });
+  assert.deepEqual(whereOf(t.calls, 'order_items'), { id: 5002, status: 'مؤكد', expected_at: '2026-10-20', comment: 'تم تبليغ المورد' });
+  t.calls.length = 0;
+  await t.O.setWaybill(5002, { no: 'B-1' }); assert.deepEqual(whereOf(t.calls, 'order_items'), { id: 5002, waybill: null });
+  t.calls.length = 0;
+  await t.O.setPulled(5003, true); assert.deepEqual(whereOf(t.calls, 'order_items'), { id: 5003, pulled: false });
+  // my own writes moved the screen's values on: the next write of the same columns names the new ones
+  t.calls.length = 0;
+  await t.O.patchOrder('180686', { note: 'تاني' }); assert.deepEqual(whereOf(t.calls, 'orders'), { id: '180686', note: 'جديد' });
+  t.calls.length = 0;
+  await t.O.setPulled(5003, false); assert.deepEqual(whereOf(t.calls, 'order_items'), { id: 5003, pulled: true });
+});
+
+test('somebody saved it first: no row is written → «stale», nothing pushed or logged, and the order is read again for the screen', async () => {
+  const applied = []; const t = load({ app: { hydrate() {}, applyOrder: (o) => applied.push([o.id, o.st]) } });
+  await t.O.load(); t.calls.length = 0;
+  // the teammate's status is in the database; the update with «status = what I see» touches no row
+  t.responses.orders = (q) => (q.some((c) => c.op === 'update') ? { data: null, error: null, count: 0 } : q.some((c) => c.op === 'select' && /status/.test(c.args[0]) && !/status_custom/.test(c.args[0])) || q.some((c) => c.op === 'maybeSingle') ? ok({ id: 181668, status: 'جاهز للشحن', status_custom: null }) : ok([]));
+  t.responses.orders_v = ok([{ ...O1, status: 'جاهز للشحن' }]);
+  assert.deepEqual(plain(await t.O.setOrderStatus('181668', 'قيد الشحن', {})), { ok: false, reason: 'stale' });
+  assert.deepEqual(invokes(t.calls), [], 'the site hears nothing');
+  assert.deepEqual(t.logs, []);
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(plain(applied), [['181668', 'جاهز للشحن']], 'the page is handed the teammate\'s value');
+  // now that I see theirs, the same change goes through — naming their status
+  t.calls.length = 0; t.responses.orders = { data: null, error: null, count: 1 };
+  assert.deepEqual(plain(await t.O.setOrderStatus('181668', 'قيد الشحن', {})), { ok: true, push: 'ok' });
+  assert.equal(whereOf(t.calls, 'orders').status, 'جاهز للشحن');
+});
+
+test('no row written and the row is as I see it → «forbidden» (not mine to write); the row is gone → «missing»; a line: its order is read again', async () => {
+  const applied = []; const t = load({ app: { hydrate() {}, applyOrder: (o) => applied.push(o.id) } });
+  await t.O.load(); t.calls.length = 0;
+  t.responses.orders = (q) => (q.some((c) => c.op === 'update') ? { data: null, error: null, count: 0 } : q.some((c) => c.op === 'maybeSingle') ? ok({ id: 180686, note: 'تبع اوردر 180668' }) : ok([]));
+  assert.deepEqual(plain(await t.O.patchOrder('180686', { note: 'x' })), { ok: false, reason: 'forbidden' });
+  assert.deepEqual(applied, [], 'nothing changed: nothing to read again');
+  t.responses.orders = (q) => (q.some((c) => c.op === 'update') ? { data: null, error: null, count: 0 } : q.some((c) => c.op === 'maybeSingle') ? ok(null) : ok([]));
+  assert.deepEqual(plain(await t.O.patchOrder('180686', { note: 'x' })), { ok: false, reason: 'missing' });
+  await new Promise((r) => setTimeout(r, 10)); applied.length = 0; // (a gone order is read again too: the screen drops it)
+  t.responses.order_items = (q) => (q.some((c) => c.op === 'update') ? { data: null, error: null, count: 0 } : q.some((c) => c.op === 'maybeSingle') ? ok({ id: 5002, status: 'ملغي' }) : ok(ITEMS));
+  assert.deepEqual(plain(await t.O.setItemStatus(5002, 'جاهز للشحن من المبتكر للعميل')), { ok: false, reason: 'stale' });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(plain(applied), ['181668'], 'the line\'s order');
+});
+
+test('«مكتمل» with a rating: the server says somebody moved the order first (IBSTL) → «stale», no push; a project without 0105 (PGRST202) is asked again without p_from', async () => {
+  const t = load();
+  await t.O.load(); t.calls.length = 0;
+  t.responses['rpc:order_complete'] = { data: null, error: { code: 'IBSTL', message: 'stale: the order is no longer «جاري التنفيذ»' } };
+  assert.deepEqual(plain(await t.O.setOrderStatus('181668', 'مكتمل', { rating: { sat: 5, manners: 5 } })), { ok: false, reason: 'stale' });
+  assert.deepEqual(invokes(t.calls), []); assert.deepEqual(t.logs, []);
+  t.calls.length = 0;
+  t.responses['rpc:order_complete'] = (args) => (args && args.p_from !== undefined ? { data: null, error: { code: 'PGRST202', message: 'Could not find the function public.order_complete(p_from, …)' } } : { data: 9, error: null });
+  assert.deepEqual(plain(await t.O.setOrderStatus('181668', 'مكتمل', { rating: { sat: 5, manners: 5 } })), { ok: true, push: 'ok' });
+  assert.deepEqual(t.calls.filter((c) => c.op === 'rpc').map((c) => Object.keys(c.args[1]).includes('p_from')), [true, false]);
+});
+
+test('the old postgres_changes line hands its orders to IBLive when it is there (gathered, held while a popup is open)', async () => {
+  const t = load(); const got = [];
+  await t.O.load(); t.O.subscribe();
+  t.window.IBLive = { signal: (m) => got.push(m.payload) };
+  t.calls.length = 0;
+  await t.emitChange({ table: 'order_items', eventType: 'UPDATE', new: { id: 5001, order_id: 181668 } });
+  assert.deepEqual(plain(got), [{ t: 'orders', ids: [181668] }]);
+  assert.deepEqual(opsOf(t.calls, 'orders_v'), [], 'not read here: IBLive decides when');
+});
+
+test('a json column on the screen (the waybill) is named by its text, never as «[object Object]» — clearing or replacing a waybill reaches the database', async () => {
+  const items = ITEMS.map((x) => (x.id === 5002 ? { ...x, waybill: { no: 'BST-1', at: '2026-10-25' } } : x));
+  const t = load({ responses: { ...seed(), order_items: ok(items) } });
+  await t.O.load(); t.calls.length = 0;
+  assert.deepEqual(plain(await t.O.setWaybill(5002, null)), { ok: true });
+  assert.deepEqual(whereOf(t.calls, 'order_items'), { id: 5002, waybill: '{"no":"BST-1","at":"2026-10-25"}' });
+  t.calls.length = 0;
+  await t.O.setWaybill(5002, { no: 'BST-2' });
+  assert.deepEqual(whereOf(t.calls, 'order_items'), { id: 5002, waybill: null }, 'after my own clear');
+});
+
+test('«no row» said as an error by the API (404 / PGRST116) is the same «stale», not «network»', async () => {
+  const t = load();
+  await t.O.load();
+  t.responses.orders = (q) => (q.some((c) => c.op === 'update') ? { data: null, error: { code: 'PGRST116', message: 'no rows' }, status: 406 } : q.some((c) => c.op === 'maybeSingle') ? ok({ id: 181668, status: 'معلّق', status_custom: null }) : ok([]));
+  assert.deepEqual(plain(await t.O.setOrderStatus('181668', 'قيد الشحن', {})), { ok: false, reason: 'stale' });
+  t.responses.orders = (q) => (q.some((c) => c.op === 'update') ? { data: null, error: { code: 'PGRST000', message: 'down' }, status: 503 } : ok([]));
+  assert.deepEqual(plain(await t.O.setOrderStatus('181668', 'قيد الشحن', {})), { ok: false, reason: 'network' });
+});
+
+// two quick changes to the same field by the same member (CI caught it: the deposit set, then cleared before the first answer came)
+test('a row\'s writes go one after the other: the second of two quick changes names what the first left, not what was on the screen before it', async () => {
+  const t = load();
+  await t.O.load(); t.calls.length = 0;
+  const a = t.O.patchOrder('181668', { dep: 500 }); const b = t.O.patchOrder('181668', { dep: 0 }); // not awaited in between
+  assert.deepEqual(plain(await Promise.all([a, b])), [{ ok: true }, { ok: true }]);
+  const ops = opsOf(t.calls, 'orders');
+  assert.deepEqual(ops.filter((c) => c.op === 'update').map((c) => c.args[0]), [{ deposit: 500 }, { deposit: 0 }], 'in the order they were asked');
+  const named = ops.filter((c) => (c.op === 'eq' || c.op === 'is') && c.args[0] === 'deposit').map((c) => c.args[1]);
+  assert.equal(named.length, 2); assert.equal(Number(named[1]), 500, 'the second write is compared with the first one\'s value');
+  assert.notEqual(Number(named[0]), 500);
+  // a line the same way, and another row is not kept waiting behind this one
+  t.calls.length = 0;
+  const c1 = t.O.setItemStatus('5001', undefined, { cm: 'أول' }); const c2 = t.O.setItemStatus('5001', undefined, { cm: 'تاني' }); const other = t.O.patchOrder('180686', { dep: 10 });
+  assert.deepEqual(plain(await Promise.all([c1, c2, other])), [{ ok: true }, { ok: true }, { ok: true }]);
+  const li = opsOf(t.calls, 'order_items').filter((c) => (c.op === 'eq' || c.op === 'is') && c.args[0] === 'comment').map((c) => c.args[1]);
+  assert.equal(li[1], 'أول');
+  // a refused first write leaves what was on the screen: the second is compared with that
+  t.calls.length = 0; let n = 0;
+  t.responses.orders = (q) => (q.some((c) => c.op === 'update') ? ((n += 1) === 1 ? { data: null, error: { code: 'PGRST000', message: 'down' }, status: 503 } : { data: null, error: null, count: 1 }) : ok([]));
+  const f1 = t.O.patchOrder('181668', { dep: 900 }); const f2 = t.O.patchOrder('181668', { dep: 70 });
+  assert.deepEqual(plain(await Promise.all([f1, f2])), [{ ok: false, reason: 'network' }, { ok: true }]);
+  const after = opsOf(t.calls, 'orders').filter((c) => (c.op === 'eq' || c.op === 'is') && c.args[0] === 'deposit').map((c) => Number(c.args[1]));
+  assert.deepEqual(after, [0, 0], 'both name the deposit the two successful writes above left (0)');
+});

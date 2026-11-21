@@ -1,0 +1,518 @@
+import { test, expect } from '@playwright/test';
+import { installSupabaseMock, LIVE, DEV_PW, BRAND, NEW_BRAND, TRANSFER_SINCE, TRANSFER_RETURN } from './supabase-mock.mjs';
+
+// The brands of phase 3.2 (decisions 3–7) on the mocked Supabase: the drawer's «البراندات» section for each role, adding / editing a
+// brand (the writes in order, the events, the table and the list's grey line), the special rate (accounts-only column, the share
+// in the orders tab), a temporary transfer and the return (the two makers' events, the attribution of the store's orders before /
+// after the date, «كان عنده» and «مؤقت لحد»), the local refusals before any request, the delete guard, html as text, the search by a
+// brand's name or alias. Mock only; E2E_SUPABASE_LIVE=1 skips them.
+const ADMIN = 'admin.dev@ibtekr.local'; const OPS = 'ops.dev@ibtekr.local'; const ACCOUNTS = 'accounts.dev@ibtekr.local'; const VF = 'vf.dev@ibtekr.local';
+const V1 = 'a0000000-0000-4000-8000-000000000001'; const V2 = 'a0000000-0000-4000-8000-000000000002'; const V3 = 'a0000000-0000-4000-8000-000000000003'; // Artisan Loft, Anticora, Biala eg (inactive)
+const B1 = BRAND(1), B2 = BRAND(2); // the automatic brands of Artisan Loft and Anticora
+const EVIL = '"><img src=x onerror="window.__xss=1">';
+const ymd = (d) => [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+const TODAY = ymd(new Date()); const daysAgo = (n) => ymd(new Date(Date.now() - n * 86400000));
+const dmy = (iso) => iso.split('-').reverse().join('/'); // D.formatDateNumeric
+let mock = null; let pageErrors = [];
+test.beforeEach(async ({ page }) => {
+  test.skip(LIVE, 'asserts on the mocked Supabase (its seed and the writes it recorded)');
+  pageErrors = []; page.on('pageerror', (e) => pageErrors.push(e.message)); mock = null;
+});
+test.afterEach(() => {
+  if (LIVE || !mock) return;
+  expect(pageErrors).toEqual([]);
+  expect(mock.unhandled).toEqual([]);
+});
+const setup = async (page, opts) => { mock = await installSupabaseMock(page, opts); return mock; };
+
+async function signIn(page, email) {
+  await page.goto('/');
+  await expect(page.locator('#login')).toBeVisible();
+  await page.fill('#lg-id', email);
+  await page.fill('#lg-pw', DEV_PW);
+  await page.getByRole('button', { name: 'دخول', exact: true }).click();
+  await expect(page.locator('#root')).toBeVisible();
+}
+const rows = (page) => page.locator('#vendors table tbody tr[data-id]');
+const row = (page, id) => page.locator(`#vendors tr[data-id="${id}"]`);
+async function openVendors(page, email = ADMIN, n = 2) {
+  await signIn(page, email);
+  await page.locator('.sidebar .nav-item[data-page="vendors"]').click();
+  await page.locator('#vendors [role=tab]', { hasText: 'سجل المبتكرين' }).click(); // decision 57: the page opens on «نظرة عامة»
+  await expect(page.locator('#vendors')).toBeVisible();
+  await expect(rows(page)).toHaveCount(n);
+}
+const drawer = (page) => page.locator('.drawer[aria-label^="ملف المبتكر"]');
+async function openDrawer(page, id) { await row(page, id).click(); await expect(drawer(page)).toBeVisible(); return drawer(page); }
+async function openByHash(page, id) { await page.evaluate((h) => { location.hash = h; }, 'makers/' + id); await expect(drawer(page)).toBeVisible(); await expect(page).toHaveURL(new RegExp('#makers/' + id + '$')); return drawer(page); }
+const section = (page, title) => drawer(page).locator('section.vsection').filter({ has: page.locator('.head h3', { hasText: title }) });
+const brands = (page) => section(page, 'البراندات');
+const brandRow = (page, id) => brands(page).locator(`tr[data-brand="${id}"]`);
+const modal = (page) => page.locator('.modal[role=dialog]');
+const note = (page) => page.locator('#vendors .note');
+const tile = (page, label) => drawer(page).locator(`.kpi[aria-label="${label}"]`);
+const kindTile = (page, kind) => drawer(page).locator(`.kpi[data-kind="${kind}"]`);
+const tab = (page, label) => drawer(page).getByRole('tab', { name: label });
+async function signOut(page) {
+  await Promise.all([page.waitForEvent('load'), page.evaluate(() => { window.IBAuth.signOut(); })]);
+  await expect(page.locator('#login')).toBeVisible();
+}
+const writes = () => mock.brandWrites;
+const acts = (action) => mock.activity.filter((a) => a.action === action).map((a) => ({ entity: a.entity, entity_id: a.entity_id, new_value: a.new_value }));
+const byMaker = (list) => list.slice().sort((a, b) => (a.entity_id < b.entity_id ? -1 : 1)); // the two rows of a transfer go out together
+const posts = (t) => mock.requests.filter((r) => r === 'POST /rest/v1/' + t).length;
+const inert = async (page) => {
+  expect(await page.evaluate(() => document.querySelectorAll('img[src="x"]').length)).toBe(0);
+  expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+};
+async function openBrandMenu(page, id, label) { await brandRow(page, id).locator('[data-brand-menu]').click(); await page.locator('[role=menu] [role=menuitem]', { hasText: label }).click(); }
+async function pickOption(page, selectId, label) { await modal(page).locator('#' + selectId).click(); await page.locator('[role=listbox] [role=option]', { hasText: label }).click(); }
+// a DateField typed like a user: the value, then Tab (the native change on blur; a dispatched change would leave the input dirty and fire again when the redraw removes it)
+async function typeDate(page, inputId, iso) { const el = modal(page).locator('#' + inputId); await el.fill(dmy(iso)); await el.press('Tab'); }
+const cancel = (page) => modal(page).getByRole('button', { name: 'إلغاء' }).click(); // Escape would close the drawer under the modal too
+// phase 5.5 (decision 3): the kit's closed multi-value filter — clear the ticked statuses, tick the wanted one, apply
+async function statusFilter(page, label) {
+  await page.locator('#vendors [data-fm-btn="vendors"]').click(); // the owner 12 Nov: «فلتر» next to the sort, the groups inside
+  await page.locator('[data-fm-menu="vendors"] [data-fm-clear]').click();
+  await page.locator('[data-fm-menu="vendors"] [data-fm-tab="status"]').click();
+  if (label !== 'الكل') await page.locator('[data-fm-menu="vendors"] [data-fm-key="status"] [data-fm]', { hasText: label }).click(); // «الكل» = no status ticked
+  await page.locator('[data-fm-menu="vendors"] [data-fm-apply]').dispatchEvent('click'); // the menu's foot may sit below the viewport
+}
+// a hand-added brand of Artisan Loft in the seed (no store), for the search and the grey line
+const seedWoodRope = (m, name = 'Wood & Rope') => { m.brands.push({ id: 'd0000000-0000-4000-8000-000000000009', name, code: 'W', aliases: ['W&R'], store_vendor_id: null, origin_vendor_id: V1, created_by: 'صفوت كمال', created_at: '2026-10-22T00:00:00Z', updated_at: '2026-10-22T00:00:00Z' }); m.brandOwners.push({ id: 99, brand_id: 'd0000000-0000-4000-8000-000000000009', vendor_id: V1, since: '2026-09-01', return_on: null, reason: null, set_by: 'صفوت كمال', created_at: '2026-10-22T00:00:00Z' }); };
+
+test('the admin: the automatic brand in «البراندات» (code, aliases, «متجر على الموقع», since — no rate: plan 3.4), «إضافة براند» and the ⋮ menu; brands and brand_owners read at sign-in, brand_rates never (plan 3.4); the search finds a maker by a brand\'s name or alias and the list shows the brand line', async ({ page }) => {
+  await setup(page); seedWoodRope(mock);
+  await openVendors(page);
+  for (const t of ['brands', 'brand_owners']) expect(mock.requests).toContain('GET /rest/v1/' + t);
+  expect(mock.requests.filter((r) => r === 'GET /rest/v1/brand_rates')).toEqual([]); // the special rate is retired (plan 3.4, decision 5)
+  await openDrawer(page, V2);
+  const r = brandRow(page, B2);
+  await expect(r).toContainText('Anticora');
+  await expect(r).toContainText('الكود A');
+  await expect(r).toContainText('Anticora store');
+  await expect(r).toContainText('متجر على الموقع');
+  await expect(r.locator('[data-brand-rate]')).toHaveCount(0);
+  await expect(brands(page).locator('thead')).not.toContainText('النسبة');
+  await expect(r).toContainText('01/03/2026'); // joined_at
+  await expect(r).not.toContainText('مؤقت');
+  await expect(brands(page)).not.toContainText('كان عنده');
+  await expect(brands(page).getByRole('button', { name: 'إضافة براند' })).toBeVisible();
+  await r.locator('[data-brand-menu]').click();
+  await expect(page.locator('[role=menu] [role=menuitem]')).toHaveText(['تعديل', 'اعمل البراند على الموقع', 'تغيير صورة البراند', 'نقل لمبتكر تاني']); // no «النسبة الخاصة» (plan 3.4); with its origin: no «رجوع لصاحبه»; a maker with a store: «اعمل البراند على الموقع» (16 Nov)
+  await page.keyboard.press('Escape');
+  await drawer(page).getByRole('button', { name: 'إغلاق' }).first().click();
+  // the search: the hand-added brand of Artisan Loft by its name and by its alias; the grey line under his name
+  // the owner 17 Nov: the site's brands on his products (Cushion → «Artisan Loft») and the ones he holds here that are not his own name
+  await expect(row(page, V1).locator('[data-brands] .chip')).toHaveText(['Artisan Loft', 'Wood & Rope']);
+  await expect(row(page, V2).locator('[data-brands] .chip')).toHaveText(['Anticora']); // his products' site brand (his automatic one is not listed twice)
+  await page.locator('#vendors [data-tq-btn]').click(); // «بحث» opens the search row (the owner 12 Nov)
+  const search = page.locator('#vendors input[type=search]');
+  await search.fill('wood');
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).first()).toContainText('Artisan Loft');
+  await search.fill('w&r');
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).first()).toContainText('Artisan Loft');
+  await search.fill('anticora store');
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).first()).toContainText('Anticora');
+  await search.fill('nobody');
+  await expect(rows(page)).toHaveCount(0);
+  expect(writes()).toEqual([]);
+});
+
+test('comment 57 — the makers table has a «البراندات» column of its own (the maker\'s brands that are not simply his name) and «البراند» is a group of the table\'s filter', async ({ page }) => {
+  await setup(page);
+  mock.brands.push({ id: BRAND(8), name: 'Wood & Rope', code: 'W', aliases: [], store_vendor_id: null, origin_vendor_id: V1, created_by: 'system', created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z' },
+    { id: BRAND(9), name: 'Nile Glass', code: 'N', aliases: [], store_vendor_id: null, origin_vendor_id: V2, created_by: 'system', created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z' });
+  mock.brandOwners.push({ id: 8, brand_id: BRAND(8), vendor_id: V1, since: '2026-03-01', return_on: null, reason: null, set_by: 'system', created_at: '2026-10-01T00:00:00Z' },
+    { id: 9, brand_id: BRAND(9), vendor_id: V2, since: '2026-03-01', return_on: null, reason: null, set_by: 'system', created_at: '2026-10-01T00:00:00Z' });
+  await openVendors(page);
+  // the column, right after the maker's name; the name's own cell no longer carries the brands line
+  const heads = await page.locator('#vendors table thead th').allTextContents();
+  expect(heads.slice(1, 4).map((x) => x.trim())).toEqual(['المبتكر', 'البراندات', 'الحالة']);
+  await expect(row(page, V1).locator('td').nth(2).locator('.chip')).toHaveText(['Artisan Loft', 'Wood & Rope']);
+  await expect(row(page, V2).locator('td').nth(2).locator('.chip')).toHaveText(['Anticora', 'Nile Glass']);
+  await expect(row(page, V1).locator('td').nth(1).locator('[data-brands]')).toHaveCount(0);
+  // the filter: «البراند» lists every brand — the makers' own-name brands too (the owner 16 Nov: «فين البراندات اللي هفلتر بيها»);
+  // one picked → its maker alone, a chip with its count
+  await page.locator('#vendors [data-fm-btn="vendors"]').click();
+  const menu = page.locator('[data-fm-menu="vendors"]');
+  await menu.locator('[data-fm-tab="brand"]').click();
+  const names = await menu.locator('[data-fm^="brand:"]').allTextContents();
+  expect(names).toEqual(expect.arrayContaining(['Anticora', 'Artisan Loft', 'Nile Glass', 'Wood & Rope']));
+  expect(names).toEqual([...names].sort((x, y) => x.localeCompare(y)));
+  expect(names.filter((n) => n === 'Biala eg')).toEqual([]); // the owner 17 Nov: a maker's own-name brand is not a brand of the filter
+  const pickB = (n) => menu.locator('[data-fm^="brand:"]', { hasText: n }).first();
+  await pickB('Anticora').click(); // the site's brand on Anticora's products
+  await expect(menu.locator('[data-fm-apply]')).toHaveText('اعرض 1 مبتكر');
+  await pickB('Anticora').click();
+  await pickB('Wood & Rope').click();
+  await expect(menu.locator('[data-fm-apply]')).toHaveText('اعرض 1 مبتكر');
+  await menu.locator('[data-fm-apply]').dispatchEvent('click');
+  await expect(rows(page)).toHaveCount(1);
+  await expect(row(page, V1)).toBeVisible();
+  await expect(page.locator('#vendors [data-af-chip^="brand:"]')).toContainText('البراند: Wood & Rope');
+  await page.locator('#vendors [data-af-clear]').click();
+  await expect(rows(page)).toHaveCount(3);
+  // Biala eg: no brand of his own but his own name — the site's brand on his product (Boho mirror → «Artisan Loft») is what shows
+  await expect(row(page, V3).locator('td').nth(2).locator('.chip')).toHaveText(['Artisan Loft']);
+});
+
+test('ops (vendors.edit = P) and accounts read the section only: no button, no menu, no rate column; a store call is refused before any request; vendors follow-up (edit = F) may add but sees no rate', async ({ page }) => {
+  await setup(page);
+  await openVendors(page, OPS);
+  await openDrawer(page, V2);
+  await expect(brandRow(page, B2)).toContainText('Anticora');
+  await expect(brands(page).getByRole('button', { name: 'إضافة براند' })).toHaveCount(0);
+  await expect(brands(page).locator('[data-brand-menu]')).toHaveCount(0);
+  await expect(brands(page).locator('[data-brand-rate]')).toHaveCount(0);
+  await expect(brands(page).locator('thead')).not.toContainText('النسبة');
+  const refused = await page.evaluate(async ([b2, v1]) => { const S = window.IBVendors.store; const out = [];
+    try { await S.addBrand(v1, { name: 'Zaafa' }, S.actor()); out.push('added'); } catch (e) { out.push(e.message); }
+    try { S.updateBrand(b2, { name: 'Zaafa' }, S.actor()); out.push('updated'); } catch (e) { out.push(e.message); }
+    try { S.transferBrand(b2, v1, { since: '2026-10-25' }, S.actor()); out.push('moved'); } catch (e) { out.push(e.message); }
+    out.push(typeof S.setBrandRate); // retired (plan 3.4)
+    return out; }, [B2, V1]);
+  expect(refused).toEqual(['مش من صلاحياتك', 'مش من صلاحياتك', 'مش من صلاحياتك', 'undefined']);
+  expect([posts('brands'), posts('brand_owners'), posts('brand_rates'), writes()]).toEqual([0, 0, 0, []]);
+  expect(mock.requests.filter((r) => r === 'GET /rest/v1/brand_rates')).toEqual([]); // no sensitive.commission: never asked
+  await signOut(page);
+  await openVendors(page, ACCOUNTS);
+  await openDrawer(page, V2);
+  await expect(brandRow(page, B2)).toContainText('Anticora');
+  await expect(brands(page).getByRole('button', { name: 'إضافة براند' })).toHaveCount(0);
+  await expect(brands(page).locator('[data-brand-menu]')).toHaveCount(0);
+  await expect(brands(page).locator('[data-brand-rate]')).toHaveCount(0);
+  await signOut(page);
+  await openVendors(page, VF);
+  await openDrawer(page, V2);
+  await expect(brands(page).getByRole('button', { name: 'إضافة براند' })).toBeVisible();
+  await expect(brands(page).locator('[data-brand-rate]')).toHaveCount(0);
+  await brandRow(page, B2).locator('[data-brand-menu]').click();
+  await expect(page.locator('[role=menu] [role=menuitem]')).toHaveText(['تعديل', 'اعمل البراند على الموقع', 'تغيير صورة البراند', 'نقل لمبتكر تاني']);
+  await page.keyboard.press('Escape');
+  await brands(page).getByRole('button', { name: 'إضافة براند' }).click();
+  await expect(modal(page).locator('#br-rate')).toHaveCount(0); // no special rate (plan 3.4)
+  await cancel(page);
+});
+
+test('add a brand: the code suggested from the name until typed, no rate field (plan 3.4); brands → brand_owners (since = joining) in order, with .select(id) on the brand only; the events; the table, the log and the list\'s grey line; a taken name refused before any request', async ({ page }) => {
+  await setup(page);
+  await openVendors(page);
+  await openDrawer(page, V1);
+  await brands(page).getByRole('button', { name: 'إضافة براند' }).click();
+  await expect(modal(page).locator('h2')).toHaveText('إضافة براند — Artisan Loft');
+  await modal(page).locator('#br-name').fill('wood & rope');
+  await expect(modal(page).locator('#br-code')).toHaveValue('W'); // suggested
+  await modal(page).locator('#br-aliases').fill('W&R، Wood Rope');
+  await expect(modal(page).locator('#br-rate')).toHaveCount(0); // the special rate is retired (plan 3.4)
+  await modal(page).getByRole('button', { name: 'إضافة البراند' }).click();
+  await expect(modal(page)).toHaveCount(0);
+  await expect(note(page)).toContainText('اتضاف البراند wood & rope');
+  const nb = NEW_BRAND(1);
+  await expect(brandRow(page, nb)).toContainText('wood & rope');
+  await expect(brandRow(page, nb)).toContainText('الكود W');
+  await expect(brandRow(page, nb)).toContainText('W&R، Wood Rope');
+  await expect(brandRow(page, nb)).not.toContainText('متجر على الموقع'); // a hand-added brand: no store
+  await expect(brandRow(page, nb)).toContainText('01/03/2026'); // since = Artisan Loft's joined_at
+  expect(writes()).toEqual([{ table: 'brands', op: 'insert', name: 'wood & rope', code: 'W', aliases: ['W&R', 'Wood Rope'], origin_vendor_id: V1, created_by: 'صفوت كمال' },
+    { table: 'brand_owners', op: 'insert', brand_id: nb, vendor_id: V1, since: '2026-03-01', set_by: 'صفوت كمال' }]);
+  expect(posts('brand_rates')).toBe(0);
+  expect(mock.brands.find((b) => b.id === nb)).toMatchObject({ store_vendor_id: null, origin_vendor_id: V1 });
+  await expect.poll(() => acts('vendor.brand')).toEqual([{ entity: 'vendor', entity_id: V1, new_value: 'add: wood & rope' }]);
+  await expect(section(page, 'سجل النشاط')).toContainText('صفوت كمال أضاف البراند wood & rope');
+  await expect(row(page, V1).locator('[data-brands]')).toContainText('wood & rope');
+  // a taken name (the automatic brand of Anticora, by its alias too): refused in the popup, nothing sent
+  await brands(page).getByRole('button', { name: 'إضافة براند' }).click();
+  await modal(page).locator('#br-name').fill(' ANTICORA ');
+  await modal(page).getByRole('button', { name: 'إضافة البراند' }).click();
+  await expect(modal(page).locator('.note.error')).toContainText('راجع الحقول');
+  await expect(modal(page)).toContainText('فيه براند بنفس الاسم (Anticora)');
+  await modal(page).locator('#br-name').fill('anticora store');
+  await modal(page).getByRole('button', { name: 'إضافة البراند' }).click();
+  await expect(modal(page)).toContainText('فيه براند بنفس الاسم (Anticora)');
+  await modal(page).locator('#br-name').fill('Zaafa');
+  await modal(page).locator('#br-code').fill('Z-1');
+  await modal(page).getByRole('button', { name: 'إضافة البراند' }).click();
+  await expect(modal(page)).toContainText('الكود من 1 لـ 3');
+  expect(writes()).toHaveLength(2);
+  // the server's 23505 (a name taken meanwhile) reads the same
+  mock.brands.push({ id: 'd0000000-0000-4000-8000-000000000008', name: 'zaafa', code: 'Z', aliases: [], store_vendor_id: null, origin_vendor_id: V2, created_by: 'x', created_at: '2026-10-22T00:00:00Z', updated_at: '2026-10-22T00:00:00Z' });
+  await modal(page).locator('#br-code').fill('Z');
+  await modal(page).getByRole('button', { name: 'إضافة البراند' }).click();
+  await expect(modal(page).locator('.note.error')).toContainText('فيه براند بنفس الاسم');
+  expect(posts('brands')).toBe(2);
+  expect(writes()).toHaveLength(2);
+  await cancel(page);
+});
+
+test('edit a brand: the changed columns only (a PATCH, no returning row), logged; the drawer and the list follow; html in a brand\'s name is text in the table, the list, the popup and the log', async ({ page }) => {
+  await setup(page);
+  await openVendors(page);
+  await openDrawer(page, V1);
+  await openBrandMenu(page, B1, 'تعديل');
+  await expect(modal(page).locator('h2')).toHaveText('تعديل البراند — Artisan Loft');
+  await expect(modal(page).locator('#br-code')).toHaveValue('A');
+  await expect(modal(page).locator('#br-rate')).toHaveCount(0); // no rate (plan 3.4)
+  await modal(page).locator('#br-name').fill('Artisan Loft Studio');
+  await expect(modal(page).locator('#br-code')).toHaveValue('A'); // an existing brand keeps its code unless typed
+  await modal(page).locator('#br-code').fill('ac');
+  await modal(page).getByRole('button', { name: 'حفظ' }).click();
+  await expect(brandRow(page, B1)).toContainText('Artisan Loft Studio');
+  await expect(brandRow(page, B1)).toContainText('الكود AC');
+  await expect.poll(() => writes()).toEqual([{ table: 'brands', op: 'update', id: B1, name: 'Artisan Loft Studio', code: 'AC' }]);
+  expect(mock.requests.filter((r) => r.startsWith('PATCH /rest/v1/brands'))).toHaveLength(1);
+  await expect.poll(() => acts('vendor.brand')).toEqual([{ entity: 'vendor', entity_id: V1, new_value: 'update: Artisan Loft Studio (name, code)' }]);
+  await expect(section(page, 'سجل النشاط')).toContainText('صفوت كمال عدّل البراند Artisan Loft Studio (name, code)');
+  await expect(row(page, V1).locator('[data-brands]')).toContainText('Artisan Loft Studio'); // the brand's name is not his any more
+  // html in the name: text everywhere
+  await openBrandMenu(page, B1, 'تعديل');
+  await modal(page).locator('#br-name').fill(EVIL);
+  await modal(page).getByRole('button', { name: 'حفظ' }).click();
+  await expect(brandRow(page, B1).locator('b').first()).toHaveText(EVIL);
+  await expect(row(page, V1).locator('[data-brands] .chip').last()).toHaveText(EVIL); // text, never markup
+  await expect(section(page, 'سجل النشاط')).toContainText('عدّل البراند ' + EVIL);
+  await openBrandMenu(page, B1, 'تعديل');
+  await expect(modal(page).locator('h2')).toHaveText('تعديل البراند — ' + EVIL);
+  await expect(modal(page).locator('#br-name')).toHaveValue(EVIL);
+  await cancel(page);
+  await openBrandMenu(page, B1, 'نقل لمبتكر تاني');
+  await expect(modal(page).locator('h2')).toHaveText('نقل البراند — ' + EVIL);
+  await cancel(page);
+  await inert(page);
+  expect(mock.brands.find((b) => b.id === B1).name).toBe(EVIL);
+});
+
+test('the brand special rate is retired (plan 3.4, decision 5): a brand_rates row on the server changes nothing — the share is the maker\'s rate; no «النسبة الخاصة» in the menu, no rate column, brand_rates never read', async ({ page }) => {
+  await setup(page);
+  mock.brandRates.push({ id: 1, brand_id: B2, rate: 30, since: daysAgo(15), set_by: 'x', created_at: '2026-10-22T00:00:00Z' }); // an old row
+  await openVendors(page);
+  await openDrawer(page, V2);
+  await tab(page, 'الحسابات').click();
+  await expect(tile(page, 'هيستحق بعد التنفيذ').locator('.t-h3')).toHaveText('2,007.85'); // 181668 at the line's 40 / 10 (1,513.40) + 180656 at Anticora's 45% (494.45) — the old 30% ignored
+  await tab(page, 'معلومات المبتكر').click();
+  await expect(brands(page).locator('[data-brand-rate]')).toHaveCount(0);
+  await brandRow(page, B2).locator('[data-brand-menu]').click();
+  await expect(page.locator('[role=menu] [role=menuitem]')).toHaveText(['تعديل', 'اعمل البراند على الموقع', 'تغيير صورة البراند', 'نقل لمبتكر تاني']);
+  await page.keyboard.press('Escape');
+  expect(mock.requests.filter((r) => r === 'GET /rest/v1/brand_rates')).toEqual([]);
+  expect(writes()).toEqual([]);
+});
+
+test('transfer Anticora\'s brand to Biala eg from 8 days ago, temporarily: one owner row, two events; Anticora\'s drawer shows «كان عنده» and his store\'s earlier order only, Biala eg\'s «مؤقت لحد» and the later order; then the return', async ({ page }) => {
+  await setup(page);
+  await openVendors(page);
+  await openDrawer(page, V2);
+  await tab(page, 'الأوردرات').click();
+  await expect(kindTile(page, 'all').locator('.t-h3')).toHaveText('2');
+  await tab(page, 'معلومات المبتكر').click();
+  await openBrandMenu(page, B2, 'نقل لمبتكر تاني');
+  await expect(modal(page).locator('h2')).toHaveText('نقل البراند — Anticora');
+  await modal(page).locator('#br-to').click();
+  await expect(page.locator('[role=listbox] [role=option]')).toHaveText(['Artisan Loft', 'Biala eg (غير نشط)']); // not the holder himself
+  await page.locator('[role=listbox] [role=option]', { hasText: 'Biala eg' }).click();
+  await expect(modal(page).locator('#br-since')).toHaveValue(dmy(TODAY));
+  await typeDate(page, 'br-since', TRANSFER_SINCE);
+  await modal(page).getByRole('checkbox', { name: 'نقل مؤقت؟' }).click();
+  await typeDate(page, 'br-return', TRANSFER_SINCE); // not after the start: refused before any request
+  await modal(page).getByRole('button', { name: 'نقل البراند' }).click();
+  await expect(modal(page)).toContainText('تاريخ الرجوع لازم يكون بعد تاريخ البداية');
+  expect([posts('brand_owners'), writes()]).toEqual([0, []]);
+  await typeDate(page, 'br-return', TRANSFER_RETURN);
+  await modal(page).locator('#br-reason').fill(' إجازة الصيف ');
+  await modal(page).getByRole('button', { name: 'نقل البراند' }).click();
+  await expect(note(page)).toContainText('اتنقل البراند Anticora لـ Biala eg من ' + dmy(TRANSFER_SINCE) + ' (مؤقت لحد ' + dmy(TRANSFER_RETURN) + ')');
+  await expect.poll(() => writes()).toEqual([{ table: 'brand_owners', op: 'insert', brand_id: B2, vendor_id: V3, since: TRANSFER_SINCE, return_on: TRANSFER_RETURN, reason: 'إجازة الصيف', set_by: 'صفوت كمال' }]);
+  const txt = 'Anticora → Biala eg من ' + TRANSFER_SINCE + ' لحد ' + TRANSFER_RETURN;
+  await expect.poll(() => byMaker(acts('vendor.brand.transfer'))).toEqual([{ entity: 'vendor', entity_id: V2, new_value: txt }, { entity: 'vendor', entity_id: V3, new_value: txt }]);
+  await expect(brands(page)).toContainText('مفيش براندات على المبتكر ده دلوقتي');
+  await expect(brands(page).locator('.brand-ever')).toHaveText('كان عنده: Anticora لحد ' + dmy(TRANSFER_SINCE) + ' → دلوقتي مع Biala eg');
+  await expect(section(page, 'سجل النشاط')).toContainText('صفوت كمال نقل البراند (' + txt + ')');
+  await tab(page, 'الأوردرات').click();
+  await expect(kindTile(page, 'all').locator('.t-h3')).toHaveText('1'); // 180656 (10 days ago) stays his; 181668 (6 days ago) is Biala eg's
+  await expect(section(page, 'أوردرات المبتكر')).toContainText('180656');
+  await expect(section(page, 'أوردرات المبتكر')).not.toContainText('181668');
+  // Biala eg (inactive: by hash): the brand with «مؤقت لحد», the later order, «رجوع لصاحبه» in the menu, the list's grey line
+  await openByHash(page, V3);
+  await tab(page, 'معلومات المبتكر').click(); // the drawer opens on the last tab used
+  await expect(brandRow(page, B2)).toContainText('Anticora');
+  await expect(brandRow(page, B2)).toContainText(dmy(TRANSFER_SINCE));
+  await expect(brandRow(page, B2)).toContainText('مؤقت لحد ' + dmy(TRANSFER_RETURN));
+  await expect(section(page, 'سجل النشاط')).toContainText('صفوت كمال نقل البراند (' + txt + ')');
+  await tab(page, 'الأوردرات').click();
+  await expect(kindTile(page, 'all').locator('.t-h3')).toHaveText('1');
+  await expect(section(page, 'أوردرات المبتكر')).toContainText('181668');
+  await tab(page, 'الحسابات').click();
+  await expect(tile(page, 'هيستحق بعد التنفيذ').locator('.t-h3')).toHaveText('1,513.40'); // 2539 − (1015.60 + 10): the website's rate on the line
+  await tab(page, 'معلومات المبتكر').click();
+  await drawer(page).getByRole('button', { name: 'إغلاق' }).first().click();
+  await statusFilter(page, 'الكل');
+  await expect(row(page, V3).locator('[data-brands]')).toContainText('Anticora');
+  await openDrawer(page, V3);
+  // a transfer dated before the last one and to the same maker are refused before any request
+  await openBrandMenu(page, B2, 'نقل لمبتكر تاني');
+  await pickOption(page, 'br-to', 'Artisan Loft');
+  await typeDate(page, 'br-since', daysAgo(20));
+  await modal(page).getByRole('button', { name: 'نقل البراند' }).click();
+  await expect(modal(page)).toContainText('التاريخ ده قبل آخر نقل للبراند (' + TRANSFER_SINCE + ')');
+  await cancel(page);
+  expect(await page.evaluate(([b2, v3]) => { try { window.IBVendors.store.transferBrand(b2, v3, { since: '2027-01-01' }, window.IBVendors.store.actor()); return 'moved'; } catch (e) { return e.message; } }, [B2, V3])).toBe('البراند أصلًا عند المبتكر ده');
+  expect(writes()).toHaveLength(1);
+  // the return (today): back to Anticora, one row with the reason, two events; the delete guard while he held it
+  expect(await page.evaluate((v3) => { try { window.IBVendors.store.remove(v3, window.IBVendors.store.actor()); return 'removed'; } catch (e) { return e.message; } }, V3)).toBe('removed');
+  await expect(note(page)).toContainText('عليه براندات'); // 23503 of vendors_brands_guard_delete → has_brands, the row back
+  await expect(row(page, V3)).toBeVisible();
+  await openDrawer(page, V3);
+  await openBrandMenu(page, B2, 'رجوع لصاحبه');
+  await expect(modal(page).locator('h2')).toHaveText('رجوع البراند لصاحبه — Anticora');
+  await expect(modal(page)).toContainText('هيرجع لـ');
+  await expect(modal(page)).toContainText('Anticora');
+  await typeDate(page, 'br-since', daysAgo(20));
+  await modal(page).getByRole('button', { name: 'رجوع' }).click();
+  await expect(modal(page)).toContainText('قبل آخر نقل');
+  await typeDate(page, 'br-since', TODAY);
+  // the owner 15 Nov («Keep the makers page note visible after a save»): the note is still there after the save's own reload drew the
+  // page again (it used to be gone a blink after it showed — this line passed only when it caught it)
+  await page.evaluate(() => { window.__written = 0; document.addEventListener('ib:vendors', (e) => { if (e.detail && e.detail.written) window.__written += 1; }); });
+  await modal(page).getByRole('button', { name: 'رجوع' }).click();
+  await expect.poll(() => page.evaluate(() => window.__written)).toBeGreaterThan(0); // the reload after the save announced itself
+  await expect(note(page)).toContainText('رجع البراند Anticora لـ Anticora');
+  await expect.poll(() => writes().length).toBe(2);
+  expect(writes()[1]).toEqual({ table: 'brand_owners', op: 'insert', brand_id: B2, vendor_id: V2, since: TODAY, return_on: null, reason: 'رجوع لصاحبه', set_by: 'صفوت كمال' });
+  const back = 'Anticora → Anticora من ' + TODAY;
+  await expect.poll(() => byMaker(acts('vendor.brand.return'))).toEqual([{ entity: 'vendor', entity_id: V2, new_value: back }, { entity: 'vendor', entity_id: V3, new_value: back }]);
+  await expect(brands(page).locator('.brand-ever')).toHaveText('كان عنده: Anticora لحد ' + dmy(TODAY) + ' → دلوقتي مع Anticora');
+  await expect(section(page, 'سجل النشاط')).toContainText('صفوت كمال رجّع البراند لصاحبه (' + back + ')');
+  await openByHash(page, V2);
+  await tab(page, 'معلومات المبتكر').click();
+  await expect(brandRow(page, B2)).toContainText(dmy(TODAY));
+  await expect(brandRow(page, B2)).not.toContainText('مؤقت');
+  await brandRow(page, B2).locator('[data-brand-menu]').click();
+  await expect(page.locator('[role=menu] [role=menuitem]')).toHaveText(['تعديل', 'اعمل البراند على الموقع', 'تغيير صورة البراند', 'نقل لمبتكر تاني']);
+  await page.keyboard.press('Escape');
+});
+
+test('the seeded transfer ({ transfer: true }): at sign-in Biala eg holds Anticora\'s brand — the later order is his, the earlier stays Anticora\'s; the server\'s guard refusals read on the page', async ({ page }) => {
+  await setup(page, { transfer: true });
+  await openVendors(page);
+  await openDrawer(page, V2);
+  await expect(brands(page).locator('.brand-ever')).toHaveText('كان عنده: Anticora لحد ' + dmy(TRANSFER_SINCE) + ' → دلوقتي مع Biala eg');
+  await tab(page, 'الأوردرات').click();
+  await expect(kindTile(page, 'all').locator('.t-h3')).toHaveText('1');
+  await expect(section(page, 'أوردرات المبتكر')).toContainText('180656');
+  await tab(page, 'الحسابات').click();
+  await expect(tile(page, 'هيستحق بعد التنفيذ').locator('.t-h3')).toHaveText('494.45'); // 899 at Anticora's own 45%: before the transfer
+  await openByHash(page, V3);
+  await tab(page, 'معلومات المبتكر').click();
+  await expect(brandRow(page, B2)).toContainText('مؤقت لحد ' + dmy(TRANSFER_RETURN));
+  await tab(page, 'الأوردرات').click();
+  await expect(kindTile(page, 'all').locator('.t-h3')).toHaveText('1');
+  await expect(section(page, 'أوردرات المبتكر')).toContainText('181668');
+  await tab(page, 'الحسابات').click();
+  await expect(tile(page, 'هيستحق بعد التنفيذ').locator('.t-h3')).toHaveText('1,513.40');
+  await expect(tile(page, 'رصيده عندنا').locator('.t-h3')).toHaveText('0.00'); // nothing completed yet
+  // Artisan Loft untouched
+  await openByHash(page, V1);
+  await tab(page, 'الأوردرات').click();
+  await expect(kindTile(page, 'all').locator('.t-h3')).toHaveText('2');
+  // the server's 22023 (a row written meanwhile) comes back as the same message and the history goes back
+  mock.brandOwners.push({ id: 50, brand_id: B2, vendor_id: V1, since: daysAgo(2), return_on: null, reason: null, set_by: 'x', created_at: '2026-10-22T00:00:00Z' });
+  const out = await page.evaluate(([b2, v1, since]) => { window.IBVendors.store.transferBrand(b2, v1, { since }, window.IBVendors.store.actor()); return window.IBVendors.store.brand(b2).owner; }, [B2, V1, daysAgo(5)]);
+  expect(out).toBe(V1); // locally at once
+  await expect(note(page)).toContainText('التاريخ ده قبل آخر نقل للبراند');
+  await expect.poll(() => page.evaluate((b2) => window.IBVendors.store.brand(b2).owner, B2)).toBe(V3); // the history back as it was (a refusal reloads nothing)
+  expect(writes()).toEqual([]);
+});
+
+// the owner 15 Nov («Keep the makers page note visible after a save»): the page's note
+// was taken by the first draw, so the redraw for the server's answer removed it a blink after it showed
+test('the page note stays through the redraws for the server\'s answer (the reload after a save, the bell\'s recount, a teammate\'s change); «إخفاء» and the member\'s own action clear it', async ({ page }) => {
+  await setup(page, { transfer: true }); // Biala eg holds Anticora's brand: his delete is refused by the server
+  await openVendors(page);
+  const refusedDelete = () => page.evaluate((v3) => { try { window.IBVendors.store.remove(v3, window.IBVendors.store.actor()); return 'removed'; } catch (e) { return e.message; } }, V3);
+  const serverRedraws = () => page.evaluate(() => { document.dispatchEvent(new CustomEvent('ib:notify')); document.dispatchEvent(new CustomEvent('ib:vendors', { detail: { id: 'x', written: true } })); document.dispatchEvent(new CustomEvent('ib:notify')); });
+  expect(await refusedDelete()).toBe('removed');
+  await expect(note(page)).toContainText('عليه براندات');
+  await expect.poll(() => page.evaluate((v3) => !!window.IBVendors.store.get(v3), V3)).toBe(true); // the maker is back in the store — and the note is still there
+  await serverRedraws();
+  await expect(note(page)).toHaveCount(1); await expect(note(page)).toContainText('عليه براندات');
+  // «إخفاء»: off the screen, and no later redraw brings it back
+  await note(page).getByRole('button', { name: 'إخفاء' }).click();
+  await expect(note(page)).toHaveCount(0);
+  await serverRedraws();
+  await expect(note(page)).toHaveCount(0);
+  // the member's own action (the search) clears it as before — and it stays cleared
+  expect(await refusedDelete()).toBe('removed');
+  await expect(note(page)).toContainText('عليه براندات');
+  await page.locator('#vendors [data-tq-btn]').click(); // «بحث» opens the search row
+  await page.locator('#vendors input[type=search]').fill('Biala');
+  await expect(note(page)).toHaveCount(0);
+  await serverRedraws();
+  await expect(note(page)).toHaveCount(0);
+});
+
+test('16 Nov — «اعمل البراند على الموقع» from the brand\'s ⋮ (a maker with a store): woo-sync brand_site for that brand, the note says made / failed', async ({ page }) => {
+  await setup(page);
+  await openVendors(page);
+  await openDrawer(page, V2);
+  await openBrandMenu(page, B2, 'اعمل البراند على الموقع');
+  await expect.poll(() => (mock.brandSiteCalls || []).map((c) => [c.brand_id, c.image, c.by])).toEqual([[B2, false, ADMIN]]);
+  await expect(note(page)).toContainText('البراند «Anticora» اتعمل على الموقع.');
+  mock.pushEnabled = false; // WOO_PUSH_ENABLED off → said, nothing written
+  await openBrandMenu(page, B2, 'اعمل البراند على الموقع');
+  await expect(note(page)).toContainText('الكتابة على الموقع مقفولة.');
+  expect(mock.brandSiteCalls.length).toBe(1);
+});
+
+test('16 Nov — «اعمل البراند على الموقع» is not on the ⋮ of a member without vendors.edit F, nor for a maker with no store', async ({ page }) => {
+  await setup(page);
+  await openVendors(page, ACCOUNTS);
+  await openDrawer(page, V2);
+  await expect(brands(page).locator('[data-brand-menu]')).toHaveCount(0);
+});
+
+// the owner 16 Nov («عايز امكانية تعديل اللوجو للبراند او المبتكر»)
+const PNG = { name: 'logo.png', mimeType: 'image/png', buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d, 1, 2, 3]) };
+test('16 Nov — «تغيير صورة البراند» from the brand\'s ⋮: a picked picture is previewed, «احفظ» sends it with brand_site (the picture on the site), the note says so; a wrong file is refused before anything is sent', async ({ page }) => {
+  await setup(page);
+  await openVendors(page);
+  await openDrawer(page, V2);
+  await openBrandMenu(page, B2, 'تغيير صورة البراند');
+  const m = modal(page);
+  await expect(m).toContainText('صورة البراند «Anticora»');
+  await m.locator('[data-pic-input]').setInputFiles({ name: 'logo.gif', mimeType: 'image/gif', buffer: Buffer.from('GIF89a') });
+  await expect(page.locator('.toast.show')).toContainText('PNG أو JPG أو WebP');
+  await expect(m.locator('[data-pic-prev]')).toHaveCount(0);
+  await m.locator('[data-pic-input]').setInputFiles(PNG);
+  await expect(m.locator('[data-pic-prev] img')).toBeVisible();
+  await m.locator('[data-pic-save]').click();
+  await expect.poll(() => (mock.brandSiteCalls || []).map((c) => [c.brand_id, c.image, c.by])).toEqual([[B2, true, ADMIN]]);
+  await expect(note(page)).toContainText('اتغيّرت صورة البراند «Anticora» على الموقع.');
+});
+
+test('16 Nov — the maker\'s picture: the drawer\'s picture (and «تغيير صورة المبتكر» in ⋮) opens the popup, «احفظ» uploads it to vendor-photos and vendor_photo (his store\'s photo on the site too), the drawer shows it; a member without vendors.edit F has neither', async ({ page }) => {
+  await setup(page);
+  await openVendors(page);
+  const d = await openDrawer(page, V2);
+  await d.locator('[data-v-photo-edit]').click();
+  const m = modal(page);
+  await expect(m).toContainText('صورة «Anticora»');
+  await m.locator('[data-pic-input]').setInputFiles(PNG);
+  await m.locator('[data-pic-save]').click();
+  await expect.poll(() => mock.photoCalls.map((c) => [c.vendor_id, c.site, c.by])).toEqual([[V2, 'ok', ADMIN]]);
+  await expect(note(page)).toContainText('اتغيّرت صورة «Anticora» هنا وعلى متجره في الموقع.');
+  await expect(drawer(page).locator('[data-v-photo-img] img')).toBeVisible();
+  // the same popup from ⋮
+  await drawer(page).getByRole('button', { name: 'المزيد' }).click();
+  await page.locator('[role=menu] [role=menuitem]', { hasText: 'تغيير صورة المبتكر' }).click();
+  await expect(modal(page)).toContainText('صورة «Anticora»');
+});
+
+test('16 Nov — no picture change for a member without vendors.edit F', async ({ page }) => {
+  await setup(page);
+  await openVendors(page, ACCOUNTS);
+  const d = await openDrawer(page, V2);
+  await expect(d.locator('[data-v-photo-edit]')).toHaveCount(0);
+});

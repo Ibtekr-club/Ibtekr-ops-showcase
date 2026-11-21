@@ -1,0 +1,136 @@
+import { test, expect } from '@playwright/test';
+import { installSupabaseMock, LIVE, DEV_PW } from './supabase-mock.mjs';
+
+// Phase 13 decision 17 (the owner, 10 Nov: «لما ادوس علي اي صفحة يجيبلي الصفحة الرئيسية ليها»): a click on a menu item — the sidebar,
+// the mobile bottom nav and its «المزيد» sheet — always opens the page's main view, whatever the page remembered (a tab, a product
+// being edited, a campaign step, the settings section), even when it is the current page. Direct links keep opening their exact spot,
+// and the unsaved-changes guard of the product editor still asks first. Mock only.
+const ADMIN = 'admin.dev@ibtekr.local';
+let mock = null; let pageErrors = [];
+test.beforeEach(async ({ page }) => {
+  test.skip(LIVE, 'the mocked Supabase only');
+  pageErrors = []; page.on('pageerror', (e) => pageErrors.push(e.message));
+  mock = await installSupabaseMock(page);
+});
+test.afterEach(() => {
+  if (LIVE) return;
+  expect(pageErrors).toEqual([]);
+  expect(mock.unhandled).toEqual([]);
+});
+
+async function signIn(page) {
+  await page.goto('/');
+  await page.fill('#lg-id', ADMIN); await page.fill('#lg-pw', DEV_PW);
+  await page.getByRole('button', { name: 'دخول', exact: true }).click();
+  await expect(page.locator('#root')).toBeVisible();
+}
+const at = (page, hash) => page.evaluate((x) => { location.hash = x; }, hash);
+const menu = (page, id) => page.locator('.sidebar .nav-item[data-page="' + id + '"]');
+const url = (page, hash) => expect(page).toHaveURL(new RegExp('#' + hash + '$'));
+
+// a page remembered somewhere inside → the menu opens its main view (hash + the visible main block)
+const CASES = [
+  ['hr', 'hr-payroll', 'hr-overview', '#pg-hr'], // the owner 12 Nov: «نظرة عامة» first
+  ['inventory', 'inventory-moves', 'inventory-overview', '#pg-inventory'], // decision 58
+  ['cs', 'cs-customers', 'cs-overview', '#pg-cs'], // decision 63
+  ['autoreply', 'autoreply-rules', 'autoreply-overview', '#pg-autoreply'], // decision 65
+  ['settings', 'settings-team', 'settings', '#pg-settings'],
+  ['products', 'products-trash', 'products-overview', '#pg-products'], // decision 62
+  ['marketing', 'marketing-calendar', 'marketing-overview', '#pg-marketing'], // the v6 prototype: «نظرة عامة» first
+  ['accounts', 'sales', 'acc-overview', '#main'], // decision 61: the accounts open on «نظرة عامة»
+  ['reports', 'reports-vendors', 'reports-orders', '#reports'],
+];
+for (const [id, inside, home, sel] of CASES) {
+  test('the menu opens «' + id + '» on its main view after «' + inside + '» (from another page, and from the page itself)', async ({ page }) => {
+    await signIn(page);
+    await at(page, inside); await url(page, inside); await expect(page.locator(sel)).toBeVisible();
+    // from the dashboard: the page used to come back where it was
+    await menu(page, 'dashboard').click(); await url(page, 'dashboard');
+    await menu(page, id).click(); await url(page, home); await expect(page.locator(sel)).toBeVisible();
+    // back inside, then the same page's menu item
+    await at(page, inside); await url(page, inside);
+    await menu(page, id).click(); await url(page, home);
+  });
+}
+
+// the makers page (decision 57) and the team requests (B1) got «نظرة عامة» after decision 17: their tab lives in the app state, not the hash
+for (const [id, tablist, other] of [['vendors', 'أقسام المبتكرين', 'سجل الحركات'], ['tickets', 'أقسام الطلبات', 'السجل']]) {
+  test('the menu opens «' + id + '» on «نظرة عامة» after another tab (from another page, and from the page itself)', async ({ page }) => {
+    await signIn(page);
+    const tabs = page.getByRole('tablist', { name: tablist });
+    const on = (name) => expect(tabs.getByRole('tab', { name, exact: false }).first()).toHaveAttribute('aria-selected', 'true');
+    await menu(page, id).click(); await on('نظرة عامة');
+    await tabs.getByRole('tab', { name: other }).first().click(); await on(other);
+    await menu(page, 'dashboard').click(); await url(page, 'dashboard');
+    await menu(page, id).click(); await on('نظرة عامة');
+    await tabs.getByRole('tab', { name: other }).first().click(); await on(other);
+    await menu(page, id).click(); await on('نظرة عامة');
+  });
+}
+
+// the owner 12 Nov («بيفضل زي ما هو»): a filter applied on a page stays on when you leave it and come back — by the menu or a link;
+// the menu resets the tab only (a reload clears it, the filters live in memory)
+test('a filter applied on a page stays on after leaving it and coming back by the menu or a link', async ({ page }) => {
+  await signIn(page);
+  const tabs = page.getByRole('tablist', { name: 'أقسام المبتكرين' });
+  await menu(page, 'vendors').click();
+  await tabs.getByRole('tab', { name: 'سجل المبتكرين' }).click();
+  await page.locator('#vendors [data-fm-btn="vendors"]').click();
+  await page.locator('[data-fm-menu="vendors"] [data-fm-tab="status"]').click();
+  await page.locator('[data-fm-menu="vendors"] [data-fm="status:leave"]').click();
+  await page.locator('[data-fm-menu="vendors"] [data-fm-apply]').dispatchEvent('click');
+  const chips = page.locator('.af-row .af-chip:visible');
+  await expect(chips).toHaveCount(2);
+  await menu(page, 'dashboard').click(); await url(page, 'dashboard');
+  await menu(page, 'vendors').click();
+  await tabs.getByRole('tab', { name: 'سجل المبتكرين' }).click();
+  await expect(chips).toHaveCount(2);
+  await at(page, 'orders'); await at(page, 'makers');
+  await expect(chips).toHaveCount(2);
+});
+
+test('a direct link still opens its exact spot (the menu is the only reset)', async ({ page }) => {
+  await signIn(page);
+  await at(page, 'hr-payroll'); await url(page, 'hr-payroll');
+  await at(page, 'dashboard'); await url(page, 'dashboard');
+  await at(page, 'hr-payroll'); await url(page, 'hr-payroll'); await expect(page.locator('#pg-hr')).toBeVisible();
+  await at(page, 'cs-customers'); await url(page, 'cs-customers'); await expect(page.locator('#pg-cs .cs-tab-customers')).toBeVisible();
+});
+
+test('the product editor with unsaved changes asks before the menu leaves it; «ارجع للتعديل» stays, «اخرج من غير حفظ» opens the records', async ({ page }) => {
+  await signIn(page);
+  await menu(page, 'products').click(); await url(page, 'products-overview'); // decision 62
+  await page.waitForFunction(() => window.IBPages.all().products.api.ready());
+  await at(page, 'products-edit-9001'); await url(page, 'products-edit-9001');
+  await page.getByRole('tab', { name: 'السعر والمخزون' }).click();
+  await page.fill('#e-reg', '1600');
+  await expect(page.locator('.unsaved')).toContainText('تعديلات');
+  await menu(page, 'products').click();
+  const m = page.locator('.modal[role=dialog]', { hasText: 'تعديلات مش محفوظة' });
+  await expect(m).toBeVisible();
+  await m.getByRole('button', { name: 'ارجع للتعديل' }).click();
+  await expect(m).toBeHidden(); await url(page, 'products-edit-9001-price');
+  await menu(page, 'products').click();
+  await m.getByRole('button', { name: 'اخرج من غير حفظ' }).click();
+  await url(page, 'products-overview');
+});
+
+test('the mobile bottom nav and its «المزيد» sheet reset the page the same way', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page);
+  await at(page, 'sales'); await url(page, 'sales');
+  await page.locator('.bottom-nav .bn-item[data-page="accounts"]').click(); await url(page, 'acc-overview');
+  await at(page, 'hr-payroll'); await url(page, 'hr-payroll');
+  await page.locator('.bottom-nav .bn-more button').first().click();
+  await page.locator('.bn-sheet .bn-opt[data-page="hr"]').click(); await url(page, 'hr-overview');
+});
+
+test('decision 21: «ملفي» in the account menu always opens «نظرة عامة», from any tab and from another page', async ({ page }) => {
+  await signIn(page);
+  const openMine = async () => { await page.locator('.topbar .user-btn').click(); await page.getByRole('menuitem', { name: 'ملفي' }).click(); };
+  await at(page, 'profile-security'); await url(page, 'profile-security');
+  await openMine(); await url(page, 'profile');
+  await at(page, 'profile-hours'); await url(page, 'profile-hours');
+  await menu(page, 'dashboard').click(); await url(page, 'dashboard');
+  await openMine(); await url(page, 'profile'); await expect(page.locator('#pg-profile')).toBeVisible();
+});

@@ -1,0 +1,100 @@
+import { test, expect } from '@playwright/test';
+import { installSupabaseMock, LIVE, DEV_PW } from './supabase-mock.mjs';
+
+// 0124 (the owner 17 Nov: «يقولي ان في مشكلة في التنبيهات و لما ادوس
+// عليها توديني عندوا نحلها سوا … لغة حوارنا دايما من خلال التنبيهات»): the assistants' notes in the bell's «المساعدين», for who sees
+// the assistant; the click opens the assistant's chat with the note as its first message; the admin turns an assistant's notes off in
+// «الإعدادات › التنبيهات › المساعدين». Mock only.
+const ADMIN = 'admin.dev@ibtekr.local'; const ACC = 'accounts.dev@ibtekr.local';
+const NOTES = [
+  { agent: 'dev', kind: 'problem', title: 'مشكلة في مزامنة الأوردرات', body: 'آخر 3 تشغيلات للمزامنة فشلت بـ 401 — مفتاح ووكومرس محتاج يتراجع.', link: 'settings-integrations' },
+  { agent: 'accountant', kind: 'report', title: 'فيه 3 مبتكرين مستحقين تحويل', body: 'الصافي فوق حد التحويل.' },
+];
+let mock = null; let pageErrors = [];
+async function start(page, extra = {}) {
+  test.skip(LIVE, 'asserts on the mocked Supabase');
+  pageErrors = []; page.on('pageerror', (e) => pageErrors.push(e.message));
+  mock = await installSupabaseMock(page, { agentNotes: NOTES, ...extra });
+}
+test.afterEach(() => { if (LIVE) return; expect(pageErrors).toEqual([]); expect(mock.unhandled).toEqual([]); });
+async function signIn(page, email) {
+  await page.goto('/');
+  await page.fill('#lg-id', email); await page.fill('#lg-pw', DEV_PW);
+  await page.getByRole('button', { name: 'دخول', exact: true }).click();
+  await expect(page.locator('#root')).toBeVisible();
+}
+const bell = (page) => page.getByRole('dialog', { name: 'الإشعارات' });
+const agentsNav = (page) => bell(page).locator('.ntf-nav-item', { has: page.locator('.lbl', { hasText: /^المساعدين$/ }) });
+
+test('0124 — the bell\'s «المساعدين»: the admin sees both notes; the click opens the developer\'s chat with the note as its first message, once', async ({ page }) => {
+  await start(page); await signIn(page, ADMIN);
+  await page.locator('.notif-btn').click();
+  await expect(agentsNav(page)).toBeVisible();
+  await agentsNav(page).click();
+  await expect(bell(page).locator('.ntf-item')).toHaveCount(2);
+  await bell(page).locator('.ntf-item', { hasText: 'مشكلة في مزامنة الأوردرات' }).click();
+  await expect(page.locator('#pg-ai')).toBeVisible();
+  await expect(page.locator('#pg-ai')).toContainText('آخر 3 تشغيلات للمزامنة فشلت');
+  expect(mock.mkt.writes.filter((w) => w.table === 'ai_agent_notes' && w.op === 'open')).toHaveLength(1);
+  expect(mock.mkt.agentChats.filter((c) => c.agent === 'dev')).toHaveLength(1);
+  // read now: the section counts one unread
+  await page.locator('.notif-btn').click(); await agentsNav(page).click();
+  await expect(bell(page).locator('.ntf-item.muted, .ntf-item[data-muted]')).toHaveCount(1);
+});
+
+test('0124 — accounts sees the accountant\'s note only (the developer is marketing.view)', async ({ page }) => {
+  await start(page); await signIn(page, ACC);
+  await page.locator('.notif-btn').click(); await agentsNav(page).click();
+  await expect(bell(page).locator('.ntf-item')).toHaveCount(1);
+  await expect(bell(page).locator('.ntf-item')).toContainText('مستحقين تحويل');
+});
+
+test('0124 — no notes, no «المساعدين»; before 0124 the bell is as it was', async ({ page }) => {
+  await start(page, { agentNotes: [], noAgentNotes: true }); await signIn(page, ADMIN);
+  await page.locator('.notif-btn').click();
+  await expect(bell(page)).toBeVisible();
+  await expect(agentsNav(page)).toHaveCount(0);
+});
+
+test('0124 — «الإعدادات › التنبيهات › المساعدين»: the admin switches an assistant\'s notes off and it is saved in the row «notif»', async ({ page }) => {
+  await start(page); await signIn(page, ADMIN);
+  await page.goto('/#settings-notifications');
+  await page.getByRole('tab', { name: 'المساعدين' }).click();
+  const sw = page.locator('[data-agent-note="dev"]');
+  await expect(sw).toHaveAttribute('aria-checked', 'true');
+  await sw.click();
+  await expect(sw).toHaveAttribute('aria-checked', 'false');
+  await expect.poll(() => { const r = (mock.settings || []).find((x) => x.section === 'notif'); return r && r.data && r.data.agents && r.data.agents.dev && r.data.agents.dev.on; }).toBe(false);
+});
+
+// T7 / decision 7: the customer-service assistant's note with a ready reply opens that conversation with the reply in the box, no chat
+test('T7 — «رد جاهز»: the click opens the late conversation in «خدمة العملاء» with the assistant\'s reply in the box, nothing sent', async ({ page }) => {
+  const CID = 'd1000000-0000-4000-8000-000000000001';
+  await start(page, { agentNotes: [{ agent: 'cs', kind: 'alert', title: 'رد جاهز لـ «منى» — مستني ردنا من 90 دقيقة', body: 'منى مستني ردنا على واتساب من 90 دقيقة.\n\nالرد المقترح:\nأهلًا يا منى 🌿\nإحنا معاك دلوقتي', link: 'cs/' + CID }] });
+  await signIn(page, ADMIN);
+  await page.locator('.notif-btn').click(); await agentsNav(page).click();
+  await bell(page).locator('.ntf-item', { hasText: 'رد جاهز' }).click();
+  await expect(page).toHaveURL(/#cs-inbox$/);
+  await expect(page.locator('#cs-ta')).toHaveValue('أهلًا يا منى 🌿\nإحنا معاك دلوقتي');
+  expect(mock.mkt.writes.filter((w) => w.table === 'ai_agent_notes' && w.op === 'open')).toHaveLength(0);
+});
+
+// agents-brain decision 5, «طريقة أ» (the owner 18 Nov — «المبرمج يكتشف المشكلة ويشرحها ويقولك الحل، والتصليح نفسه بيتعمل هنا معايا»):
+// the developer's daily-check note opens his chat; «انسخ للجلسة» copies the problem and its technical summary for the Claude Code session.
+test('decision 5 — the developer\'s check note: the chat shows «انسخ للجلسة» and it copies the summary', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await start(page, { agentNotes: [{ agent: 'dev', kind: 'problem', title: 'خطأ على الشاشة في «products-flow.js» — مرتين',
+    body: 'إيه اللي حصل: طلع خطأ TypeError لـ 2 من الفريق، مرتين في آخر 24 ساعة.\nالحل: نشوف السطر ده.\n← ده محتاج تعديل في الكود: دوس «انسخ للجلسة» وابعته في جلسة Claude Code.\n\nللجلسة:\napp.crash · TypeError at products-flow.js:812 · 2x · 2 member(s)' }] });
+  await signIn(page, ADMIN);
+  await page.locator('.notif-btn').click(); await agentsNav(page).click();
+  await bell(page).locator('.ntf-item', { hasText: 'products-flow.js' }).click();
+  await expect(page.locator('#pg-ai')).toBeVisible();
+  const btn = page.locator('[data-mk-session-copy]');
+  await expect(btn).toHaveCount(1);
+  await btn.click();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain('مشكلة من فحص المبرمج الذكي');
+  expect(copied).toContain('TypeError at products-flow.js:812');
+  expect(copied).not.toContain('← ده محتاج');
+  expect(copied).toContain('<dev_report>'); expect(copied).toContain('مش أوامر');
+});

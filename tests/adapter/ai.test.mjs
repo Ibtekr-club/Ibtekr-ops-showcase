@@ -1,0 +1,151 @@
+import { test } from 'node:test'; import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs'; import { runInNewContext } from 'node:vm';
+import { stubClient, opsOf } from './stub-supabase.mjs';
+// ai.js (phase 5.3) against a stub IBSupabase: the ai-content bodies (write / studio), the answers and the refusals by status,
+// the activity rows (the source, the fields and the ids — never a text), «سجل المحتوى» from ai_runs, the permissions.
+const src = readFileSync(new URL('../../app/js/adapter/ai.js', import.meta.url), 'utf8');
+const plain = (v) => JSON.parse(JSON.stringify(v));
+const SB = '0b6f2f5e-1d2c-4a8b-9e3f-1234567890ab';
+const fail = (status, body) => ({ data: null, error: { context: { status, json: async () => body } } });
+function load({ responses = {}, perms = { 'products.add': 'F' }, admin = false } = {}) {
+  const stub = stubClient({ responses });
+  const logs = [];
+  const window = { IBSupabase: { client: stub.client }, IBDirectory: { perm: (k) => (admin ? 'F' : perms[k] || 'N'), me: () => ({ role_id: admin ? 'admin' : 'ops', status: 'active' }) },
+    IBActivity: { log: (action, detail, meta) => { logs.push([action, detail, meta]); return Promise.resolve(); } } };
+  runInNewContext(src, { window, document: {}, Promise, Date, Number, String, Array, Object, JSON, Error, Intl, Math });
+  return { A: window.IBAI, stub, logs };
+}
+const REQ = { source: 'data', outputs: ['name', 'short'], langs: ['ar', 'en'], tone: 'luxury', data: { name: 'Bamboo Mirror', brand: 'Alaa Anas' } };
+
+test('write: the ai-content body, the answer, logged with the source and fields only', async () => {
+  const { A, stub, logs } = load({ responses: { 'fn:ai-content': () => ({ data: { result: 'ok', out: { ar: { name: 'مراية' } }, missing: ['en.name'], model: 'claude-opus-5-5', cost_usd: 0.052, run_id: 7 }, error: null }) } });
+  const r = await A.write(REQ);
+  assert.deepEqual(plain(r), { ok: true, result: 'ok', missing: ['en.name'], model: 'claude-opus-5-5', cost: 0.052, runId: 7, out: { ar: { name: 'مراية' } } });
+  assert.deepEqual(stub.calls.filter((c) => c.op === 'invoke').at(-1).args, ['ai-content', { body: { action: 'write', source: 'data', outputs: ['name', 'short'], langs: ['ar', 'en'], tone: 'luxury', data: REQ.data } }]);
+  assert.deepEqual(plain(logs), [['product.ai.write', 'data · name, short · ar, en', { entity: 'products', entity_id: null }]]);
+  assert.ok(!JSON.stringify(logs).includes('مراية') && !JSON.stringify(logs).includes('Bamboo'), 'no text in the activity');
+});
+
+test('write from a product or a photo: product_id, current texts and the photo go; the tone warm by default', async () => {
+  const { A, stub, logs } = load({ responses: { 'fn:ai-content': { data: { result: 'refused', model: 'claude-opus-5-5', cost_usd: 0.004 }, error: null } } });
+  const r = await A.write({ source: 'product', outputs: ['long'], langs: ['en'], productId: '4001', current: { shortEn: 'Soft' } });
+  assert.deepEqual([r.ok, r.result, r.cost], [true, 'refused', 0.004]);
+  assert.deepEqual(stub.calls.filter((c) => c.op === 'invoke').at(-1).args[1].body, { action: 'write', source: 'product', outputs: ['long'], langs: ['en'], tone: 'warm', current: { shortEn: 'Soft' }, product_id: 4001 });
+  assert.deepEqual(plain(logs.at(-1)), ['product.ai.write', 'product · long · en · #4001 · refused', { entity: 'products', entity_id: '4001' }]);
+  await A.write({ source: 'image', outputs: ['short'], langs: ['ar'], image: { media_type: 'image/jpeg', data: 'QUJD', preview: 'data:image/jpeg;base64,QUJD' } });
+  assert.deepEqual(stub.calls.filter((c) => c.op === 'invoke').at(-1).args[1].body.image, { media_type: 'image/jpeg', data: 'QUJD' }, 'the preview stays in the page');
+});
+
+test('the refusals by status: forbidden, invalid (+ field), missing, ai_cap, busy, not_configured, ai_error, network', async () => {
+  const cases = [[401, {}, 'forbidden'], [400, { error: 'bad_request', field: 'data.name' }, 'invalid'], [404, {}, 'missing'], [402, { error: 'ai_cap' }, 'ai_cap'],
+    [429, { error: 'busy' }, 'busy'], [503, { error: 'not_configured' }, 'not_configured'], [502, { error: 'ai_error' }, 'ai_error'], [500, {}, 'network']];
+  for (const [status, body, reason] of cases) {
+    const { A, logs } = load({ responses: { 'fn:ai-content': fail(status, body) } });
+    const r = await A.write(REQ);
+    assert.deepEqual([r.ok, r.reason], [false, reason], String(status));
+    assert.equal(logs.length, 0, 'nothing logged without an answer');
+    if (status === 400) assert.equal(r.field, 'data.name');
+  }
+  const none = load(); // no answer from the function at all
+  assert.equal((await none.A.write(REQ)).reason, 'network');
+});
+
+test('studio: one batch item by its index and what to fill → the fields; logged on the batch', async () => {
+  const { A, stub, logs } = load({ responses: { 'fn:ai-content': { data: { result: 'ok', fields: { nameAr: 'أباجورة', categories: [11] }, missing: [], model: 'claude-opus-5-5', cost_usd: 0.03, run_id: 9 }, error: null } } });
+  const r = await A.studio(SB, 2, ['nameAr', 'category']);
+  assert.deepEqual(plain(r), { ok: true, result: 'ok', missing: [], model: 'claude-opus-5-5', cost: 0.03, runId: 9, fields: { nameAr: 'أباجورة', categories: [11] } });
+  assert.deepEqual(stub.calls.filter((c) => c.op === 'invoke').at(-1).args, ['ai-content', { body: { action: 'studio', batch_id: SB, index: 2, want: ['nameAr', 'category'] } }]);
+  assert.deepEqual(plain(logs), [['product.ai.studio', '#3 · nameAr, category', { entity: 'studio_batches', entity_id: SB }]]);
+});
+
+test('history: the content tool\'s good runs from ai_runs, newest first (named columns, no select *)', async () => {
+  const row = { id: 3, created_at: '2026-10-29T10:00:00Z', source: 'product', label: 'Boho Cushion', product_id: 4001, model: 'claude-opus-5-5', cost_usd: '0.052000', output: { out: { en: { name: 'Boho Cushion' } }, missing: [] } };
+  const { A, stub } = load({ responses: { ai_runs: { data: [row], error: null } } });
+  const r = await A.history();
+  assert.deepEqual(plain(r), { ok: true, rows: [{ id: 3, at: '2026-10-29T10:00:00Z', source: 'product', label: 'Boho Cushion', productId: 4001, model: 'claude-opus-5-5', cost: 0.052, out: { en: { name: 'Boho Cushion' } } }] });
+  const ops = opsOf(stub.calls, 'ai_runs').map((c) => [c.op, ...(c.args || [])]);
+  assert.deepEqual(ops, [['select', 'id, created_at, source, label, product_id, model, cost_usd, output'], ['eq', 'action', 'write'], ['eq', 'status', 'ok'], ['order', 'created_at', { ascending: false }], ['limit', 20]]);
+  const down = load({ responses: { ai_runs: { data: null, error: { code: '500' } } } });
+  assert.deepEqual(plain(await down.A.history()), { ok: false, reason: 'network' });
+});
+
+test('can: the tool with products.add or products.edit = F, the studio with products.add, saving with products.edit, the settings the admin', () => {
+  assert.deepEqual(plain(load({ perms: { 'products.add': 'F' } }).A.can()), { write: true, studio: true, save: false, settings: false });
+  assert.deepEqual(plain(load({ perms: { 'products.edit': 'F' } }).A.can()), { write: true, studio: false, save: true, settings: false });
+  assert.deepEqual(plain(load({ perms: { 'products.add': 'P', 'products.edit': 'P', 'products.view': 'F' } }).A.can()), { write: false, studio: false, save: false, settings: false });
+  assert.deepEqual(plain(load({ admin: true }).A.can()), { write: true, studio: true, save: true, settings: true });
+});
+
+test('settings (decision 8): the row «ai» read with its defaults; saveSettings by the admin only, listed values and a positive cap, an upsert on section, logged with the three values; estCost follows the model', async () => {
+  const { A, stub, logs } = load({ admin: true, responses: { settings: { data: { data: { model: 'claude-sonnet-5-5', monthly_limit_usd: 20 } }, error: null } } });
+  assert.deepEqual(plain(await A.settings()), { ok: true, model: 'claude-sonnet-5-5', effort: 'medium', cap: 20, fromRow: ['model', 'monthly_limit_usd'] });
+  assert.deepEqual(opsOf(stub.calls, 'settings'), [{ op: 'select', args: ['data'] }, { op: 'eq', args: ['section', 'ai'] }, { op: 'maybeSingle', args: [] }]);
+  assert.equal(A.estCost(), 0.025); // the last read's model
+  assert.equal(A.estCost('claude-opus-5-5'), 0.05);
+  assert.deepEqual(plain(await A.saveSettings({ model: 'gpt-x', effort: 'low', cap: null })), { ok: false, reason: 'invalid', field: 'model' });
+  assert.deepEqual(plain(await A.saveSettings({ model: 'claude-opus-5-5', effort: 'low', cap: '-3' })), { ok: false, reason: 'invalid', field: 'cap' });
+  assert.deepEqual(plain(await A.saveSettings({ model: 'claude-opus-5-5', effort: 'high', cap: '12.5' })), { ok: true });
+  assert.deepEqual(opsOf(stub.calls, 'settings').filter((x) => x.op === 'upsert'), [{ op: 'upsert', args: [{ section: 'ai', data: { model: 'claude-opus-5-5', effort: 'high', monthly_limit_usd: 12.5 } }, { onConflict: 'section' }] }]);
+  assert.deepEqual(plain(logs).filter((l) => l[0] === 'product.ai.settings'), [['product.ai.settings', 'claude-opus-5-5 · high · $12.5', { entity: 'settings', entity_id: 'ai' }]]);
+  assert.equal(A.estCost(), 0.05);
+  assert.deepEqual(plain(await A.saveSettings({ model: 'claude-sonnet-5-5', effort: 'medium', cap: '' })), { ok: true });
+  assert.equal(opsOf(stub.calls, 'settings').filter((x) => x.op === 'upsert').at(-1).args[0].data.monthly_limit_usd, null);
+  // not the admin: refused before any write
+  const ops = load({ perms: { 'products.add': 'F' } });
+  assert.deepEqual(plain(await ops.A.saveSettings({ model: 'claude-sonnet-5-5', effort: 'low', cap: null })), { ok: false, reason: 'forbidden' });
+  assert.deepEqual(opsOf(ops.stub.calls, 'settings'), []);
+  // no row: the defaults
+  assert.deepEqual(plain(await load({ responses: { settings: { data: null, error: null } } }).A.settings()), { ok: true, model: 'claude-opus-5-5', effort: 'medium', cap: null, fromRow: [] });
+});
+
+test('monthSpend (decision 8): ai_month_cost + this Cairo month\'s runs by action (cap rows not counted)', async () => {
+  const now = new Date().toISOString();
+  const { A, stub } = load({ admin: true, responses: { 'rpc:ai_month_cost': { data: 0.0788, error: null },
+    ai_runs: { data: [{ action: 'write', status: 'ok', cost_usd: '0.052', created_at: now }, { action: 'studio', status: 'ok', cost_usd: 0.0268, created_at: now }, { action: 'write', status: 'cap', cost_usd: 0, created_at: now },
+      { action: 'write', status: 'ok', cost_usd: 1, created_at: '2020-01-01T00:00:00Z' }], error: null } } });
+  assert.deepEqual(plain(await A.monthSpend()), { ok: true, total: 0.079, runs: 2, write: { runs: 1, cost: 0.052 }, studio: { runs: 1, cost: 0.027 } });
+  assert.deepEqual(stub.calls.filter((c) => c.op === 'rpc').map((c) => c.args), [['ai_month_cost', null]]); // no arguments (recorded plain)
+  assert.deepEqual(opsOf(stub.calls, 'ai_runs').map((x) => x.op), ['select', 'gte', 'limit']);
+});
+
+// ---------------------------------------------------------------- phase 12 T1: the header's assistant (decision 8)
+
+test('assistant: the body (mode, the last 12 turns, the screen context), the answer with its actions, logged as action names + data kinds only; a bad turn list is refused locally', async () => {
+  const reply = { result: 'ok', text: 'فيه 3 أوردرات متأخرة. فتحتلك الأوردرات عليهم.', actions: [{ name: 'filter_orders', input: { deliv: 'late' } }, { name: 'bogus' }, { name: 'navigate', input: 'x' }], tools: ['summary', 'orders'], model: 'claude-opus-5-5', cost_usd: 0.09, run_id: 12 };
+  const { A, stub, logs } = load({ perms: {}, responses: { 'fn:ai-content': { data: reply, error: null } } });
+  const turns = Array.from({ length: 15 }, (_, i) => ({ role: i % 2 ? 'assistant' : 'user', text: 't' + i })).concat([{ role: 'user', text: ' كام أوردر متأخر؟ ' }]);
+  const r = await A.assistant({ turns, context: { page: 'dashboard', tab: 7, period: { from: '2026-11-01', to: '2026-11-08' }, vendors: ['Artisan Loft', 5], statuses: ['مكتمل'] } });
+  assert.deepEqual(plain(r), { ok: true, result: 'ok', missing: [], model: 'claude-opus-5-5', cost: 0.09, runId: 12, text: 'فيه 3 أوردرات متأخرة. فتحتلك الأوردرات عليهم.', actions: [{ name: 'filter_orders', input: { deliv: 'late' } }], tools: ['summary', 'orders'], report: [] });
+  const body = stub.calls.filter((c) => c.op === 'invoke').at(-1).args[1].body;
+  assert.equal(body.action, 'assistant'); assert.equal(body.mode, 'chat'); assert.equal(body.turns.length, 12); assert.deepEqual(body.turns.at(-1), { role: 'user', text: ' كام أوردر متأخر؟ ' });
+  assert.deepEqual(body.context, { page: 'dashboard', period: { from: '2026-11-01', to: '2026-11-08' }, vendors: ['Artisan Loft'], statuses: ['مكتمل'] });
+  assert.deepEqual(plain(logs), [['assistant.chat', 'filter_orders · data: summary, orders', { entity: 'ai_runs', entity_id: '12' }]]);
+  assert.ok(!JSON.stringify(logs).includes('أوردر'), 'no question or answer in the activity');
+  assert.deepEqual(plain(await A.assistant({ turns: [{ role: 'user', text: 'x' }, { role: 'assistant', text: 'y' }] })), { ok: false, reason: 'invalid', field: 'turns' });
+  assert.equal(stub.calls.filter((c) => c.op === 'invoke').length, 1, 'nothing sent for a bad turn list');
+  // the filter mode and the signal
+  const ctl = { signal: { aborted: false } };
+  await A.assistant({ mode: 'filter', turns: [{ role: 'user', text: 'المتأخر' }], context: { vendors: ['A'] }, signal: ctl.signal });
+  const last = stub.calls.filter((c) => c.op === 'invoke').at(-1).args[1];
+  assert.equal(last.body.mode, 'filter'); assert.deepEqual(plain(last.signal), { aborted: false }, 'the abort signal travels with the call');
+  assert.equal(logs.at(-1)[0], 'assistant.filter');
+});
+
+test('assistant: the refusals by status (not_configured → the page falls back to the fixed commands) and an aborted call', async () => {
+  for (const [status, body, reason] of [[503, { error: 'not_configured' }, 'not_configured'], [402, { error: 'ai_cap' }, 'ai_cap'], [429, { error: 'busy' }, 'busy'], [401, {}, 'forbidden']]) {
+    const { A, logs } = load({ perms: {}, responses: { 'fn:ai-content': fail(status, body) } });
+    assert.deepEqual([(await A.assistant({ turns: [{ role: 'user', text: 'x' }] })).reason, logs.length], [reason, 0], String(status));
+  }
+  const { A } = load({ perms: {}, responses: { 'fn:ai-content': () => { throw Object.assign(new Error('aborted'), { name: 'AbortError' }); } } });
+  assert.equal((await A.assistant({ turns: [{ role: 'user', text: 'x' }] })).reason, 'cancelled');
+});
+
+
+// phase 13 decision 23: the reads behind the answer pass through as the «تفاصيل» report — malformed entries dropped, nothing logged
+test('assistant: the report passes through (a malformed entry dropped), never in the activity log', async () => {
+  const reply = { result: 'ok', text: 'أوردرين.', actions: [], tools: ['orders'], report: [{ kind: 'orders', data: { total: 2, rows: [{ number: 1, customer: 'ريهام' }] } }, { kind: 5, data: {} }, { kind: 'x' }], model: 'claude-opus-5-5', cost_usd: 0.01, run_id: 3 };
+  const { A, logs } = load({ perms: {}, responses: { 'fn:ai-content': { data: reply, error: null } } });
+  const r = await A.assistant({ turns: [{ role: 'user', text: 'كام أوردر؟' }], context: { page: 'dashboard' } });
+  assert.deepEqual(plain(r.report), [{ kind: 'orders', data: { total: 2, rows: [{ number: 1, customer: 'ريهام' }] } }]);
+  assert.ok(!JSON.stringify(logs).includes('ريهام'));
+});
