@@ -195,6 +195,20 @@ export function webSeed(mock, mode) {
   if (!mock || !Array.isArray(mock.orders)) return;
   if (mode === 'single') singleStore(mock); else marketplace(mock);
   money(mock);
+  plainNames(mock);
+}
+
+/** The tests' stand-in keeps one customer whose name is markup (it proves the pages print names as text). A visitor of the demo
+ *  would only see an odd line in the bell, so here that customer gets an ordinary made-up name — wherever the name was copied. */
+function plainNames(mock) {
+  const MARK = /<img[^>]*>/g; const NAME = 'هدى فؤاد'; const seen = new WeakSet();
+  const walk = (v, depth) => {
+    if (!v || typeof v !== 'object' || seen.has(v) || depth > 10 || v instanceof Map || v instanceof Set) return; seen.add(v);
+    for (const [k, x] of Array.isArray(v) ? v.entries() : Object.entries(v)) {
+      if (typeof x === 'string') { if (x.includes('<img')) v[k] = x.replace(MARK, NAME); } else walk(x, depth + 1);
+    }
+  };
+  walk(mock, 0);
 }
 
 /** The English demo (web.js picked «English»): the made-up data's free texts — people's names, addresses, notes, messages, the

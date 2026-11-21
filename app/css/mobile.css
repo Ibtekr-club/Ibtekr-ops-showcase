@@ -1,0 +1,269 @@
+/* ===== Phone and tablet pass (21 Nov) — look and touch only =====
+   Nothing here changes what a page shows or does: the same texts, fields, buttons and steps, laid out for a thumb.
+   Loaded last, so it sits on top of the breakpoints in app.css. Three scopes:
+     phone            (max-width:767px)
+     tablet, upright  (min-width:768px) and (max-width:1023px)
+     touch, wide      (min-width:1024px) and (pointer:coarse)     — a tablet on its side; a mouse never matches
+   Rules of the pass: a tap area of 44px, text no smaller than 12px, 16px in a field you type in (iOS zooms in under that),
+   the main action near the thumb, lists and menus coming up from the bottom, and the safe areas respected. */
+
+:root{--m-gutter:16px;--m-ease:cubic-bezier(.2,.8,.2,1);--m-fab:0px}
+
+/* ---------- 1. Touch basics (any touch screen) ---------- */
+@media (pointer:coarse){
+  html{-webkit-tap-highlight-color:transparent}
+  button,a,[role=button],[role=tab],label,select,summary{touch-action:manipulation}
+  /* a press answers at once, without moving anything around it */
+  .btn,.icon-btn,.chip,.opt,.bn-item,.bn-opt,.nav-item,.tab,.subtab,.seg-b,.kpi,.dn-item,.ntf-item{transition:background-color .12s var(--m-ease),opacity .12s var(--m-ease),transform .12s var(--m-ease)}
+  .btn:active,.icon-btn:active,.chip:active,.bn-item:active .pill,.seg-b:active{transform:scale(.97)}
+  .opt:active,.bn-opt:active,.dn-item:active,.ntf-item:active,.tab:active,.subtab:active{background:var(--color-bg-hover,#f9f0e2)}
+  .nav-item:active{opacity:.75}
+}
+@media (pointer:coarse) and (prefers-reduced-motion:reduce){
+  .btn,.icon-btn,.chip,.opt,.bn-item,.bn-opt,.nav-item,.tab,.subtab,.seg-b,.kpi,.dn-item,.ntf-item{transition:none}
+  .btn:active,.icon-btn:active,.chip:active,.bn-item:active .pill,.seg-b:active{transform:none}
+}
+
+/* ---------- 2. Type (phone and upright tablet): nothing under 12px ---------- */
+@media (max-width:1023px){
+  .t-small{font-size:12px;line-height:18px}
+  small{font-size:12px}
+  .notif-badge{min-width:18px;height:18px;font-size:11px;line-height:18px;border-radius:9px}
+  .ntf-nav-item .cnt,.badge,.af-c,.ntf-fyi,.tk-bub-time,.tk-st-hint,.tc-cell .tg{font-size:12px}
+  .tc-head .tc-mon{font-size:11px}
+}
+@media (max-width:767px){
+  body{font-size:14px;line-height:22px}
+  .t-body{font-size:14px;line-height:22px}
+  .t-h3{font-size:22px;line-height:32px;font-weight:700}
+  .t-h4{font-size:17px;line-height:26px}
+  .t-h5{font-size:15px;line-height:24px}
+  .btn{font-size:14px}
+  /* a field you type in: 16px, so the phone does not zoom the page on focus */
+  input:not([type=checkbox]):not([type=radio]):not([type=range]),textarea,select,.input,.textarea{font-size:16px!important}
+  .content{padding:12px var(--m-gutter) 16px;gap:16px}
+}
+
+/* ---------- 3. Top bar (phone): one search field, four controls of one size ---------- */
+@media (max-width:767px){
+  .topbar{gap:2px;padding:0 8px 0 8px;padding-inline:max(8px,env(safe-area-inset-right,0px)) max(8px,env(safe-area-inset-left,0px))}
+  .topbar>.gq-wrap{flex:1 1 auto;min-width:0;margin-inline-end:4px}
+  .topbar .search{flex:1 1 auto;width:100%;max-width:none;height:40px;padding:0 12px;gap:8px;justify-content:flex-start;border:1px solid var(--color-border-subtle);border-radius:999px;background:var(--color-bg-container);cursor:text}
+  .topbar .search svg{flex:none;width:18px;height:18px}
+  .topbar .search input{flex:1 1 auto;width:auto;min-width:0;padding:0;font-size:16px;text-overflow:ellipsis}
+  .topbar .search:focus-within{position:absolute;inset:2px 8px;width:auto;height:44px;z-index:6;padding:0 14px;border-radius:999px;background:var(--color-bg-base);border-color:var(--color-border-focus);box-shadow:var(--shadow-popover)}
+  /* the controls: 44 to tap, 40 to look at, the same round shape */
+  .topbar .ai-btn,.topbar .qa-anchor .btn,.topbar .notif-btn,.topbar .clock-widget .btn,.topbar .user-btn{width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;background-clip:content-box;border:2px solid transparent;justify-content:center}
+  .topbar .qa-anchor .btn{background-color:transparent;box-shadow:none}
+  .topbar .qa-anchor .btn svg,.topbar .ai-btn svg,.topbar .notif-btn svg,.topbar .clock-widget .btn svg{width:20px;height:20px}
+  .topbar .user-btn .avatar{width:32px;height:32px}
+  .topbar .notif-badge{top:2px;inset-inline-start:2px}
+}
+
+/* ---------- 4. Page head (phone): the title, then its actions in one tidy row ---------- */
+@media (max-width:767px){
+  .page-head{margin-bottom:4px}
+  .page-head.row{gap:12px;align-items:stretch}
+  .page-head h1{letter-spacing:0}
+  .page-head p{max-width:60ch}
+  #main .page-head .actions,.page-head .actions,.page-head.row .actions{width:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  /* secondary actions keep their own width, side by side; nothing is stretched across the screen for no reason */
+  #main .page-head .actions>.btn,.page-head .actions>.btn,#main .page-head .actions>.pop-anchor,.page-head .actions>.pop-anchor{flex:1 1 0;width:auto;min-width:max-content}
+  .page-head .actions>.pop-anchor>.btn,.page-head .actions>.pop-anchor>.date-field{width:100%}
+  .page-head .actions>.pop-anchor:has(>.date-field),.page-head .actions>.dash-period,.page-head .actions>.inline-sel{flex:1 1 100%}
+  .page-head .actions>.pop-anchor:has(>.icon-btn){flex:0 0 44px;min-width:44px}
+  .page-head .actions>.chip,.page-head .actions>span{flex:0 0 auto}
+}
+
+/* ---------- 5. The page's main action (phone): by the thumb, over the bottom bar ---------- */
+@media (max-width:767px){
+  .page-head .actions>.btn.btn-brand{position:fixed;z-index:6;right:16px;bottom:calc(64px + env(safe-area-inset-bottom,0px) + 12px);left:auto;flex:none;width:auto;min-width:0;max-width:calc(100vw - 96px);height:48px;min-height:48px;padding:0 20px;border-radius:999px;font-size:15px;font-weight:700;box-shadow:0 6px 16px rgba(0,86,66,.32),0 2px 4px rgba(46,42,27,.2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .page-head .actions>.btn.btn-brand svg{flex:none;width:20px;height:20px}
+  /* the page keeps room under its last line, so the button never covers it */
+  .main:has(.page-head .actions>.btn.btn-brand){padding-bottom:calc(64px + env(safe-area-inset-bottom,0px) + 72px)}
+  /* out of the way of anything that owns the bottom of the screen */
+  body:has(.scrim) .page-head .actions>.btn.btn-brand,body:has(.bulk-bar) .page-head .actions>.btn.btn-brand,body:has(.save-bar) .page-head .actions>.btn.btn-brand,body:has(.bn-sheet) .page-head .actions>.btn.btn-brand{display:none}
+}
+
+/* ---------- 6. Tabs (phone and upright tablet): one line that scrolls, its ends fading out ---------- */
+@media (max-width:1023px){
+  .tabs{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scroll-padding-inline:24px;-webkit-overflow-scrolling:touch;
+    -webkit-mask-image:linear-gradient(to right,transparent 0,#000 20px,#000 calc(100% - 20px),transparent 100%);mask-image:linear-gradient(to right,transparent 0,#000 20px,#000 calc(100% - 20px),transparent 100%)}
+  .tabs>.tab{flex:none;scroll-snap-align:center}
+  .tab{padding:10px 14px;font-size:14px}
+  .tab[aria-selected=true]{font-weight:700;border-bottom-width:3px}
+  .subtabs{overflow-x:auto;flex-wrap:nowrap;overscroll-behavior-x:contain}
+  .subtabs>.subtab{flex:none}
+}
+@media (max-width:767px){
+  /* edge to edge, so the fade sits on the screen's edge and the first tab starts on the page's gutter */
+  .content>.tabs,main>.tabs{margin-inline:calc(var(--m-gutter) * -1);padding-inline:calc(var(--m-gutter) - 8px)}
+}
+
+/* ---------- 7. Bottom bar and its «المزيد» sheet (phone) ---------- */
+@media (max-width:767px){
+  .bottom-nav{padding:4px max(4px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(4px,env(safe-area-inset-left,0px));box-shadow:0 -1px 0 var(--color-border-subtle),0 -6px 20px rgba(46,42,27,.08)}
+  .bn-item{gap:2px;-webkit-user-select:none;user-select:none}
+  .bn-item .pill{width:56px;height:30px;border-radius:15px;transition:background-color .18s var(--m-ease)}
+  .bn-item .pill svg{width:22px;height:22px}
+  .bn-item[aria-current=page] .bn-lbl{font-weight:700}
+  /* the sheet: a grab handle, a dim page behind it, two columns so every page is on screen without scrolling */
+  .menu.bn-sheet{border-radius:20px 20px 0 0;padding:8px 12px 12px;max-height:min(72vh,72dvh);display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;align-content:start;border:0;box-shadow:0 -8px 32px rgba(46,42,27,.24),0 0 0 100vmax rgba(46,42,27,.38);animation:m-sheet-up .22s var(--m-ease)}
+  .menu.bn-sheet::before{content:'';grid-column:1/-1;justify-self:center;width:36px;height:4px;border-radius:2px;background:var(--color-border-default);opacity:.45;margin:2px 0 6px}
+  .bn-sheet-h{grid-column:1/-1;padding:0 4px 4px;font-weight:600}
+  .bn-opt{min-height:52px;padding:0 12px;border-radius:12px;gap:10px;font-size:14px;background:var(--color-bg-container)}
+  .bn-opt svg{flex:none;width:22px;height:22px;color:var(--color-brand-default)}
+  .bn-opt[aria-current=page]{background:var(--color-brand-default);color:var(--color-text-on-brand)}
+  .bn-opt[aria-current=page] svg{color:inherit}
+}
+@keyframes m-sheet-up{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.menu.bn-sheet{animation:none}}
+
+/* ---------- 8. Side rail (upright tablet): every name readable, the mark alone on top ---------- */
+@media (min-width:768px) and (max-width:1023px){
+  .app{grid-template-columns:92px 1fr}
+  .sidebar{padding:12px 6px;gap:2px;padding-bottom:max(12px,env(safe-area-inset-bottom,0px))}
+  .sidebar .brand{padding:4px 0 8px;margin-bottom:4px;flex-direction:column;gap:0;overflow:hidden}
+  .sidebar .brand .logo{width:76px;max-width:100%;height:auto}
+  .sidebar .brand .tagline{display:none}
+  .nav-item{height:auto;min-height:60px;padding:8px 2px 6px;gap:3px;font-size:12px;line-height:15px;white-space:normal;overflow-wrap:anywhere;text-wrap:balance;border-radius:12px}
+  .nav-item .ic,.nav-item svg{width:22px;height:22px;flex:none}
+  .nav-item .soon{display:none}
+}
+
+/* ---------- 9. Dashboard head (phone): the period on its own line, «تخصيص اللوحة» and «عرض كـ» sharing the next ---------- */
+@media (max-width:767px){
+  .dash-head .actions>.dash-period{order:-1}
+  .dash-head .actions>.inline-sel.dash-viewas{flex:1 1 0;min-width:0}
+  .dash-head .actions>.btn{flex:0 0 auto;padding-inline:12px}
+  .dash-head .actions>.inline-sel.dash-viewas .select,.dash-head .actions>.inline-sel.dash-viewas select,.dash-head .actions>.inline-sel.dash-viewas button{font-size:13px;padding-inline:10px}
+  .dash-head .actions>.dash-period>*,.dash-head .actions>.inline-sel>*{width:100%}
+}
+
+/* ================= Batch 2 — cards, tables, grids ================= */
+
+/* ---------- 10. Number cards: the whole card opens its details, not just the small link ---------- */
+@media (max-width:1023px){
+  .card.kpi{position:relative;gap:8px;border-radius:12px}
+  .kpi .kpi-details,.kpi .kpi-more{position:static}
+  .kpi .kpi-details::after,.kpi .kpi-more::after{left:0;top:0;right:0;bottom:0;width:auto;height:auto;transform:none;border-radius:inherit}
+  .card.kpi:has(.kpi-details:active),.card.kpi:has(.kpi-more:active){background:var(--color-bg-hover,#f9f0e2)}
+  .kpi .dc-grip,.kpi [data-tip],.kpi a:not(.kpi-more):not(.kpi-details),.kpi button:not(.kpi-more):not(.kpi-details){position:relative;z-index:1}
+  .kpi-val{align-items:baseline;flex-wrap:wrap;column-gap:6px}
+}
+@media (max-width:767px){
+  .card.kpi{padding:12px}
+  .kpi-val .t-h3{font-size:22px;line-height:30px}
+  .kpi-label{line-height:22px}
+}
+/* an upright tablet: three across, so five cards are 3 + 2 and not 2 + 2 + 1 */
+@media (min-width:768px) and (max-width:1023px){
+  .dash-kpis,.cards.five,.cards.six,.cards.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .content{padding:16px 20px;gap:16px}
+}
+
+/* ---------- 11. A table card's head: the title, then «بحث · فلتر · ترتيب · الأعمدة» on one line ---------- */
+@media (max-width:767px){
+  .table-title{gap:10px}
+  .table-title .acts-inline{width:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .table-title .acts-inline>*{flex:1 1 auto;min-width:0}
+  .table-title .acts-inline>.tq-btn{justify-content:center}
+  /* the sort names what it sorts by — it takes its own line so the name is never cut; the columns' button stays beside it */
+  .table-title .acts-inline>.pop-anchor:has([data-sm-btn]){order:2}
+  /* the columns' button sits in the corner by the title, so the three named buttons share the line under it */
+  .table-title{position:relative}
+  .table-title .th-t{padding-inline-end:48px}
+  .table-title .acts-inline>.icon-btn,.table-title .acts-inline>.pop-anchor:has(>.icon-btn){position:absolute;top:8px;inset-inline-end:8px;flex:none;width:44px}
+  .table-title .acts-inline>.pop-anchor>.select,.table-title .acts-inline>.pop-anchor>.btn{width:100%;min-width:0}
+  .table-title .acts-inline .select .val{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .table-title .acts-inline .tq-btn{padding-inline:12px}
+  /* the row of the filter's chips scrolls sideways instead of stacking */
+  .af-row{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding-bottom:2px}
+  .af-row::-webkit-scrollbar{display:none}
+  .af-row>*{flex:none}
+}
+
+/* ---------- 12. Record cards (a table's rows on a phone): a name on top, the rest as quiet pairs ---------- */
+@media (max-width:1023px){
+  /* a chip that only shows a value is a tag, not a 44px button */
+  .kv .chip,.kv-list .chip,td .chip,.v-brands .chip,.info-row .chip{min-height:28px;height:auto;padding-block:2px}
+  .list-card{border-radius:12px}
+  .list-card .kv .t-small{color:var(--color-text-secondary)}
+}
+@media (max-width:767px){
+  .list-card .title,.vcard-title{min-height:52px}
+}
+
+/* ---------- 13. A tablet on its side (touch, 1024 and wider): the desktop's layout with a finger's sizes ---------- */
+@media (min-width:1024px) and (pointer:coarse){
+  .nav-item{min-height:44px}
+  .btn,.select,.input,.date-field{min-height:40px}
+  .icon-btn{width:40px;height:40px}
+  .tab,.subtab,.seg-b,.chip:is(button),.opt,.ntf-item,.ntf-nav-item{min-height:44px}
+  .cb,.sw,.kpi-details,.kpi-more,.link-btn,.dash-link,button.tg,a.num{position:relative}
+  :is(.cb,.sw,.kpi-details,.kpi-more,.link-btn,.dash-link,button.tg,a.num)::after{content:'';position:absolute;left:50%;top:50%;width:max(100%,44px);height:max(100%,44px);transform:translate(-50%,-50%)}
+  .t-small{font-size:12px;line-height:18px}
+  .topbar .search{height:40px}
+  .topbar .search input{font-size:14px}
+}
+
+/* ================= Batch 3 — menus and popups ================= */
+
+/* ---------- 14. Action menus (phone): up from the bottom, by the thumb ----------
+   The account's menu, quick actions, a row's ⋮, «الملفات», the filter and the sort. A field's own list (role=listbox) stays
+   under its field, as the owner asked (batch 2, decision 32). The kit places a menu with inline styles — hence !important. */
+@media (max-width:767px){
+  .menu.floating[role=menu]:not(.mp-menu):not(.bn-sheet),.menu.clock-pop.floating,.menu.acct{
+    position:fixed!important;inset:auto 0 0 0!important;top:auto!important;left:0!important;right:0!important;bottom:0!important;
+    width:auto!important;min-width:0!important;max-width:none!important;max-height:min(78vh,78dvh)!important;
+    overflow-y:auto;overscroll-behavior:contain;z-index:60;border:0;border-radius:20px 20px 0 0;
+    padding:6px 10px calc(12px + env(safe-area-inset-bottom,0px));
+    box-shadow:0 -8px 32px rgba(46,42,27,.24),0 0 0 100vmax rgba(46,42,27,.38);animation:m-sheet-up .22s var(--m-ease)}
+  .menu.floating[role=menu]:not(.mp-menu):not(.bn-sheet)::before,.menu.clock-pop.floating::before,.menu.acct::before{content:'';display:block;flex:none;width:36px;height:4px;border-radius:2px;background:var(--color-border-default);opacity:.45;margin:4px auto 8px}
+  .menu.floating[role=menu]:not(.mp-menu) .opt,.menu.acct .opt{min-height:48px;padding-inline:12px;border-radius:10px;font-size:15px;gap:12px}
+  .menu.acct{width:auto}
+  /* the bar a menu opens from stays above the bottom bar while it is open */
+  .topbar:has(.menu.floating,.menu.notif,.menu.acct,.menu.clock-pop){z-index:45}
+  .content>.tabs:has(.menu.floating),.table-title:has(.menu.floating){z-index:45}
+  /* the bell: a tall sheet, its sections on one line that scrolls */
+  .menu.notif{position:fixed!important;inset:auto 0 0 0!important;top:auto!important;left:0!important;right:0!important;bottom:0!important;width:auto!important;max-width:none!important;height:min(86vh,86dvh);max-height:min(86vh,86dvh)!important;border:0;border-radius:20px 20px 0 0;box-shadow:0 -8px 32px rgba(46,42,27,.24),0 0 0 100vmax rgba(46,42,27,.38);animation:m-sheet-up .22s var(--m-ease);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .menu.notif .ntf-nav{flex:none;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;padding:10px 12px 6px;gap:6px}
+  .menu.notif .ntf-nav-item{flex:none;height:40px;min-height:40px;border-radius:999px;padding-inline:12px}
+}
+@media (max-width:767px) and (prefers-reduced-motion:reduce){.menu.floating[role=menu],.menu.clock-pop.floating,.menu.acct,.menu.notif{animation:none}}
+
+/* ---------- 15. Popups (phone): the owner's centred popup, with a phone's corners, fields and buttons ---------- */
+@media (max-width:767px){
+  .scrim{padding:12px;padding-bottom:max(12px,env(safe-area-inset-bottom,0px))}
+  .scrim .modal{border-radius:16px}
+  .modal-h{padding:12px 16px;min-height:56px}
+  .modal-h .icon-btn{width:44px;height:44px;margin-inline-end:-8px}
+  .modal-b{padding:16px}
+  .modal-f{padding:12px 16px;gap:8px}
+  .modal-f>.btn{min-height:48px;font-size:15px;font-weight:600;border-radius:10px}
+  .modal .field>label,.modal .field .lbl{font-size:13px}
+  .modal .input,.modal .select,.modal .textarea{border-radius:10px}
+  /* «إضافة مبتكر»: the step you are on is named in full; the others keep their number */
+  .mk-steps{gap:6px}
+  .mk-steps li.cur{flex:0 0 auto}
+  .mk-steps li.cur>*{white-space:nowrap;overflow:visible}
+  .mk-steps li:not(.cur) .dot~*{display:none}
+  /* a drawer is the whole screen on a phone */
+  .drawer{width:100%;border:0}
+  .drawer-h{padding:12px 16px}
+}
+
+/* ---------- 16. Under a banner on top of the page (the demo's): a popup or a drawer starts below it ---------- */
+.scrim{top:var(--dm-h,0px)}
+@media (max-width:767px){.mk-step-b{min-height:44px}}
+
+/* ---------- 17. A conversation (phone): the whole screen, the reply box always in reach ---------- */
+@media (max-width:767px){
+  .cs-inbox.show-chat .cs-chat{position:fixed;z-index:30;top:var(--dm-h,0px);left:0;right:0;bottom:0;min-height:0;height:auto;max-height:none;background:var(--color-bg-base);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .cs-inbox.show-chat .cs-chat .back-m{flex:none;min-height:48px;display:flex;align-items:center}
+  .cs-inbox.show-chat .cs-chat .back-m .btn{min-height:44px}
+  .cs-inbox.show-chat .cs-chat .cs-msgs{flex:1 1 auto;min-height:0;overscroll-behavior:contain;padding:12px}
+  .cs-inbox.show-chat .cs-chat .cmp{flex:none}
+  /* nothing floats over a conversation */
+  body:has(main:not([hidden]) .cs-inbox.show-chat) .page-head .actions>.btn.btn-brand,body:has(main:not([hidden]) .cs-inbox.show-chat) .to-top{display:none}
+}

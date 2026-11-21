@@ -26,8 +26,9 @@ window.IB_DEMO = true;
   var css = document.createElement('style'); css.id = 'ib-demo-style';
   css.textContent = [
     'html.ib-demo{overflow:hidden}',
-    'html.ib-demo body{margin:0;margin-top:40px;height:calc(100vh - 40px);height:calc(100dvh - 40px);overflow-y:auto}',
-    '#demo-bar{position:fixed;top:0;left:0;right:0;height:40px;z-index:100000;display:flex;align-items:center;gap:10px;padding:0 12px;background:#005642;color:#fff7ef;font:600 13px Cairo,system-ui,sans-serif;direction:ltr}',
+    'html.ib-demo{--dm-h:40px}',
+    'html.ib-demo body{margin:0;margin-top:var(--dm-h);height:calc(100vh - var(--dm-h));height:calc(100dvh - var(--dm-h));overflow-y:auto}',
+    '#demo-bar{position:fixed;top:0;left:0;right:0;height:var(--dm-h);z-index:100000;display:flex;align-items:center;gap:10px;padding:0 12px;background:#005642;color:#fff7ef;font:600 13px Cairo,system-ui,sans-serif;direction:ltr}',
     '#demo-bar b{font-weight:700;white-space:nowrap}#demo-bar .dm-sp{flex:1}',
     '#demo-bar .dm-sw{display:flex;border:1px solid #fff7ef55;border-radius:999px;overflow:hidden}',
     '#demo-bar button{all:unset;box-sizing:border-box;font:600 12px Cairo,system-ui,sans-serif;cursor:pointer;padding:5px 12px;background:transparent;color:#fff7ef;line-height:18px;white-space:nowrap}',
@@ -35,6 +36,9 @@ window.IB_DEMO = true;
     '#demo-bar .dm-sw button[aria-pressed=true]{background:#fff7ef;color:#005642}',
     '#demo-bar .dm-rs{border:1px solid #fff7ef88;border-radius:999px}',
     '@media (max-width:560px){#demo-bar .dm-lb{display:none}#demo-bar button{padding:5px 9px}}',
+    // a phone: everything fits on one line and every control takes a 44px tap — the banner is 44 high, the pills 32, each button's tap area the banner's height
+    '@media (max-width:767px){html.ib-demo{--dm-h:44px}#demo-bar{gap:8px;padding:0 max(10px,env(safe-area-inset-right,0px)) 0 max(10px,env(safe-area-inset-left,0px))}#demo-bar b{font-size:0}#demo-bar b::after{content:"Demo";font-size:13px}#demo-bar button{position:relative;padding:6px 10px;min-width:36px;text-align:center}#demo-bar button::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}#demo-bar .dm-sw{overflow:visible}#demo-bar .dm-sw button:first-child{border-radius:999px 0 0 999px}#demo-bar .dm-sw button:last-child{border-radius:0 999px 999px 0}#demo-bar .dm-lang [data-short]{font-size:0}#demo-bar .dm-lang [data-short]::after{position:static;content:attr(data-short);font-size:12px}#demo-toast{bottom:calc(64px + env(safe-area-inset-bottom,0px) + 14px)}}',
+    '@media (max-width:384px){#demo-bar b{display:none}}',
     '#demo-entry{position:fixed;inset:0;z-index:100001;overflow:auto;background:#f6f1e7;color:#1d2a26;font:15px Cairo,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px 16px}',
     '#demo-entry .wrap{max-width:860px;width:100%;text-align:center}',
     '#demo-entry h1{font-size:28px;margin:0 0 6px;color:#005642}#demo-entry p.sub{margin:0 0 24px;color:#4b5a55}',
@@ -47,14 +51,15 @@ window.IB_DEMO = true;
     '#demo-toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:100002;max-width:min(92vw,520px);background:#1d2a26;color:#fff7ef;border-radius:12px;padding:10px 16px;font:600 14px Cairo,system-ui,sans-serif;direction:' + (lang === 'en' ? 'ltr' : 'rtl') + ';box-shadow:0 4px 18px rgba(0,0,0,.25);opacity:0;transition:opacity .2s;pointer-events:none}',
     '#demo-toast.on{opacity:1}',
     // the language switch: under «الإعدادات», kept at the bottom of the side bar; on a phone (no side bar) in the banner
-    'html.ib-demo .sidebar{height:calc(100vh - 40px);height:calc(100dvh - 40px)}',
+    'html.ib-demo .sidebar{height:calc(100vh - var(--dm-h));height:calc(100dvh - var(--dm-h))}',
     '.sidebar .dm-lang{margin-top:auto;position:sticky;bottom:-16px;margin-inline:-12px;margin-bottom:-16px;padding:10px 12px 14px;background:var(--color-bg-sidebar,#005642);border-top:1px solid #fff7ef33;display:flex;justify-content:center;direction:ltr;z-index:2}',
     '.dm-lang .dm-sw{display:flex;border:1px solid #fff7ef55;border-radius:999px;overflow:hidden}',
     '.dm-lang button{all:unset;box-sizing:border-box;font:600 12px Cairo,system-ui,sans-serif;cursor:pointer;padding:5px 14px;color:#fff7ef;line-height:18px;white-space:nowrap}',
     '.dm-lang button:focus-visible{outline:2px solid #fff7ef;outline-offset:-2px}',
     '.dm-lang button[aria-pressed=true]{background:#fff7ef;color:#005642}',
     '#demo-bar .dm-lang{display:none}',
-    '@media (max-width:1279px){.sidebar .dm-lang{margin-inline:-4px;padding-inline:2px}.sidebar .dm-lang button{padding:5px 6px}.sidebar .dm-lang [data-short]{font-size:0}.sidebar .dm-lang [data-short]::after{content:attr(data-short);font-size:12px}}',
+    // under 1024 the switch is in the banner (the side bar is a narrow rail there, or not on screen at all)
+    '@media (max-width:1023px){.sidebar .dm-lang{display:none}}',
     '@media (max-width:1023px){#demo-bar .dm-lang{display:flex}}',
   ].join('\n');
   document.head.appendChild(css);

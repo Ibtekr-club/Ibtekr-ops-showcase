@@ -149,3 +149,68 @@ test('English: the switch under «الإعدادات» turns the demo to English
   await expect(page.locator('.sidebar .nav-item[data-page="orders"]')).toHaveText('الأوردرات');
 });
 
+
+// The phone and tablet pass (21 Nov): look and touch only — the same pages, laid out for a thumb.
+test.describe('a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const PAGES = ['dashboard', 'orders', 'vendors', 'accounts', 'inventory', 'products', 'cs', 'autoreply', 'tickets', 'reports', 'marketing', 'ai', 'hr', 'settings', 'profile'];
+  test('one-line banner, no page scrolls sideways, text of 12px at least, the main action by the thumb, menus from the bottom, a conversation on the whole screen', async ({ page }) => {
+    test.setTimeout(240000);
+    await page.goto('/'); await page.locator('[data-demo-mode="marketplace"]').click(); await inApp(page);
+    // the banner: every control on screen, on one line
+    const bar = await page.evaluate(() => [...document.querySelectorAll('#demo-bar button')].map((b) => { const r = b.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), Math.round(r.top)]; }));
+    expect(bar.length).toBe(5); for (const [l, r] of bar) { expect(l).toBeGreaterThanOrEqual(0); expect(r).toBeLessThanOrEqual(390); }
+    const tops = bar.map((x) => x[2]); expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(4); // one line (a pill's border is a pixel or two)
+    // the top bar: the search is a field, and each control takes a 44px tap
+    const top = await page.evaluate(() => ['.topbar .ai-btn', '.topbar .qa-anchor .btn', '.topbar .notif-btn', '.topbar .user-btn'].map((s) => { const r = document.querySelector(s).getBoundingClientRect(); return [r.width, r.height]; }));
+    for (const [w, h] of top) { expect(w).toBeGreaterThanOrEqual(44); expect(h).toBeGreaterThanOrEqual(44); }
+    expect(await page.evaluate(() => document.querySelector('.topbar .search').getBoundingClientRect().width)).toBeGreaterThan(100);
+    // every page: nothing wider than the screen, nothing written under 12px (the bell's count aside), a typed field at 16px
+    for (const pg of PAGES) {
+      await go(page, pg); await page.waitForTimeout(1200);
+      const m = await page.evaluate(() => {
+        const out = { over: document.documentElement.scrollWidth - innerWidth, tiny: [], field: [] };
+        const tw = document.createTreeWalker(document.querySelector('#root'), NodeFilter.SHOW_TEXT); let n;
+        while ((n = tw.nextNode())) { const el = n.parentElement; if (!n.nodeValue.trim() || !el || el.closest('.notif-badge, [hidden], script, style')) continue; const r = el.getBoundingClientRect(); if (r.width < 1 || r.height < 1) continue; const f = parseFloat(getComputedStyle(el).fontSize); if (f > 0 && f < 12) out.tiny.push(String(el.className).slice(0, 30) + ':' + f); }
+        document.querySelectorAll('#root input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]), #root textarea').forEach((el) => { if (el.getBoundingClientRect().width > 0 && parseFloat(getComputedStyle(el).fontSize) < 16) out.field.push(el.className || el.name || el.type); });
+        return out;
+      });
+      expect(m.over, pg + ' scrolls sideways').toBeLessThanOrEqual(0);
+      expect(m.tiny, pg + ' has text under 12px').toEqual([]);
+      expect(m.field, pg + ' has a field under 16px').toEqual([]);
+    }
+    // the page's main action floats over the bottom bar, inside the thumb's reach
+    await go(page, 'inventory'); const fab = page.locator('#pg-inventory .page-head .actions > .btn.btn-brand'); await expect(fab).toBeVisible();
+    const fr = await fab.boundingBox(); expect(fr.y).toBeGreaterThan(844 / 2); expect(fr.y + fr.height).toBeLessThanOrEqual(844 - 64); expect(fr.height).toBeGreaterThanOrEqual(44);
+    // «المزيد»: a sheet from the bottom with every page of the menu
+    await page.locator('.bottom-nav .bn-more .bn-item').click(); const sheet = page.locator('.menu.bn-sheet'); await expect(sheet).toBeVisible(); await page.waitForTimeout(400); // the sheet slides up
+    expect(await sheet.locator('.bn-opt').count()).toBeGreaterThanOrEqual(10); const sr = await sheet.boundingBox(); expect(sr.x).toBe(0); expect(sr.width).toBe(390);
+    await page.keyboard.press('Escape'); await expect(sheet).toHaveCount(0);
+    // the account's menu: from the bottom too, full width, over the bottom bar
+    await page.locator('.topbar .user-btn').click(); const acct = page.locator('.menu.acct'); await expect(acct).toBeVisible(); await page.waitForTimeout(400); // the sheet slides up
+    const ar = await acct.boundingBox(); expect(ar.x).toBe(0); expect(ar.width).toBe(390); expect(Math.round(ar.y + ar.height)).toBe(844);
+    await page.keyboard.press('Escape');
+    // the orders page (its own styles): a 16px field, the ⋮ menu from the bottom
+    await go(page, 'orders'); await expect(page.locator('#orders >> .ibtn[data-more]').first()).toBeVisible({ timeout: 20000 });
+    expect(await page.evaluate(() => !!document.getElementById('orders').shadowRoot.querySelector('style[data-mobile]'))).toBe(true);
+    await page.locator('#orders >> .ibtn[data-more]').first().click(); const mp = page.locator('#orders >> #mpop'); await expect(mp).toBeVisible(); await page.waitForTimeout(400); // the sheet slides up
+    const mr = await mp.boundingBox(); expect(mr.x).toBe(0); expect(mr.width).toBe(390); expect(Math.round(mr.y + mr.height)).toBe(844);
+    await page.keyboard.press('Escape'); await page.mouse.click(10, 200);
+    // a conversation takes the whole screen, its reply box on screen
+    await go(page, 'cs'); await page.locator('#pg-cs .tab', { hasText: 'الرسايل' }).click(); await page.locator('.cs-items .cv').first().click(); await page.waitForTimeout(300);
+    const chat = await page.locator('.cs-inbox.show-chat .cs-chat').boundingBox(); expect(chat.x).toBe(0); expect(chat.width).toBe(390); expect(Math.round(chat.y + chat.height)).toBe(844);
+    const cmp = await page.locator('.cs-chat .cmp').boundingBox(); expect(cmp.y + cmp.height).toBeLessThanOrEqual(845);
+  });
+});
+
+test.describe('a tablet, upright', () => {
+  test.use({ viewport: { width: 820, height: 1180 }, isMobile: true, hasTouch: true });
+  test('the side rail names every page in full; the number cards go three across; the language switch is in the banner', async ({ page }) => {
+    await page.goto('/'); await page.locator('[data-demo-mode="marketplace"]').click(); await inApp(page);
+    const cut = await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav-item')].filter((b) => b.scrollWidth > b.clientWidth + 1).map((b) => b.textContent.trim()));
+    expect(cut).toEqual([]);
+    await expect(page.locator('#demo-bar .dm-lang')).toBeVisible(); await expect(page.locator('.sidebar .dm-lang')).toBeHidden();
+    const cols = await page.evaluate(() => getComputedStyle(document.querySelector('.dash-kpis')).gridTemplateColumns.split(' ').length); expect(cols).toBe(3);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+  });
+});
