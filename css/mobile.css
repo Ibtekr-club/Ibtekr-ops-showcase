@@ -53,26 +53,22 @@
   .topbar .search input{flex:1 1 auto;width:auto;min-width:0;padding:0;font-size:16px;text-overflow:ellipsis}
   .topbar .search:focus-within{position:absolute;inset:2px 8px;width:auto;height:44px;z-index:6;padding:0 14px;border-radius:999px;background:var(--color-bg-base);border-color:var(--color-border-focus);box-shadow:var(--shadow-popover)}
   /* the controls: 44 to tap, 40 to look at, the same round shape */
-  .topbar .ai-btn,.topbar .qa-anchor .btn,.topbar .notif-btn,.topbar .clock-widget .btn,.topbar .user-btn{width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;background-clip:content-box;border:2px solid transparent;justify-content:center}
+  .topbar .ai-btn,.topbar .notif-btn,.topbar .user-btn{width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;background-clip:content-box;border:2px solid transparent;justify-content:center}
   .topbar .qa-anchor .btn{background-color:transparent;box-shadow:none}
   .topbar .qa-anchor .btn svg,.topbar .ai-btn svg,.topbar .notif-btn svg,.topbar .clock-widget .btn svg{width:20px;height:20px}
   .topbar .user-btn .avatar{width:32px;height:32px}
   .topbar .notif-badge{top:2px;inset-inline-start:2px}
 }
 
-/* ---------- 4. Page head (phone): the title, then its actions in one tidy row ---------- */
+/* ---------- 4. Page head (phone): see section 22 — the title, then its actions on one sliding line ---------- */
 @media (max-width:767px){
-  .page-head{margin-bottom:4px}
-  .page-head.row{gap:12px;align-items:stretch}
+  .page-head{margin-bottom:0}
+  /* one column, never wrapping into a second one: a wrapped column takes the width of its widest child, which pushed the
+     page sideways once the actions became one long line */
+  .page-head.row,.page-head.row.dash-head{display:flex;flex-direction:column;flex-wrap:nowrap;gap:12px;align-items:stretch;min-width:0}
+  .page-head.row>*{min-width:0;max-width:calc(100% + var(--m-gutter) * 2)}
   .page-head h1{letter-spacing:0}
   .page-head p{max-width:60ch}
-  #main .page-head .actions,.page-head .actions,.page-head.row .actions{width:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-  /* secondary actions keep their own width, side by side; nothing is stretched across the screen for no reason */
-  #main .page-head .actions>.btn,.page-head .actions>.btn,#main .page-head .actions>.pop-anchor,.page-head .actions>.pop-anchor{flex:1 1 0;width:auto;min-width:max-content}
-  .page-head .actions>.pop-anchor>.btn,.page-head .actions>.pop-anchor>.date-field{width:100%}
-  .page-head .actions>.pop-anchor:has(>.date-field),.page-head .actions>.dash-period,.page-head .actions>.inline-sel{flex:1 1 100%}
-  .page-head .actions>.pop-anchor:has(>.icon-btn){flex:0 0 44px;min-width:44px}
-  .page-head .actions>.chip,.page-head .actions>span{flex:0 0 auto}
 }
 
 /* ---------- 5. The page's main action (phone): by the thumb, over the bottom bar ---------- */
@@ -129,15 +125,6 @@
   .nav-item{height:auto;min-height:60px;padding:8px 2px 6px;gap:3px;font-size:12px;line-height:15px;white-space:normal;overflow-wrap:anywhere;text-wrap:balance;border-radius:12px}
   .nav-item .ic,.nav-item svg{width:22px;height:22px;flex:none}
   .nav-item .soon{display:none}
-}
-
-/* ---------- 9. Dashboard head (phone): the period on its own line, «تخصيص اللوحة» and «عرض كـ» sharing the next ---------- */
-@media (max-width:767px){
-  .dash-head .actions>.dash-period{order:-1}
-  .dash-head .actions>.inline-sel.dash-viewas{flex:1 1 0;min-width:0}
-  .dash-head .actions>.btn{flex:0 0 auto;padding-inline:12px}
-  .dash-head .actions>.inline-sel.dash-viewas .select,.dash-head .actions>.inline-sel.dash-viewas select,.dash-head .actions>.inline-sel.dash-viewas button{font-size:13px;padding-inline:10px}
-  .dash-head .actions>.dash-period>*,.dash-head .actions>.inline-sel>*{width:100%}
 }
 
 /* ================= Batch 2 — cards, tables, grids ================= */
@@ -314,4 +301,141 @@
   .dp.single .cal-grid{grid-template-columns:repeat(7,44px);justify-content:space-between}
   .dp.single .day{width:44px;height:44px;font-size:15px}
   .dp.range .day{min-height:40px}
+}
+
+/* ================= The phone as its own design (21 Nov, the owner: «كأننا بنعمل ريديزاين للسيستم في الموبايل») =================
+   One scale for the spaces, one family of buttons sized for a hand, the numbers and the actions on sliding lines.
+   Nothing is removed or hidden behind a new step: what slid out of sight is one swipe away, on the same line. */
+:root{--m-s1:4px;--m-s2:8px;--m-s3:12px;--m-s4:16px;--m-s5:24px;--m-r-ctl:8px;--m-r-card:12px;--m-line:color-mix(in srgb,var(--color-border-default) 38%,transparent)}
+
+/* ---------- 21. Buttons and fields (phone and upright tablet): a hand's sizes, one shape ----------
+   main action 48 · action 44 · small 36 (with a 44 tap area) · field 48 — the same 8px corner everywhere */
+@media (max-width:1023px){
+  .btn{height:44px;min-height:44px;padding:0 var(--m-s4);border-radius:var(--m-r-ctl);font-size:14px;font-weight:600;gap:var(--m-s2)}
+  /* the default button keeps its beige (the owner's decision 46: a button on a green header is the beige default) — only its outline is quieter */
+  .btn-default{border-color:var(--m-line)}
+  .btn-brand,.btn-primary{border-color:transparent}
+  .modal-f>.btn,.drawer-f>.btn,.sec-b>.btn.btn-brand,.sec-b>.btn.btn-primary{height:48px;min-height:48px;font-size:15px}
+  .btn.sm{position:relative;height:36px;min-height:36px;padding:0 var(--m-s3);font-size:13px}
+  .btn.sm::after{content:'';position:absolute;left:0;right:0;top:-4px;bottom:-4px}
+  .btn-text{min-height:44px;padding-inline:var(--m-s2)}
+  .icon-btn{border-radius:var(--m-r-ctl)}
+  .select,.input,.date-field{min-height:48px;border-radius:var(--m-r-ctl);border-color:var(--m-line)}
+  .select.sm,.input.sm{min-height:44px}
+  .textarea{border-radius:var(--m-r-ctl);border-color:var(--m-line);padding:var(--m-s3)}
+  .select:focus-visible,.input:focus,.input:focus-within,.textarea:focus{border-color:var(--color-border-focus)}
+  .chip:is(button),.seg-b,.subtab{border-radius:999px}
+}
+
+/* ---------- 22. One scale for the spaces (phone) ---------- */
+@media (max-width:767px){
+  .content{padding:var(--m-s3) var(--m-s4) var(--m-s4);gap:var(--m-s4)}
+  .panel{gap:var(--m-s4)}
+  .cards,.dash-kpis{gap:var(--m-s3);margin-bottom:0}
+  .dash-grid,.charts,.grid2,.grid3{gap:var(--m-s4)}
+  .card{border-radius:var(--m-r-card)}
+  .sec-h{padding:var(--m-s3) var(--m-s4);gap:var(--m-s2)}
+  .sec-b{padding:var(--m-s4);gap:var(--m-s3)}
+  .table-title{padding:var(--m-s3) var(--m-s4)}
+  .field{gap:6px}
+  .modal-b{gap:var(--m-s4)}
+  /* a table's row as a card: quieter edge, the same inner spaces as every other card */
+  .scroll-x tr,.vlo-table tr,.list-card{border-color:var(--m-line);border-radius:var(--m-r-card);padding:var(--m-s3) 14px;gap:var(--m-s2) var(--m-s3);margin-bottom:var(--m-s2)}
+  .scroll-x td[data-l]:not([data-l=""])::before,.vlo-table td[data-l]:not([data-l=""])::before,.list-card .kv .t-small{font-size:12px;line-height:16px}
+  .list-card .title{padding-bottom:var(--m-s2)}
+}
+
+/* ---------- 23. A page's actions and a tab's tools (phone): one line that slides, compact buttons ----------
+   «تخصيص اللوحة», «الملفات», the period, the sort… used to stack in two or three full-width rows before the page began. */
+@media (max-width:767px){
+  .page-head .actions,#main .page-head .actions,.page-head.row .actions,.dash-head .actions,.content>.toolbar,.panel>.toolbar,main>.toolbar{
+    display:flex;flex-wrap:nowrap;align-items:center;gap:var(--m-s2);width:auto;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+    margin:-4px calc(var(--m-gutter) * -1);padding:4px var(--m-gutter)}
+  .page-head .actions::-webkit-scrollbar,.dash-head .actions::-webkit-scrollbar,.content>.toolbar::-webkit-scrollbar,.panel>.toolbar::-webkit-scrollbar,main>.toolbar::-webkit-scrollbar{display:none}
+  .page-head .actions>*,#main .page-head .actions>*,#main .page-head .actions>.pop-anchor,.dash-head .actions>*,.content>.toolbar>*,.panel>.toolbar>*,main>.toolbar>*{flex:0 0 auto!important;width:auto!important;min-width:0;max-width:none;order:0}
+  .page-head .actions .btn,.page-head .actions .date-field,.page-head .actions .select,.page-head .actions .chip,.content>.toolbar .btn,.panel>.toolbar .btn,main>.toolbar .btn,.content>.toolbar .select,.panel>.toolbar .select,main>.toolbar .select,.content>.toolbar .date-field,.panel>.toolbar .date-field{position:relative;height:40px;min-height:40px;padding-inline:var(--m-s3);font-size:13px;width:auto!important;white-space:nowrap}
+  :is(.page-head .actions,.content>.toolbar,.panel>.toolbar,main>.toolbar) :is(.btn,.date-field,.select)::after{content:'';position:absolute;left:0;right:0;top:-2px;bottom:-2px}
+  :is(.content>.toolbar,.panel>.toolbar,main>.toolbar) :is(.search,.input,input[type=search]){min-width:220px}
+  :is(.content>.toolbar,.panel>.toolbar,main>.toolbar) .grow{display:none}
+}
+
+/* ---------- 24. The number cards (phone): one sliding line, like the filters (the owner: «خليها زي الفلاتر») ----------
+   Two cards and the edge of the third on screen — the edge says there is more; a swipe brings the rest. */
+@media (max-width:767px){
+  :is(.dash-kpis,.cards,.kpis,.kpi-grid,div,section):has(>.card.kpi){
+    display:flex;flex-wrap:nowrap;align-items:stretch;gap:var(--m-s3);overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-snap-type:x mandatory;
+    margin-inline:calc(var(--m-gutter) * -1);padding:4px var(--m-gutter) 8px;scroll-padding-inline:var(--m-gutter)}
+  :is(.dash-kpis,.cards,.kpis,.kpi-grid,div,section):has(>.card.kpi)::-webkit-scrollbar{display:none}
+  :is(.dash-kpis,.cards,.kpis,.kpi-grid,div,section):has(>.card.kpi)>*{flex:0 0 calc((100% - var(--m-s3) - 28px) / 2);min-width:0;max-width:none;scroll-snap-align:start;grid-column:auto}
+  :is(.dash-kpis,.cards,.kpis,.kpi-grid,div,section):has(>.card.kpi:only-child)>*{flex-basis:100%}
+}
+
+/* ---------- 25. Settings' home (phone): a list of rows — icon, name, what is in it, an arrow — like a phone's own settings ---------- */
+@media (max-width:767px){
+  #pg-settings .set-grid{display:flex;flex-direction:column;gap:0;border-radius:var(--m-r-card);overflow:hidden;box-shadow:var(--shadow-card);background:var(--color-bg-base)}
+  #pg-settings .set-card{position:relative;display:grid;grid-template-columns:40px minmax(0,1fr) 24px;column-gap:var(--m-s3);row-gap:2px;align-items:center;min-height:68px;padding:var(--m-s3) var(--m-s4);border:0;border-radius:0;box-shadow:none;border-bottom:1px solid var(--color-border-subtle);background:transparent}
+  #pg-settings .set-card:last-child{border-bottom:0}
+  #pg-settings .set-card-h{display:contents}
+  #pg-settings .set-card-h,#pg-settings .set-card-h h3{background:none;color:var(--color-brand-default);padding:0;margin:0}
+  #pg-settings .set-ic{grid-column:1;grid-row:1 / span 4;align-self:center;width:40px;height:40px}
+  #pg-settings .set-card h3,#pg-settings .set-card p,#pg-settings .set-card .tag,#pg-settings .set-card .chip{grid-column:2;justify-self:start;text-align:start}
+  #pg-settings .set-card>:not(.set-card-h):not(p):not(.btn):not(.grow){grid-column:2;justify-self:start;width:fit-content;max-width:100%}
+  #pg-settings .set-card .grow{display:none}
+  #pg-settings .set-card .btn{grid-column:3;grid-row:1 / span 4;align-self:center;position:static;width:24px!important;min-width:0;height:44px;min-height:44px;padding:0;border:0;background:none;box-shadow:none;font-size:0;gap:0;color:var(--color-text-secondary)}
+  #pg-settings .set-card .btn::after{content:'';position:absolute;inset:0}
+  #pg-settings .set-card .btn svg{width:20px;height:20px}
+  #pg-settings .set-card:has(.btn:active){background:var(--color-bg-hover,#f9f0e2)}
+}
+
+/* ---------- 26. «ملفي › تنبيهاتي» (phone): an alert's lines wrap instead of being cut ---------- */
+@media (max-width:767px){
+  #pg-profile .ntf-item :is(b,small,.t-small,.t-label){white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+}
+
+/* ---------- 27. Charts (phone): one under the other — two side by side left 170px each ---------- */
+@media (max-width:767px){.charts{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- 28. The header (phone and tablet, the owner 21 Nov): search · assistant · bell · account ----------
+   «إجراءات سريعة» and «ابدأ الدوام» are rows of the account's menu there (js/pages/mobile.js adds them; each presses the
+   button the shell drew). The two buttons stay in the bar as anchors for their popups, out of sight. */
+@media (max-width:1023px){
+  .topbar .qa-anchor>.btn,.topbar .clock-widget>.btn,.topbar .clock-widget>.pop-anchor>.clock{position:absolute!important;width:1px!important;min-width:0!important;height:1px!important;min-height:0!important;padding:0!important;margin:0;border:0!important;opacity:0;overflow:hidden;pointer-events:none;clip-path:inset(50%)}
+  .topbar .qa-anchor,.topbar .clock-widget,.topbar .clock-widget>.pop-anchor{width:0;min-width:0;flex:0 0 0;margin:0;padding:0}
+  .topbar{gap:8px}
+  /* the rows that moved into the account's menu */
+  .menu.acct .m-moved{font-weight:600}
+  .menu.acct .m-moved svg{flex:none;width:18px;height:18px;color:var(--color-brand-default)}
+  .menu.acct .m-clock:not([disabled]){color:var(--color-brand-default)}
+  .menu.acct .m-dot{flex:none;width:10px;height:10px;border-radius:50%;background:var(--color-success-base);box-shadow:0 0 0 4px var(--color-success-bg)}
+  .menu.acct .m-sep{height:1px;margin:6px 4px;background:var(--color-border-subtle)}
+}
+/* tablet: the bar has room — a search field that fills it, then three round controls of one size */
+@media (min-width:768px) and (max-width:1023px){
+  .topbar{height:56px;padding:0 20px;gap:10px}
+  .topbar>.gq-wrap{flex:1 1 auto;min-width:0;margin-inline-end:6px}
+  .topbar .search{width:100%;max-width:560px;height:42px;border-radius:999px;padding:0 16px}
+  .topbar .search input{font-size:15px}
+  .topbar .ai-btn,.topbar .notif-btn,.topbar .user-btn{width:44px;min-width:44px;height:44px;padding:0;border-radius:50%;justify-content:center}
+  .topbar .ai-btn span{display:none}
+  .topbar .ai-btn svg,.topbar .notif-btn svg{width:20px;height:20px}
+  .topbar .user-btn .avatar{width:34px;height:34px}
+  .content>.tabs{top:56px}
+  .mx-wrap .mx-head{top:56px}
+  .menu.acct{min-width:260px}
+  .menu.acct .opt{min-height:44px}
+}
+@media (max-width:767px){.topbar{gap:4px}.topbar>.gq-wrap{margin-inline-end:6px}}
+
+/* «إنهاء الدوام» inside the shift's popup is a real button (an old phone rule for the bar's clock shrank it to an empty 44px square) */
+@media (max-width:1023px){
+  .topbar .menu.clock-pop{padding:16px;gap:12px;min-width:280px}
+  .topbar .menu.clock-pop .btn{position:static!important;width:100%!important;height:48px!important;min-height:48px!important;padding:0 16px!important;opacity:1;clip-path:none;pointer-events:auto;overflow:visible;border-radius:var(--m-r-ctl)!important;font-size:15px!important;font-weight:600;gap:8px;background-clip:border-box}
+  .topbar .menu.clock-pop .btn svg{width:18px;height:18px}
+}
+
+/* ---------- 29. A section's tools (phone): «بحث · فلتر · ترتيب · الأعمدة» on one sliding line — the columns' button no longer drops to a line of its own ---------- */
+@media (max-width:767px){
+  .sec-h:has([data-cols],.tq-btn) .acts{flex-wrap:nowrap;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none;gap:var(--m-s2);padding-block:2px}
+  .sec-h:has([data-cols],.tq-btn) .acts::-webkit-scrollbar{display:none}
+  .sec-h:has([data-cols],.tq-btn) .acts>*{flex:0 0 auto}
 }

@@ -114,4 +114,43 @@
     window.addEventListener('ib:orders-ready', look);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+
+  /* · The header on a phone or a tablet (the owner 21 Nov): «إجراءات سريعة» and «ابدأ الدوام» live in the account's menu, not
+     in the bar — the bar keeps the search, the assistant, the bell and the account. The two buttons stay where the shell drew
+     them (out of sight, css/mobile.css), and each row added to the menu presses its button: the same code runs, the same
+     popups open. On a desktop nothing is added. */
+  var narrow = window.matchMedia ? window.matchMedia('(max-width:1023px)') : null;
+  function pressEscape() { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); }
+  function row(icon, label, attr, run, off) {
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'opt m-moved'; b.setAttribute('role', 'menuitem'); b.setAttribute(attr, ''); if (off) b.disabled = true;
+    if (icon) b.appendChild(icon.cloneNode(true));
+    var t = document.createElement('span'); t.textContent = label; b.appendChild(t);
+    b.addEventListener('click', function () { pressEscape(); setTimeout(run, 60); });
+    return b;
+  }
+  function clockState() {
+    var start = document.querySelector('.topbar .clock-widget > .btn'); var run = document.querySelector('.topbar .clock-widget .clock');
+    if (run) { var lbl = run.querySelector('.lbl'); var num = run.querySelector('.num'); return { el: run, text: (lbl ? lbl.textContent : '') + (num && num.textContent ? ' · ' + num.textContent : ''), icon: null, off: false }; }
+    if (start) return { el: start, text: start.getAttribute('aria-label') || start.textContent, icon: start.querySelector('svg'), off: start.disabled };
+    return null;
+  }
+  function fillAccount(menu) {
+    if (!narrow || !narrow.matches || menu.querySelector('.m-moved')) return;
+    var head = menu.querySelector('.acct-h'); var first = menu.querySelector('.opt'); if (!first) return;
+    var frag = document.createDocumentFragment();
+    var c = clockState();
+    if (c) { var cb = row(c.icon, c.text, 'data-m-clock', function () { var now = clockState(); if (now && now.el) now.el.click(); }, c.off); cb.classList.add('m-clock'); if (!c.icon) { var dot = document.createElement('i'); dot.className = 'm-dot'; cb.insertBefore(dot, cb.firstChild); } frag.appendChild(cb);
+      var tick = setInterval(function () { if (!cb.isConnected) { clearInterval(tick); return; } var n = clockState(); if (n) cb.lastChild.textContent = n.text; }, 1000); }
+    var qa = document.querySelector('.topbar .qa-anchor > .btn');
+    if (qa) { var ql = qa.querySelector('.qa-lbl'); frag.appendChild(row(qa.querySelector('svg'), (ql && ql.textContent) || qa.getAttribute('aria-label') || '', 'data-m-quick', function () { qa.click(); })); }
+    if (!frag.childNodes.length) return;
+    var sep = document.createElement('div'); sep.className = 'm-sep'; sep.setAttribute('role', 'separator'); frag.appendChild(sep);
+    menu.insertBefore(frag, head ? head.nextSibling : first);
+  }
+  function watchAccount() {
+    new MutationObserver(function (list) {
+      for (var i = 0; i < list.length; i++) for (var j = 0; j < list[i].addedNodes.length; j++) { var n = list[i].addedNodes[j]; if (n.nodeType === 1 && n.classList && n.classList.contains('acct') && n.classList.contains('menu')) fillAccount(n); }
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watchAccount); else watchAccount();
 })();
