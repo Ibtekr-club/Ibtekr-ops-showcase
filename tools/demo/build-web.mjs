@@ -65,11 +65,16 @@ export function buildWeb(out) {
   // every deploy is served fresh: the host's CDN and the browser kept the old scripts under the same URLs (a redeploy showed no change).
   // The build's id (a hash of its files) goes on every local script and stylesheet of the page, web.js drops a visitor's saved changes
   // made on another build, and .htaccess (the app's own cache rule) makes html / js / css revalidate on every load.
-  const id = createHash('sha256'); for (const f of walk(out).sort()) { if (f === 'index.html') continue; id.update(f); id.update(readFileSync(join(out, f))); }
+  const id = createHash('sha256'); id.update('recipe 2: the modules carry the id too'); for (const f of walk(out).sort()) { if (f === 'index.html') continue; id.update(f); id.update(readFileSync(join(out, f))); }
   const BUILD = id.digest('hex').slice(0, 10);
   const webJs = readFileSync(join(out, 'demo', 'web.js'), 'utf8'); if (!webJs.includes("'__BUILD__'")) throw new Error('demo:web: web.js lost its build mark');
   writeFileSync(join(out, 'demo', 'web.js'), webJs.replace("'__BUILD__'", `'${BUILD}'`));
   writeFileSync(join(out, 'index.html'), page.replace(/(<(?:script\b[^>]*\bsrc|link\b[^>]*\bhref)=")((?!https?:|data:|\/\/)[^"?#]+\.(?:js|css))"/g, `$1$2?v=${BUILD}"`));
+  // the modules the page imports (boot.js → web-seed.js → the stand-in backend…) carry the build's id too: a browser that kept an
+  // older web-seed.js would give the new boot.js a module without what it imports (the page stopped with a SyntaxError)
+  for (const f of walk(join(out, 'demo'))) { if (!/\.m?js$/.test(f)) continue; const fp = join(out, 'demo', f); const src = readFileSync(fp, 'utf8');
+    const next = src.replace(/(\bfrom\s*|\bimport\s*\(?\s*)(['"])(\.{1,2}\/[^'"?]+\.m?js)\2/g, (m, pre, q, path) => `${pre}${q}${path}?v=${BUILD}${q}`);
+    if (next !== src) writeFileSync(fp, next); }
   writeFileSync(join(out, '.htaccess'), ['# The web demo: html / js / css revalidate on every load (cheap 304s), so a redeploy is seen at once.', '<FilesMatch "\\.(html|js|css)$">', '  <IfModule mod_headers.c>', '    Header set Cache-Control "no-cache"', '    Header unset Expires', '  </IfModule>', '</FilesMatch>', ''].join('\n'));
   for (const f of walk(out)) { if (!/\.(js|html|css|json)$/.test(f)) continue; const s = readFileSync(join(out, f), 'utf8'); const hit = FORBIDDEN.find((re) => re.test(s)); if (hit) throw new Error(`demo:web: ${f} still holds ${hit}`); }
   const personal = personalData(out); if (personal.length) throw new Error('demo:web: a phone number or e-mail that is not made up —\n' + personal.join('\n'));
