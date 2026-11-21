@@ -2,7 +2,7 @@
 // project (creations_search), the ancestry of one (creations_lineage), the identifier of an upload — and the matching of the site's
 // results to the studio photos they were made from. Shared by the ai-images Edge Function (Deno) and its node tests. Nothing here
 // talks to the network.
-import { pick } from './mcp-text.js?v=7b9f76a9d6';
+import { pick } from './mcp-text.js?v=841863a3c7';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 export const REF = /^[A-Za-z0-9_-]{1,80}$/;

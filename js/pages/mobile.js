@@ -204,7 +204,7 @@
     var list = r.querySelectorAll(ORDERS_POPS); for (var i = 0; i < list.length; i++) if (shown(list[i])) out.push(list[i]); return out; }
   function openPopups() {
     var out = kitPopups().concat(ordersPopups()); var phone = window.innerWidth <= 767; var i;
-    var list = document.querySelectorAll('.scrim,.ai-panel' + (phone ? ',.cs-inbox.show-chat .cs-chat' : '')); // the assistant is a page of its own here (css §32)
+    var list = document.querySelectorAll('.scrim' + (phone ? ',.ai-panel,.cs-inbox.show-chat .cs-chat' : '')); // on a phone the assistant is a page of its own (css §32); on a tablet it is the desktop's box and the page stays free
     for (i = 0; i < list.length; i++) if (shown(list[i])) out.push(list[i]);
     return out;
   }

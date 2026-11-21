@@ -4,7 +4,7 @@
 // server finds the makers, products and categories (by sound — names.js — in both languages, with the member's own client) and the page
 // shows each step with its count and examples — nothing runs until the member presses that step's button, through the page's adapters
 // (the same writes as the products page, the same permissions). Pure.
-import { bestName, nameMatches, nameScore } from './names.js?v=7b9f76a9d6';
+import { bestName, nameMatches, nameScore } from './names.js?v=841863a3c7';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const STR = () => ({ type: 'string' });

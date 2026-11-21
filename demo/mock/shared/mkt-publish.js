@@ -1,7 +1,7 @@
 // The pure part of mkt-publish (phase 9.5.2, decisions 29–39 of): what a
 // post of the log becomes on Facebook / Instagram, the Graph paths, Meta's answers read back (the ids, the numbers, the platform's own
 // posts) and Meta's errors as our codes. No I/O here — the Edge Function and the node tests share it.
-import { GRAPH, GRAPH_VERSION, graphErrorCode } from './cs-channel.js?v=7b9f76a9d6';
+import { GRAPH, GRAPH_VERSION, graphErrorCode } from './cs-channel.js?v=841863a3c7';
 
 export { graphErrorCode };
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
