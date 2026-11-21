@@ -250,6 +250,27 @@ test.describe('a phone', () => {
     const rp = await page.evaluate(() => { const d = document.querySelector('.dp.range'); const b = d.getBoundingClientRect(); const spill = [...d.querySelectorAll('*')].filter((c) => { const x = c.getBoundingClientRect(); return x.width > 0 && (x.right > 391 || x.left < -1); }).length; const day = d.querySelector('.day').getBoundingClientRect(); const foot = d.querySelector('.dp-foot .btn').getBoundingClientRect(); return { top: b.top, bottom: Math.round(b.bottom), spill, day: Math.round(day.height), foot: Math.round(foot.bottom) }; });
     expect(rp.spill).toBe(0); expect(rp.day).toBeGreaterThanOrEqual(44); expect(rp.bottom).toBe(844); expect(rp.foot).toBeLessThanOrEqual(844); expect(rp.top).toBeGreaterThanOrEqual(44);
     await page.keyboard.press('Escape');
+    // the header: after the search come the bell, the assistant, then the account — three circles of one size
+    const hd = await page.evaluate(() => ['.topbar .search', '.topbar .notif-btn', '.topbar .ai-btn', '.topbar .user-btn'].map((q) => { const r = document.querySelector(q).getBoundingClientRect(); return [Math.round(r.right), Math.round(r.width), Math.round(r.height)]; }));
+    expect(hd[0][0]).toBeGreaterThan(hd[1][0]); expect(hd[1][0]).toBeGreaterThan(hd[2][0]); expect(hd[2][0]).toBeGreaterThan(hd[3][0]);
+    for (const c of hd.slice(1)) { expect(c[1]).toBe(44); expect(c[2]).toBe(44); }
+    expect(await page.evaluate(() => Math.round(document.querySelector('.topbar .user-btn .avatar').getBoundingClientRect().width))).toBe(40);
+    // nothing moves behind an open popup: with the bell's sheet open a finger dragged on the page behind scrolls nothing,
+    // and a tap there closes the sheet without pressing what is under it (the search does not take the focus)
+    const cdp = await page.context().newCDPSession(page);
+    const swipe = async (x, y, dy) => { await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] }); for (let i = 1; i <= 6; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y + dy * i / 6 }] }); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await page.waitForTimeout(400); };
+    await go(page, 'tickets'); await page.waitForTimeout(900);
+    await page.evaluate(() => window.scrollTo(0, 400)); await page.waitForTimeout(300); const at = await page.evaluate(() => Math.round(window.scrollY)); expect(at).toBeGreaterThan(100);
+    await page.tap('.topbar .notif-btn'); await expect(page.locator('.menu.notif')).toBeVisible(); await page.waitForTimeout(400);
+    await swipe(195, 110, -80); await swipe(195, 110, 80); expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(at);
+    await page.touchscreen.tap(195, 70); await expect(page.locator('.menu.notif')).toHaveCount(0);
+    expect(await page.evaluate(() => document.activeElement.tagName)).not.toBe('INPUT'); expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(at);
+    // … behind a popup, and behind the orders page's filter (its popups live in a shadow root)
+    await page.evaluate(() => window.scrollTo(0, 0)); await page.locator('main:not([hidden]) .page-head .actions .btn.btn-brand').first().tap(); await expect(page.locator('.scrim')).toBeVisible();
+    await swipe(20, 100, 200); await swipe(20, 300, -200); expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(0);
+    await page.keyboard.press('Escape'); await expect(page.locator('.scrim')).toHaveCount(0);
+    await swipe(195, 600, -300); expect(await page.evaluate(() => Math.round(window.scrollY))).toBeGreaterThan(100); // and free again once it is closed
+    await page.waitForTimeout(1200); await page.evaluate(() => window.scrollTo(0, 0)); // (the fling of that last drag is over)
     // the assistant: the whole screen under the banner, the keyboard not thrown up by itself, the examples on one line;
     // with a keyboard up it ends where the keyboard starts and the bottom bar steps aside
     await page.tap('.ai-btn'); await page.waitForTimeout(400);
@@ -287,6 +308,14 @@ test.describe('a tablet, upright', () => {
     for (const pg of ['hr', 'inventory', 'reports', 'tickets']) { await go(page, pg); await page.waitForTimeout(900);
       const alone = await page.evaluate(() => { const main = [...document.querySelectorAll('main')].find((m) => m.getBoundingClientRect().height > 0); return [...main.querySelectorAll('*')].filter((g) => g.querySelector(':scope > .card.kpi') && g.getBoundingClientRect().width > 0).map((g) => { const k = g.getBoundingClientRect(); const c = [...g.querySelectorAll(':scope > .card.kpi')].map((e) => e.getBoundingClientRect()); const last = Math.max(...c.map((r) => Math.round(r.top))); const row = c.filter((r) => Math.round(r.top) === last); return Math.round(k.width - (Math.max(...row.map((r) => r.right)) - Math.min(...row.map((r) => r.left)))); }); });
       for (const gap of alone) expect(gap, pg + ': a last line of cards that does not reach the end').toBeLessThanOrEqual(2); }
+    // the header: the bell, the assistant, the account — one size, in that order after the search
+    const thd = await page.evaluate(() => ['.topbar .search', '.topbar .notif-btn', '.topbar .ai-btn', '.topbar .user-btn'].map((q) => { const r = document.querySelector(q).getBoundingClientRect(); return [Math.round(r.right), Math.round(r.width), Math.round(r.height)]; }));
+    expect(thd[0][0]).toBeGreaterThan(thd[1][0]); expect(thd[1][0]).toBeGreaterThan(thd[2][0]); expect(thd[2][0]).toBeGreaterThan(thd[3][0]); for (const c of thd.slice(1)) { expect(c[1]).toBe(44); expect(c[2]).toBe(44); }
+    // the assistant is a page of its own with «إغلاق»: the whole screen under the banner, the talk in one column
+    await page.tap('.ai-btn'); await page.waitForTimeout(400);
+    const tai = await page.evaluate(() => { const r = document.querySelector('.ai-panel').getBoundingClientRect(); const bar = document.getElementById('demo-bar').getBoundingClientRect(); const f = document.querySelector('.ai-form').getBoundingClientRect(); return { top: Math.round(r.top), bar: Math.round(bar.bottom), bottom: Math.round(r.bottom), w: Math.round(r.width), form: Math.round(f.width), focus: document.activeElement.classList.contains('ai-input') }; });
+    expect(tai.top).toBe(tai.bar); expect(tai.bottom).toBe(1180); expect(tai.w).toBe(820); expect(tai.form).toBeLessThanOrEqual(760); expect(tai.focus).toBe(false);
+    await page.tap('.ai-panel .ai-head .icon-btn'); await expect(page.locator('.ai-panel')).toBeHidden();
     // «ملفي»: its ten tiles take the same full rows (4 + 4 + 2)
     await go(page, 'profile'); await page.waitForTimeout(900);
     const tiles = await page.evaluate(() => [...document.querySelectorAll('#pg-profile .cards')].filter((g) => g.querySelector(':scope > .card.sum-tile') && g.getBoundingClientRect().width > 0).map((g) => { const k = g.getBoundingClientRect(); const c = [...g.querySelectorAll(':scope > .card.sum-tile')].map((e) => e.getBoundingClientRect()); const tops = [...new Set(c.map((r) => Math.round(r.top)))]; return tops.map((t) => { const row = c.filter((r) => Math.round(r.top) === t); return [row.length, Math.round(k.width - (Math.max(...row.map((r) => r.right)) - Math.min(...row.map((r) => r.left))))]; }); }).flat());
