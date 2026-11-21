@@ -1,8 +1,8 @@
 // mkt-ads's pure part (phase 9.5.3, decisions 43 / 48): the Meta Marketing API's answers (read-only — the ad account, its campaigns
 // and ads, the daily insights per campaign and per ad) → the rows of mkt_ad_objects and mkt_ad_stats. Nothing here writes on Meta.
 // The token is the owner's System User token (ads_read) in the function's secrets; it never reaches a row or a log.
-import { GRAPH } from './cs-channel.js?v=de75dc1694';
-import { cairoParts } from './mkt-publish.js?v=de75dc1694';
+import { GRAPH } from './cs-channel.js?v=c59b54c2e7';
+import { cairoParts } from './mkt-publish.js?v=c59b54c2e7';
 
 export const SYNC_DAYS = 3; // an hourly run re-reads the last three days (Meta settles its numbers late)
 export const FIRST_DAYS = 90; // the first run, with no numbers yet

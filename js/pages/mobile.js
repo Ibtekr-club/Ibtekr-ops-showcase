@@ -76,7 +76,7 @@
     '@keyframes m-up{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}',
     '@media (prefers-reduced-motion:reduce){#mpop,.fb,#dpop{animation:none}}',
     /* ---- the chips of the filters in force (phone, tablet, any touch screen): one line that slides under the finger — picking
-       five filters no longer pushes the orders five lines down. «مسح الفلاتر» stays in sight at the line's end. ---- */
+       five filters no longer pushes the orders five lines down. «مسح الفلاتر» is the line's first button. ---- */
     '@media (max-width:1023px),(pointer:coarse){',
     '.afc-row{flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none;scroll-snap-type:x proximity;margin-inline:-12px;padding-inline:12px;scroll-padding-inline:12px}',
     '.afc-row::-webkit-scrollbar{display:none}',
@@ -88,7 +88,8 @@
     '.afc{flex:none;flex-wrap:nowrap;gap:8px;padding-top:0}',
     '.afc-chip{flex:none;max-width:min(78vw,340px);scroll-snap-align:start}.afc-op{flex:none}',
     '.afc-n{flex:none;padding-inline:4px}',
-    '.afc-row>.btn{flex:none;position:sticky;inset-inline-end:-12px;z-index:1;min-height:44px;padding-inline:12px;margin-inline-end:-12px;background:var(--bg-base);box-shadow:0 0 0 1px var(--bd-sub),-12px 0 12px -4px var(--bg-base),12px 0 12px -4px var(--bg-base);border-radius:999px}',
+    /* «مسح الفلاتر» is the line's first button, the chips after it (the owner 22 Nov) — not pinned over them at its end */
+    '.afc-row>.btn{flex:none;order:-1;position:static;scroll-snap-align:start;min-height:44px;padding-inline:14px;margin:0;background:var(--bg-base);box-shadow:0 0 0 1px var(--bd-sub);border-radius:999px}',
     '}',
     /* ---- a touch screen of any width: nothing you tap is under 40px ---- */
     '@media (min-width:768px) and (pointer:coarse){#dpop{width:340px!important}#dpop .dp{width:auto}#dpop .g{grid-template-columns:repeat(7,44px);justify-content:space-between;width:auto}#dpop .wd{width:44px}#dpop .d{width:44px;height:44px;font-size:15px}#dpop .hd button{min-width:40px;min-height:40px}.ibtn{width:40px;height:40px}.sdd{height:40px;max-height:40px}[data-sc],.sc{height:40px}.in,.sel,.sel2,.btn,.dd.btn{min-height:40px}.ocb{position:relative;width:24px;height:24px;flex-basis:24px}.ocb::after{content:"";position:absolute;left:50%;top:50%;width:44px;height:44px;transform:translate(-50%,-50%)}.car-b{width:44px;height:44px}}'

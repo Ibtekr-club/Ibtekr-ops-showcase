@@ -3,7 +3,7 @@
 // the page) is checked field by field and turned into the WooCommerce payloads: the product (draft, English), its
 // variations, the image paths in the bucket `studio` and the Arabic translation's own fields. Anything outside the
 // allow-list refuses the item (400 before any call to the site). No backslash-u escapes in this file: the deploy tool rewrites them into the characters.
-import { cleanFields } from './woo-products.js?v=de75dc1694';
+import { cleanFields } from './woo-products.js?v=c59b54c2e7';
 
 // the global attributes the studio fills (decision 5), looked up by slug on the site
 export const STUDIO_ATTRS = { color: 'pa_color', size: 'pa_size', material: 'pa_material', style: 'pa_style', brand: 'pa_brand' };
