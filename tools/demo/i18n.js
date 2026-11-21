@@ -44,13 +44,11 @@
   function one(s) { // one run of text: known whole, else a pattern, else its parts
     if (DICT[s] !== undefined) return DICT[s];
     for (var i = 0; i < PATS.length; i++) { var m = PATS[i][0].exec(s); if (m) return PATS[i][1].replace(/\$(\d)/g, function (_, d) { return m[d] == null ? '' : tr(m[d]); }); }
-    var out = pieces(s); if (composed.size < 20000) composed.set(s, out); return out;
+    var out = pieces(inline(s)); if (composed.size < 20000) composed.set(s, out); return out;
   }
-  function core(s) {
-    if (DICT[s] !== undefined) return DICT[s];
-    if (s.indexOf(' · ') < 0) return one(s);
-    return s.split(' · ').map(function (x) { var m = /^(\s*)([\s\S]*?)(\s*)$/.exec(x); return AR.test(x) ? m[1] + one(m[2]) + m[3] : x; }).join(' · '); // «… · … · …»: each part on its own
-  }
+  // «3 من 12» inside a longer text reads «3 of 12» (the same word is «from» elsewhere)
+  var inline = function (s) { return s.replace(/(\d[\d,.]*%?) من (\d[\d,.]*)(?![\d/])/g, '$1 of $2'); };
+  function core(s) { return DICT[s] !== undefined ? DICT[s] : one(s); }
   function tr(s) {
     if (typeof s !== 'string' || !AR.test(s)) return s;
     var hit = memo.get(s); if (hit !== undefined) return hit;
@@ -122,6 +120,7 @@
     if (el.tagName === 'STYLE') { styleEl(el); return; }
     if (el.tagName === 'LINK') { if (el.sheet) mirrorSheet(el.sheet); return; }
     for (var i = 0; i < ATTRS.length; i++) { var v = gA.call(el, ATTRS[i]); if (v && AR.test(v)) setAttr(el, ATTRS[i], v); }
+    if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.__ibField) el.__ibField();
     if (gA.call(el, 'dir') === 'rtl') sA.call(el, 'dir', 'ltr');
     if (el.shadowRoot) walk(el.shadowRoot);
   }
@@ -229,11 +228,26 @@
     get: function () { var i = this.selectedIndex; return i < 0 ? '' : optValue(this.options[i]); },
     set: function (v) { var s = String(v); for (var i = 0; i < this.options.length; i++) if (optValue(this.options[i]) === s) { this.selectedIndex = i; return; } this.selectedIndex = -1; } });
 
+  // ---------- text fields: a value the app wrote (a date «19 نوفمبر 2026», an amount «500 ج.م», a template) is shown in English;
+  // read back, it is what the app wrote — until the visitor types something else
+  var fieldO = new WeakMap(); var TEXT_TYPES = { text: 1, search: 1, tel: 1, url: 1, email: 1, '': 1 };
+  [HTMLInputElement.prototype, HTMLTextAreaElement.prototype].forEach(function (proto) {
+    var d = Object.getOwnPropertyDescriptor(proto, 'value'); if (!d || !d.set) return;
+    var isText = function (el) { return el.tagName === 'TEXTAREA' || TEXT_TYPES[(gA.call(el, 'type') || '').toLowerCase()] === 1; };
+    Object.defineProperty(proto, 'value', { configurable: true, enumerable: true,
+      get: function () { var v = d.get.call(this); var o = fieldO.get(this); return o && o.e === v ? o.a : v; },
+      set: function (v) { var s = v == null ? '' : String(v); if (AR.test(s) && isText(this) && !off(this)) { var e = tr(s); fieldO.set(this, { a: s, e: e }); d.set.call(this, e); } else { fieldO.delete(this); d.set.call(this, s); } } });
+    proto.__ibField = function () { if (!isText(this) || off(this)) return; var v = d.get.call(this); if (!AR.test(v)) return; var o = fieldO.get(this); if (o && o.e === v) return; var e = tr(v); fieldO.set(this, { a: v, e: e }); d.set.call(this, e); if (this.tagName === 'INPUT' && gA.call(this, 'value') === v) sA.call(this, 'value', e); };
+  });
+
   // ---------- the browser's own boxes
   ['alert', 'confirm', 'prompt'].forEach(function (name) { var nat = window[name]; if (typeof nat === 'function') window[name] = function (msg, def) { return nat.call(window, tr(String(msg == null ? '' : msg)), def); }; });
 
   // ---------- left to right, and the page's own first markup (index.html)
   var html = document.documentElement; sA.call(html, 'dir', 'ltr'); sA.call(html, 'lang', 'en'); html.classList.add('ib-en');
+  var fix = document.createElement('style'); sA.call(fix, 'data-i18n-off', ''); fix.id = 'ib-en-style';
+  dText.set.call(fix, 'svg.ic:has(> path[d="M15 6l-6 6 6 6"]),svg.ic:has(> path[d="M9 6l6 6-6 6"]){transform:scaleX(-1)}');
+  (document.head || html).appendChild(fix);
   var first = function () { mirrorAll(document); walk(document.documentElement); document.querySelectorAll('[lang="ar"]').forEach(function (e) { sA.call(e, 'lang', 'en'); }); };
   first(); if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', first);
   window.addEventListener('load', function () { mirrorAll(document); });
