@@ -30,6 +30,13 @@
   const SG = () => !!(window.IBSettings && window.IBSettings.single && window.IBSettings.single());
   const OS = (t) => (window.IBSettings && window.IBSettings.oneSeller ? window.IBSettings.oneSeller(t) : t);
   const tabsNow = () => TABS.filter((t) => !(SG() && t.id === 'consolidate'));
+  // …so in single-seller mode there is no «تجميع أوردر» reason or T zone, nothing goes back to a maker («راجع للمبتكر»), and every
+  // piece is the store's own («ملك» — no consignment choice)
+  const reasonsNow = () => O.REASONS.filter((r) => !(SG() && r === 'تجميع أوردر'));
+  const statusesNow = () => STATUSES.filter((x) => !(SG() && x === 'راجع للمبتكر'));
+  const locsNow = () => LOCS.filter((x) => !(SG() && x[0] === 'T'));
+  const modeField = (f, set, bought) => { if (SG()) { f.mode = 'ملك'; return null; }
+    return K.Radios({ label: 'الملكية', value: f.mode, onChange: (v) => set('mode', v, true), options: bought ? [{ value: 'أمانة', label: 'أمانة' }, { value: 'ملك', label: 'ملك ابتكر (اتشترى)' }] : [{ value: 'أمانة', label: 'أمانة (فلوس المبتكر بعد البيع)' }, { value: 'ملك', label: 'ملك ابتكر' }] }); };
   const STATUSES = ['وصل المخزن', 'جاهز يطلع كامل', 'بانتظار الفحص', 'مستني تصوير', 'اتصور', 'متاح', 'محجوز لأوردر', 'راجع للمبتكر', 'تالف'];
   const age = (s) => K.daysBetween(s.since, TODAY);
   const ageTxt = (d) => (d === 0 ? 'النهارده' : d === 1 ? 'يوم' : d === 2 ? 'يومين' : d <= 10 ? d + ' أيام' : d + ' يوم');
@@ -46,7 +53,7 @@
     if (s.reason === 'تجميع أوردر') { const c = cons(s.order); if (!c) return '—'; const wait = c.subs.filter((x) => x[2] !== 'وصل المخزن').map((x) => x[1]); return wait.length ? 'مستني ' + wait.join('، ') : 'شحن كامل'; }
     if (s.status === 'بانتظار الفحص') return 'فحص';
     if (s.status === 'مستني تصوير') return 'تصوير قبل ' + K.dshort(O.addDays(s.since, S.invSettings.photoMax));
-    if (s.status === 'اتصور') return 'يرجع أو يتحوّل للبيع';
+    if (s.status === 'اتصور') return SG() ? 'يتحوّل للبيع' : 'يرجع أو يتحوّل للبيع';
     if (s.status === 'محجوز لأوردر') return 'يتشحن مع الأوردر';
     return '—';
   }
@@ -62,9 +69,9 @@
   const CONS_H = ['الأوردر', 'العميل', 'فرعيات', 'وصل', 'الحالة', 'من يوم', 'بقاله'];
   const goCons = () => { st.tab = 'consolidate'; try { history.replaceState(null, '', '#inventory-consolidate'); } catch (e) { /* */ } R(); };
   const subRows = (l) => l.map(({ c, x }) => ['#' + x[0], 'IB-' + c.order, x[1], x[3] || '—', x[2], K.dshort(c.since), ageTxt(K.daysBetween(c.since, TODAY))]);
-  const SUB_H = [OS('الأوردر الفرعي'), 'الأوردر', OS('المبتكر'), 'المنتج', 'الحالة', 'بدأ التجميع', 'بقاله'];
+  const SUB_H = ['الأوردر الفرعي', 'الأوردر', 'المبتكر', 'المنتج', 'الحالة', 'بدأ التجميع', 'بقاله'];
   const retRows = (l) => l.map((r) => [r.name, r.vendor, '#' + r.sub, r.type, r.reason, r.at, r.status, r.value ? K.money(r.value) : '—']);
-  const RET_H = ['المنتج', OS('المبتكر'), OS('الأوردر الفرعي'), 'النوع', 'السبب', 'التاريخ', 'الحالة', 'القيمة'];
+  const RET_H = ['المنتج', 'المبتكر', 'الأوردر الفرعي', 'النوع', 'السبب', 'التاريخ', 'الحالة', 'القيمة'];
   const mvRows = (l) => { const lot = (key) => S.stock.find((x) => x.key === key) || {}; return l.map((m) => [m.at.slice(0, 16), m.label, lot(m.key).name || m.name || '—', String(m.qty), m.reason || '—', m.ref || '—', m.by, m.note || '']); };
   const MV_H = ['التاريخ', 'الحركة', 'المنتج', 'الكمية', 'السبب', 'المرجع', 'بواسطة', 'ملاحظة'];
 
@@ -95,7 +102,7 @@
   const LOCS = [['T', 'T — تجميع'], ['R', 'R — مرتجعات'], ['P', 'P — تصوير']];
   const placeOf = (reason) => (reason === 'تجميع أوردر' ? 'T' : reason === 'مرتجع' ? 'R' : reason === 'تصوير' ? 'P' : '');
   // the place select: «—» or one of the three; it follows the reason until the member picks one
-  const LOC_OPTS = () => [{ value: '', label: '— من غير مكان —' }].concat(LOCS.map(([v, l]) => ({ value: v, label: l })));
+  const LOC_OPTS = () => [{ value: '', label: '— من غير مكان —' }].concat(locsNow().map(([v, l]) => ({ value: v, label: l })));
   const locName = (c) => (LOCS.find((x) => x[0] === c) || [c, c])[1];
   const placeField = (f, e, set) => { if (!f._locSet) f.loc = placeOf(f.reason);
     return K.field.select('loc', 'المكان (اختياري)', LOC_OPTS(), f, e, (k, v, r) => { f._locSet = true; set(k, v, r); }); };
@@ -113,8 +120,8 @@
   function stockFilterMenu(all) {
     const toF = (d) => ({ reason: d.reason.slice(), status: d.status.slice(), vendor: d.vendor.slice(), loc: d.loc.slice(), late: d.late.includes('late') });
     return K.FilterMenu({ id: 'inv', label: 'فلتر المخزن', noun: 'صنف', value: { reason: st.f.reason, status: st.f.status, vendor: st.f.vendor, loc: st.f.loc, late: st.f.late ? ['late'] : [] },
-      groups: [{ key: 'reason', label: 'السبب', options: O.REASONS.map((r) => [r, r]) }, { key: 'status', label: 'الحالة', options: STATUSES.map((x) => [x, OS(x)]) },
-        SG() ? null : { key: 'vendor', label: 'المبتكر', options: [...new Set(all.map((x) => x.vendor))].sort().map((v) => [v, v]) }, { key: 'loc', label: 'المكان', options: LOCS.map(([v, l]) => [v, l]) },
+      groups: [{ key: 'reason', label: 'السبب', options: reasonsNow().map((r) => [r, r]) }, { key: 'status', label: 'الحالة', options: statusesNow().map((x) => [x, x]) },
+        SG() ? null : { key: 'vendor', label: 'المبتكر', options: [...new Set(all.map((x) => x.vendor))].sort().map((v) => [v, v]) }, { key: 'loc', label: 'المكان', options: locsNow().map(([v, l]) => [v, l]) },
         { key: 'late', label: 'أخرى', options: [['late', 'قاعدة أكتر من اللازم']] }].filter(Boolean),
       count: (d) => all.filter((x) => matchStock(x, toF(d), st.q.toLowerCase())).length, onApply: (d) => { st.f = toF(d); R(); } });
   }
@@ -136,13 +143,13 @@
     const ready = S.consolidations.filter((c) => O.consolidation(c.subs.map((x) => x[2])).ready).length;
     const retW = by('مرتجع').filter((s) => s.status === 'بانتظار الفحص'); const ph = by('تصوير'); const sale = by('متاح للبيع'); const tl = all.filter(tooLong); const sumQ = (l, k) => l.reduce((x, y) => x + (y[k] || 0), 0);
     const kpis = h('div', { class: 'cards five' },
-      K.Stat('بتتجمع', S.consolidations.length, 'أوردرات', ready + ' جاهز يطلع كامل', undefined, () => ({ title: 'أوردرات بتتجمع في المخزن — ' + S.consolidations.length, sub: ready + ' جاهز يطلع كامل · اضغط على أي أوردر يفتح تاب التجميع', summary: [{ label: 'أوردرات', value: String(S.consolidations.length) }, { label: 'جاهز', value: String(ready) }, { label: 'فرعيات', value: String(S.consolidations.reduce((x, c) => x + c.subs.length, 0)) }], headers: CONS_H, rows: S.consolidations.map(consRow), onRow: goCons, source: SRC })),
+      SG() ? null : K.Stat('بتتجمع', S.consolidations.length, 'أوردرات', ready + ' جاهز يطلع كامل', undefined, () => ({ title: 'أوردرات بتتجمع في المخزن — ' + S.consolidations.length, sub: ready + ' جاهز يطلع كامل · اضغط على أي أوردر يفتح تاب التجميع', summary: [{ label: 'أوردرات', value: String(S.consolidations.length) }, { label: 'جاهز', value: String(ready) }, { label: 'فرعيات', value: String(S.consolidations.reduce((x, c) => x + c.subs.length, 0)) }], headers: CONS_H, rows: S.consolidations.map(consRow), onRow: goCons, source: SRC })),
       K.Stat('مرتجعات', retW.length, 'بانتظار الفحص', 'أقدم واحد من ' + sinceTxt(by('مرتجع').map((s) => s.since).sort()[0] || TODAY), undefined, () => ({ title: 'مرتجعات بانتظار الفحص — ' + retW.length, sub: 'المرتجع ما بيزوّدش المتاح غير بعد الفحص · اضغط على أي صف يفتح تفاصيل المنتج', summary: [{ label: 'قطع', value: String(retW.length) }, { label: 'كل المرتجعات في المخزن', value: String(by('مرتجع').length) }], headers: STOCK_H, rows: stockRows(retW), onRow: openLot(retW), source: SRC })),
       K.Stat('تصوير', ph.length, 'منتجات', ph.filter((s) => s.status === 'اتصور').length + ' اتصور ومستني قرار', undefined, () => ({ title: 'منتجات التصوير — ' + ph.length, sub: 'أقصى مدة للتصوير ' + S.invSettings.photoMax + ' يوم', summary: [{ label: 'مستني تصوير', value: String(ph.filter((s) => s.status === 'مستني تصوير').length) }, { label: 'اتصور ومستني قرار', value: String(ph.filter((s) => s.status === 'اتصور').length) }, { label: 'متأخر', value: String(ph.filter(tooLong).length) }], headers: STOCK_H.concat(['الخطوة الجاية']), rows: ph.map((x, i) => stockRows([x])[0].concat([nextStep(x)])), onRow: openLot(ph), source: SRC })),
       K.Stat('متاح للبيع', sumQ(sale, 'onHand'), 'قطعة', sumQ(sale, 'reserved') + ' محجوزة لأوردرات', undefined, () => ({ title: 'متاح للبيع — ' + sumQ(sale, 'onHand') + ' قطعة', sub: 'السحب التلقائي للأوردرات الجديدة بيشتغل على «متاح للبيع» بس', summary: [{ label: 'في المخزن', value: String(sumQ(sale, 'onHand')) }, { label: 'محجوز', value: String(sumQ(sale, 'reserved')) }, { label: 'متاح فعلًا', value: String(sumQ(sale, 'available')) }, { label: 'منتجات', value: String(sale.length) }], headers: ['المنتج', 'SKU', 'المبتكر', 'المكان', 'في المخزن', 'محجوز', 'متاح'], rows: sale.map((x) => [x.name, x.sku, x.vendor, x.loc, String(x.onHand), String(x.reserved || 0), String(x.available != null ? x.available : x.onHand - (x.reserved || 0))]), onRow: openLot(sale), source: SRC })),
-      K.Stat('قاعدة أكتر من اللازم', sumQ(tl, 'onHand'), 'قطع', 'تصوير > ' + S.invSettings.photoMax + ' يوم · تجميع > ' + S.invSettings.consolidationAlert + ' أيام', undefined, () => ({ title: 'قطع قاعدة أكتر من اللازم — ' + sumQ(tl, 'onHand'), sub: 'تصوير أكتر من ' + S.invSettings.photoMax + ' يوم · تجميع أكتر من ' + S.invSettings.consolidationAlert + ' أيام', summary: [{ label: 'قطع', value: String(sumQ(tl, 'onHand')) }, { label: 'منتجات', value: String(tl.length) }], headers: STOCK_H.concat(['الخطوة الجاية']), rows: tl.map((x) => stockRows([x])[0].concat([nextStep(x)])), onRow: openLot(tl), note: OS('خد قرار: يرجع للمبتكر، يتحوّل للبيع، أو اشحن الموجود.'), source: SRC })));
+      K.Stat('قاعدة أكتر من اللازم', sumQ(tl, 'onHand'), 'قطع', 'تصوير > ' + S.invSettings.photoMax + ' يوم' + (SG() ? '' : ' · تجميع > ' + S.invSettings.consolidationAlert + ' أيام'), undefined, () => ({ title: 'قطع قاعدة أكتر من اللازم — ' + sumQ(tl, 'onHand'), sub: 'تصوير أكتر من ' + S.invSettings.photoMax + ' يوم' + (SG() ? '' : ' · تجميع أكتر من ' + S.invSettings.consolidationAlert + ' أيام'), summary: [{ label: 'قطع', value: String(sumQ(tl, 'onHand')) }, { label: 'منتجات', value: String(tl.length) }], headers: STOCK_H.concat(['الخطوة الجاية']), rows: tl.map((x) => stockRows([x])[0].concat([nextStep(x)])), onRow: openLot(tl), note: SG() ? 'خد قرار: يتحوّل للبيع أو اشحن الموجود.' : 'خد قرار: يرجع للمبتكر، يتحوّل للبيع، أو اشحن الموجود.', source: SRC })));
     if (part === 'overview') { // decision 58: the five cards on their own tab, the register on «سجل المخزون»
-      const byR = ['تجميع أوردر', 'مرتجع', 'تصوير', 'متاح للبيع'].map((r) => [r, by(r).length, sumQ(by(r), 'onHand')]);
+      const byR = reasonsNow().map((r) => [r, by(r).length, sumQ(by(r), 'onHand')]);
       return [kpis, K.Section('المخزن حسب السبب', U.Table({ headers: ['السبب', 'الأصناف', 'القطع'], rows: byR.map(([r, n, q]) => [K.Tag(REASON_TONE[r], r), K.Num(String(n)), K.Num(String(q))]) }), Button({ type: 'text', size: 'sm', label: 'افتح سجل المخزون', attrs: { 'data-inv-open-now': '' }, onClick: () => { st.tab = 'now'; try { history.replaceState(null, '', '#inventory-now'); } catch (e) { /* */ } R(); } }), { sub: 'اليوم ' + K.dlabel(TODAY) + ' · ' + all.length + ' صنف · ' + sumQ(all, 'onHand') + ' قطعة' })];
     }
     const f = st.f; const q = st.q.toLowerCase();
@@ -157,8 +164,8 @@
     // the owner 13 Nov: «فلتر» and «ترتيب» in the table card's head next to
     // «بحث» like the other big tables — the search moves into the search row (the kit's tableSearch); the «فلاتر المخزن» card is gone
     return [K.Section('سجل المخزون', [h('div', { class: 'toolbar', 'data-inv-toolbar': '' }, search('ابحث بالمنتج أو الأوردر أو الـ SKU', 'q', 'بحث في المخزن')), activeRow(all, list), IB.bar(), list.length ? U.Table({ cls: 'inv-table', headers: [IB.head(), 'المنتج', 'المبتكر', 'السبب', 'الحالة', 'المرجع', 'المكان', 'الكمية', 'دخل المخزن', 'بقاله', ''], rows }) : K.Empty('مفيش قطع بالفلتر ده', 'غيّر الفلتر أو البحث، أو سجّل استلام جديد.', Button({ type: 'primary', label: 'استلام في المخزن', onClick: () => receive() })),
-      h('p', { class: 't-small help', style: 'margin:0' }, OS('كل قطعة في المخزن ليها «سبب» و«حالة». السبب: تجميع أوردر · مرتجع · تصوير · متاح للبيع. منتجات التصوير ممكن بعد التصوير ترجع للمبتكر أو تتحوّل «متاح للبيع». السحب من المخزن بيبقى من الأوردر («اسحب من المخزن») على «متاح للبيع» بس، وتلقائي لو «السحب التلقائي» شغّال من الإعدادات. الكمية بتتحسب من الحركات.')),
-      h('div', { class: 'legend t-small' }, h('b', null, 'الحالات:'), STATUSES.map((x) => K.Tag(STATUS_TONE[x], OS(x))))], [stockFilterMenu(all), stockSortMenu()], { cls: 'own-filter', noun: ['صنف', 'الأصناف'], count: [list.length, all.length], total: sumQ(list, 'onHand') + ' قطعة في المخزن' })]; // the kit's line (2026-11-13-table-head.md): «اليوم … · N من M صنف · … قطعة في المخزن»
+      h('p', { class: 't-small help', style: 'margin:0' }, (SG() ? 'كل قطعة في المخزن ليها «سبب» و«حالة». السبب: مرتجع · تصوير · متاح للبيع. منتجات التصوير بعد التصوير بتتحوّل «متاح للبيع».' : 'كل قطعة في المخزن ليها «سبب» و«حالة». السبب: تجميع أوردر · مرتجع · تصوير · متاح للبيع. منتجات التصوير ممكن بعد التصوير ترجع للمبتكر أو تتحوّل «متاح للبيع».') + ' السحب من المخزن بيبقى من الأوردر («اسحب من المخزن») على «متاح للبيع» بس، وتلقائي لو «السحب التلقائي» شغّال من الإعدادات. الكمية بتتحسب من الحركات.'),
+      h('div', { class: 'legend t-small' }, h('b', null, 'الحالات:'), statusesNow().map((x) => K.Tag(STATUS_TONE[x], x)))], [stockFilterMenu(all), stockSortMenu()], { cls: 'own-filter', noun: ['صنف', 'الأصناف'], count: [list.length, all.length], total: sumQ(list, 'onHand') + ' قطعة في المخزن' })]; // the kit's line (2026-11-13-table-head.md): «اليوم … · N من M صنف · … قطعة في المخزن»
   }
   function actionsFor(s) {
     return [{ label: 'تفاصيل المنتج', icon: 'box', run: () => details(s) },
@@ -269,13 +276,13 @@
     // B6: the alert «المرتجع مستني كتير» — waiting for the inspection past the settings' days
     const rw = S.invSettings.returnWait || 7; const lateR = waitR.filter((r) => { const x = K.stockNow().find((y) => y.key === r.key); return x && age(x) >= rw; });
     return [h('div', { class: 'cards' },
-      K.Stat('بانتظار الفحص', waitR.length, 'قطعة', lateR.length ? lateR.length + ' مستني أكتر من ' + rw + ' يوم' : 'مفيش مرتجع مستني أكتر من ' + rw + ' يوم', undefined, () => ({ title: 'مرتجعات بانتظار الفحص — ' + waitR.length, sub: 'سليم = يرجع متاح · تالف = حركة تالف', headers: RET_H, rows: retRows(waitR), source: OS('المرتجعات من الأوردرات الفرعية') })),
-      K.Stat('رجعت للمخزن (أكتوبر)', inStock.length, 'قطعة', inStock.filter((r) => r.status.includes('سليم') || r.status === 'بانتظار الفحص').length + ' سليمة · ' + inStock.filter((r) => r.status.includes('تالف')).length + ' تالفة', undefined, () => ({ title: 'مرتجعات رجعت للمخزن (أكتوبر) — ' + inStock.length, summary: [{ label: 'سليمة / بانتظار الفحص', value: String(inStock.filter((r) => r.status.includes('سليم') || r.status === 'بانتظار الفحص').length) }, { label: 'تالفة', value: String(inStock.filter((r) => r.status.includes('تالف')).length) }], headers: RET_H, rows: retRows(inStock), source: OS('المرتجعات من الأوردرات الفرعية') })),
-      K.Stat(OS('رجعت للمبتكر (أكتوبر)'), toVendor.length, 'قطعة', OS('نصيب المبتكر اتلغى'), undefined, () => ({ title: OS('مرتجعات رجعت للمبتكر (أكتوبر) — ') + toVendor.length, sub: OS('نصيب المبتكر اتلغى من الأوردر'), headers: RET_H, rows: retRows(toVendor), source: OS('المرتجعات من الأوردرات الفرعية') })),
-      K.Stat('قيمة التالف (أكتوبر)', K.money(damaged), 'ج.م', 'على ابتكر', undefined, () => ({ title: 'قيمة التالف (أكتوبر) — ' + K.money(damaged) + ' ج.م', sub: 'القطع اللي اتفحصت واتعلّمت تالفة — التكلفة على ابتكر', summary: [{ label: 'الإجمالي', value: K.money(damaged) + ' ج.م' }, { label: 'قطع', value: String(dmg.length) }], headers: RET_H, rows: retRows(dmg), source: OS('المرتجعات من الأوردرات الفرعية') }))),
+      K.Stat('بانتظار الفحص', waitR.length, 'قطعة', lateR.length ? lateR.length + ' مستني أكتر من ' + rw + ' يوم' : 'مفيش مرتجع مستني أكتر من ' + rw + ' يوم', undefined, () => ({ title: 'مرتجعات بانتظار الفحص — ' + waitR.length, sub: 'سليم = يرجع متاح · تالف = حركة تالف', headers: RET_H, rows: retRows(waitR), source: SG() ? 'المرتجعات من الأوردرات' : 'المرتجعات من الأوردرات الفرعية' })),
+      K.Stat('رجعت للمخزن (أكتوبر)', inStock.length, 'قطعة', inStock.filter((r) => r.status.includes('سليم') || r.status === 'بانتظار الفحص').length + ' سليمة · ' + inStock.filter((r) => r.status.includes('تالف')).length + ' تالفة', undefined, () => ({ title: 'مرتجعات رجعت للمخزن (أكتوبر) — ' + inStock.length, summary: [{ label: 'سليمة / بانتظار الفحص', value: String(inStock.filter((r) => r.status.includes('سليم') || r.status === 'بانتظار الفحص').length) }, { label: 'تالفة', value: String(inStock.filter((r) => r.status.includes('تالف')).length) }], headers: RET_H, rows: retRows(inStock), source: SG() ? 'المرتجعات من الأوردرات' : 'المرتجعات من الأوردرات الفرعية' })),
+      SG() ? null : K.Stat('رجعت للمبتكر (أكتوبر)', toVendor.length, 'قطعة', 'نصيب المبتكر اتلغى', undefined, () => ({ title: 'مرتجعات رجعت للمبتكر (أكتوبر) — ' + toVendor.length, sub: 'نصيب المبتكر اتلغى من الأوردر', headers: RET_H, rows: retRows(toVendor), source: SG() ? 'المرتجعات من الأوردرات' : 'المرتجعات من الأوردرات الفرعية' })),
+      K.Stat('قيمة التالف (أكتوبر)', K.money(damaged), 'ج.م', 'على ابتكر', undefined, () => ({ title: 'قيمة التالف (أكتوبر) — ' + K.money(damaged) + ' ج.م', sub: 'القطع اللي اتفحصت واتعلّمت تالفة — التكلفة على ابتكر', summary: [{ label: 'الإجمالي', value: K.money(damaged) + ' ج.م' }, { label: 'قطع', value: String(dmg.length) }], headers: RET_H, rows: retRows(dmg), source: SG() ? 'المرتجعات من الأوردرات' : 'المرتجعات من الأوردرات الفرعية' }))),
       K.Section('سجل المرتجعات', [RB.bar(), U.Table({ headers: [RB.head(), 'المنتج', OS('الأوردر الفرعي'), 'نوع المرتجع', 'السبب', 'التاريخ', 'الحالة', 'الأثر', 'الإجراء'], rows: rs.map((r) => [RB.box(r.key + ':' + r.sub, r.name), h('span', { class: 'prod' }, Thumb(r.sku, r.name), h('span', null, h('b', null, r.name), h('small', null, r.vendor + ' · ' + r.mode))), K.Num(r.sub), K.Tag(r.type === 'مرتجع للمخزن' ? 'orange' : 'error', r.type), r.reason, r.at, K.Tag(tone(r.status), r.status), r.effect,
-        r.status === 'بانتظار الفحص' ? Button({ type: 'primary', size: 'sm', label: 'فحص', onClick: () => { const s = K.stockNow().find((x) => x.key === r.key); if (s) inspect(s, r); } }) : Button({ type: 'text', size: 'sm', label: 'عرض', onClick: () => U.Modal({ title: r.name + ' — ' + r.sub, share: true, body: [K.Kv([[OS('المبتكر'), r.vendor + ' · ' + r.mode], r.condition ? ['حالة المنتج عند الاستلام', (O.RETURN_CONDITIONS.find((c) => c.value === r.condition) || {}).label + (r.conditionNote ? ' — ' + r.conditionNote : '')] : null, ['النوع', r.type], ['السبب', r.reason], ['التاريخ', r.at], ['الحالة', r.status], ['الأثر', r.effect]])] }) })]) })], null, { noun: ['مرتجع', 'المرتجعات'], total: 'بانتظار الفحص ' + rs.filter((r) => r.status === 'بانتظار الفحص').length }),
-      h('p', { class: 't-small help', style: 'margin:0' }, OS('المرتجعات بتتعمل من الأوردرات › الأوردر الفرعي بتغيير الحالة لـ «مرتجع للمخزن» أو «مرتجع للمبتكر». المرتجع للمخزن مش بيزوّد المتاح غير بعد الفحص: سليم = + متاح · تالف = حركة تالف · ممكن يتحوّل «إرجاع للمبتكر».'))];
+        r.status === 'بانتظار الفحص' ? Button({ type: 'primary', size: 'sm', label: 'فحص', onClick: () => { const s = K.stockNow().find((x) => x.key === r.key); if (s) inspect(s, r); } }) : Button({ type: 'text', size: 'sm', label: 'عرض', onClick: () => U.Modal({ title: r.name + ' — ' + r.sub, share: true, body: [K.Kv([SG() ? null : ['المبتكر', r.vendor + ' · ' + r.mode], r.condition ? ['حالة المنتج عند الاستلام', (O.RETURN_CONDITIONS.find((c) => c.value === r.condition) || {}).label + (r.conditionNote ? ' — ' + r.conditionNote : '')] : null, ['النوع', r.type], ['السبب', r.reason], ['التاريخ', r.at], ['الحالة', r.status], ['الأثر', r.effect]])] }) })]) })], null, { noun: ['مرتجع', 'المرتجعات'], total: 'بانتظار الفحص ' + rs.filter((r) => r.status === 'بانتظار الفحص').length }),
+      h('p', { class: 't-small help', style: 'margin:0' }, (SG() ? 'المرتجعات بتتعمل من الأوردرات بتغيير حالة المنتج لـ «مرتجع للمخزن». المرتجع مش بيزوّد المتاح غير بعد الفحص: سليم = + متاح · تالف = حركة تالف.' : 'المرتجعات بتتعمل من الأوردرات › الأوردر الفرعي بتغيير الحالة لـ «مرتجع للمخزن» أو «مرتجع للمبتكر». المرتجع للمخزن مش بيزوّد المتاح غير بعد الفحص: سليم = + متاح · تالف = حركة تالف · ممكن يتحوّل «إرجاع للمبتكر».'))];
   }
   // ---------- حركات المخزن ----------
   function movesTab() {
@@ -290,7 +297,7 @@
     let MB = null; const q = st.mq.toLowerCase(); const list = month.filter((m) => (!st.mtype || m.label.startsWith(st.mtype)) && (!q || ((lot(m.key).name || m.name || '') + m.ref).toLowerCase().includes(q)));
     const resL = K.stockNow().filter((x) => x.reserved > 0); const manL = month.filter((m) => m.type === 'adjust' || m.type === 'move');
     return [h('div', { class: 'cards' },
-      K.Stat('داخل', '+ ' + sum(ins), 'قطعة', 'تجميع ' + byR(ins, 'تجميع أوردر') + ' · مرتجعات ' + byR(ins, 'مرتجع') + ' · تصوير ' + byR(ins, 'تصوير') + ' · للبيع ' + byR(ins, 'متاح للبيع'), undefined, () => ({ title: 'حركات الدخول (' + perName + ') — ' + sum(ins) + ' قطعة', summary: [{ label: 'تجميع', value: String(byR(ins, 'تجميع أوردر')) }, { label: 'مرتجعات', value: String(byR(ins, 'مرتجع')) }, { label: 'تصوير', value: String(byR(ins, 'تصوير')) }, { label: 'للبيع', value: String(byR(ins, 'متاح للبيع')) }], headers: MV_H, rows: mvRows(ins), source: 'سجل حركات المخزن' })),
+      K.Stat('داخل', '+ ' + sum(ins), 'قطعة', (SG() ? '' : 'تجميع ' + byR(ins, 'تجميع أوردر') + ' · ') + 'مرتجعات ' + byR(ins, 'مرتجع') + ' · تصوير ' + byR(ins, 'تصوير') + ' · للبيع ' + byR(ins, 'متاح للبيع'), undefined, () => ({ title: 'حركات الدخول (' + perName + ') — ' + sum(ins) + ' قطعة', summary: (SG() ? [] : [{ label: 'تجميع', value: String(byR(ins, 'تجميع أوردر')) }]).concat([{ label: 'مرتجعات', value: String(byR(ins, 'مرتجع')) }, { label: 'تصوير', value: String(byR(ins, 'تصوير')) }, { label: 'للبيع', value: String(byR(ins, 'متاح للبيع')) }]), headers: MV_H, rows: mvRows(ins), source: 'سجل حركات المخزن' })),
       K.Stat('خارج', '− ' + sum(outs), 'قطعة', outs.map((m) => m.label.replace('خروج — ', '')).filter((v, i, a) => a.indexOf(v) === i).join(' · ') || '—', undefined, () => ({ title: 'حركات الخروج (' + perName + ') — ' + sum(outs) + ' قطعة', summary: [{ label: 'قطع', value: String(sum(outs)) }, { label: 'حركات', value: String(outs.length) }], headers: MV_H, rows: mvRows(outs), source: 'سجل حركات المخزن' })),
       K.Stat('حجوزات مفتوحة', reserved, 'قطعة', 'لأوردرات لسه متشحنتش', undefined, () => ({ title: 'حجوزات مفتوحة — ' + reserved + ' قطعة', sub: 'قطع محجوزة لأوردرات لسه متشحنتش', headers: ['المنتج', 'SKU', 'المبتكر', 'المرجع', 'محجوز', 'في المخزن', 'المكان'], rows: resL.map((x) => [x.name, x.sku, x.vendor, x.ref || '—', String(x.reserved), String(x.onHand), x.loc]), onRow: openLot(resL), source: 'سجل حركات المخزن' })),
       K.Stat('حركات يدوية', manual, 'حركة', 'تسويات + نقل أماكن', undefined, () => ({ title: 'حركات يدوية (' + perName + ') — ' + manual, sub: 'تسويات ونقل أماكن عملها الفريق بسبب', headers: MV_H, rows: mvRows(manL), source: 'سجل حركات المخزن' }))),
@@ -299,7 +306,7 @@
         (MB = K.Bulk({ key: 'inv-moves', ids: list.map((m, i) => m.id || (m.at + ':' + i)), noun: 'حركة', render: R, actions: [{ id: 'export', label: 'تصدير', icon: 'download', run: (ids, done) => { K.xlsxExport('ibtekr-stock-moves-' + TODAY + '.xlsx', 'حركات المخزن', [MV_H].concat(list.filter((m, i) => ids.includes(String(m.id || (m.at + ':' + i)))).map((m) => [m.at, m.label, lot(m.key).name || m.name || '', m.qty, m.reason || '', m.ref || '', m.by || '', m.note || '']))); done(); } }] })).bar(),
         !list.length ? K.Empty(per ? 'مفيش حركات في الفترة دي' : 'مفيش حركات', per ? 'غيّر الفترة من فوق الجدول، أو اضغط «كل الفترات».' : 'أي استلام أو خروج أو حجز بيتسجل هنا.') : U.Table({ headers: [MB.head(), 'التاريخ', 'الحركة', 'المنتج', 'الكمية', 'السبب', 'المرجع', 'بواسطة', 'ملاحظة'], rows: list.map((m, mi) => { const l = lot(m.key); const d = m.at.slice(0, 10);
           return [MB.box(m.id || (m.at + ':' + mi), m.label), h('span', null, d === TODAY ? 'اليوم' : d === O.addDays(TODAY, -1) ? 'أمس' : K.dshort(d), ' ', K.Num(m.at.slice(11, 16))), K.Tag(m.type === 'in' ? 'success' : m.type === 'reserve' ? 'orange' : m.label === 'تالف' ? 'error' : m.type === 'move' ? 'brand' : 'neutral', m.label), h('span', { class: 'prod' }, h('span', null, h('b', null, l.name || m.name || '—'), h('small', { dir: 'ltr' }, l.sku || m.sku || ''))), K.Num(sign(m) + m.qty + (m.type === 'reserve' ? ' متاح' : '')), m.reason, K.Num(m.ref), m.by, h('span', { class: 't-small' }, m.note)]; }) }),
-        h('p', { class: 't-small help', style: 'margin:0' }, OS('الحجز والشحن وفك الحجز بيعملهم السيستم لوحده من الأوردرات. الاستلام والتسوية والتالف والإرجاع للمبتكر بيعملهم الفريق بسبب. أي غلطة بتتصلح بحركة عكسية — مفيش مسح.'))], null, { noun: ['حركة', 'الحركات'], when: perName, count: [list.length, month.length], total: 'دخول ' + sum(ins) + ' · خروج ' + sum(outs) })].filter(Boolean);
+        h('p', { class: 't-small help', style: 'margin:0' }, 'الحجز والشحن وفك الحجز بيعملهم السيستم لوحده من الأوردرات. الاستلام والتسوية والتالف' + (SG() ? '' : ' والإرجاع للمبتكر') + ' بيعملهم الفريق بسبب. أي غلطة بتتصلح بحركة عكسية — مفيش مسح.')], null, { noun: ['حركة', 'الحركات'], when: perName, count: [list.length, month.length], total: 'دخول ' + sum(ins) + ' · خروج ' + sum(outs) })].filter(Boolean);
   }
   // ---------- الجرد ----------
   // comments decision 34 (the owner 15 Nov — «بلاش الحفظ بتاع الجرد يبقي في كل خطوة و زر مطابقة و حفظ و الغاء — الحتة اللي فوق تبقي sticky
@@ -470,14 +477,14 @@
     return [RB && RB.range ? h('div', { class: 'toolbar pr-rep-bar' }, RB.range()) : null,
       h('div', { class: 'cards four', 'data-rgroup': 'kpis' },
         U.KpiTile({ label: 'قطع في المخزن الآن', value: String(rep.pieces), unit: 'قطعة', compare: 'off', note: 'رصيد اللحظة الحالية — مش متأثر بالفترة' }),
-        U.KpiTile({ label: 'قيمة المخزن', value: K.money(rep.value), unit: 'ج.م', compare: 'off', note: OS('تكلفة المبتكر × الكمية') }),
+        U.KpiTile({ label: 'قيمة المخزن', value: K.money(rep.value), unit: 'ج.م', compare: 'off', note: (SG() ? 'التكلفة × الكمية' : 'تكلفة المبتكر × الكمية') }),
         U.KpiTile({ label: 'مرتجعات مستنية الفحص', value: String(rep.waiting), unit: 'مرتجع', compare: 'off', note: 'من ' + rep.returns + ' مرتجع في السجل' }),
         U.KpiTile({ label: 'حركات المخزن في الفترة', value: String(rep.moves), unit: 'حركة', compare: 'off', note: K.dshort(rr.from) + ' – ' + K.dshort(rr.to) + ' · دخول · خروج · نقل' })),
       h('div', { class: 'charts', 'data-rgroup': 'charts' },
         U.ChartCard({ title: 'سبب دخول القطع', subtitle: 'عدد الأصناف', footnote: 'نفس أرقام «المخزن الآن»', body: bars(rep.byReason, maxR) }),
         U.ChartCard({ title: 'حالة القطع', subtitle: 'عدد الأصناف', footnote: 'الحالة بتتغير من «المخزن الآن» و«المرتجعات»', body: bars(rep.byStatus, maxS) })),
       K.Section('أعلى 20 قطعة بالتكلفة', rep.rows.length ? U.Table({ cls: 'rp-inv', headers: rowsH, rows }) : U.EmptyState('المخزن فاضي', 'أول ما قطعة تدخل المخزن هتظهر هنا.'), null, { sub: rep.rows.length + ' صف' }),
-      h('p', { class: 'source' }, OS('المصدر: مخزن إبتكر (حركات الدخول والخروج) + سجل المرتجعات · التكلفة هي تكلفة المبتكر المسجلة على القطعة.'))];
+      h('p', { class: 'source' }, 'المصدر: مخزن إبتكر (حركات الدخول والخروج) + سجل المرتجعات · ' + (SG() ? 'التكلفة هي المسجلة على القطعة.' : 'التكلفة هي تكلفة المبتكر المسجلة على القطعة.'))];
   }
 
   // ---------- popups ----------
@@ -488,13 +495,13 @@
     K.form({ title: OS('وصل المخزن — فرعي #') + info.sid, wide: true, values: { reason: O.arrivalReason(info.inConsolidation), loc: '', mode: 'أمانة', date: TODAY },
       note: h('div', { class: 'prod arrival-prod' }, Thumb(info.sku, info.prod), h('span', null, h('b', null, info.prod + ' × ' + (info.qty || 1)), h('small', { dir: 'ltr' }, (info.sku || '—')), h('small', null, info.vendor + ' · IB-' + info.order + ' · ' + K.money(info.tot || 0) + ' ج.م'))),
       fields: (f, e, set) => [
-        K.Radios({ label: 'سبب التخزين *', value: f.reason, onChange: (v) => set('reason', v, true), options: O.REASONS.map((r) => ({ value: r, label: r, hint: hints[r] })) }), e.reason ? h('div', { class: 'err-msg', role: 'alert' }, e.reason) : null,
+        K.Radios({ label: 'سبب التخزين *', value: f.reason, onChange: (v) => set('reason', v, true), options: reasonsNow().map((r) => ({ value: r, label: r, hint: hints[r] })) }), e.reason ? h('div', { class: 'err-msg', role: 'alert' }, e.reason) : null,
         info.inConsolidation && f.reason && f.reason !== 'تجميع أوردر' ? U.InlineNote({ kind: 'warning', children: 'الأوردر ده بيتجمع في المخزن — لو السبب مش «تجميع أوردر» القطعة مش هتتحسب في التجميع.' }) : null,
         f.reason === 'مرتجع' ? K.Radios({ label: 'حالة المنتج *', value: f.condition, onChange: (v) => set('condition', v, true), options: O.RETURN_CONDITIONS.map((c) => ({ value: c.value, label: c.label, hint: c.hint })) }) : null,
         f.reason === 'مرتجع' && e.condition ? h('div', { class: 'err-msg', role: 'alert' }, e.condition) : null,
         f.reason === 'مرتجع' && f.condition ? K.field.area('conditionNote', 'وصف الحالة', f, e, set, { required: ['عيب بسيط', 'ناقص', 'تالف'].includes(f.condition), placeholder: f.condition === 'ناقص' ? 'إيه اللي ناقص؟' : f.condition === 'سليم' ? 'اختياري' : 'وصف العيب أو التلف' }) : null,
         f.reason === 'مرتجع' && (f.condition === 'تالف' || f.condition === 'عيب بسيط') ? K.field.file('conditionPhoto', 'صورة الحالة', f, e, set) : null,
-        f.reason === 'متاح للبيع' ? K.Radios({ label: 'الملكية', value: f.mode, onChange: (v) => set('mode', v, true), options: [{ value: 'أمانة', label: OS('أمانة (فلوس المبتكر بعد البيع)') }, { value: 'ملك', label: 'ملك ابتكر' }] }) : null,
+        f.reason === 'متاح للبيع' ? modeField(f, set) : null,
         K.two(placeField(f, e, set), K.field.date('date', 'تاريخ الوصول', f, e, set, { required: true })),
         K.field.area('note', 'ملاحظة', f, e, set, { placeholder: 'اختياري' })],
       validate: (f) => { const e = O.validateReceive({ sku: info.sku || 'SUB-' + info.sid, qty: info.qty || 1, reason: f.reason, condition: f.condition, conditionNote: f.conditionNote }); if (e.reason) e.reason = 'اختار سبب التخزين'; if (!f.date) e.date = 'اختار التاريخ'; return e; },
@@ -559,12 +566,12 @@
         return [o ? h('div', { class: 'field' }, h('span', { class: 'flabel' }, 'الأوردر'), h('div', { class: 'row', style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap' }, h('b', { dir: 'ltr' }, 'IB-' + o.id), h('span', null, (o.name || '—') + ' · ' + K.money(o.tot || 0) + ' ج.م · ' + (o.st || '')),
             Button({ type: 'text', size: 'sm', label: 'غيّر الأوردر', onClick: () => { f.pick = {}; set('order', '', true); } }))) : picker(f, e, set),
           o ? linesOf(o, f, e, set) : null,
-          o ? K.Radios({ label: 'سبب الاستلام *', value: f.reason, onChange: (v) => set('reason', v, true), options: O.REASONS.map((r) => ({ value: r, label: r, hint: REASON_HINT()[r] })) }) : null,
+          o ? K.Radios({ label: 'سبب الاستلام *', value: f.reason, onChange: (v) => set('reason', v, true), options: reasonsNow().map((r) => ({ value: r, label: r, hint: REASON_HINT()[r] })) }) : null,
           o && e.reason ? h('div', { class: 'err-msg', role: 'alert' }, e.reason) : null,
           o && f.reason === 'مرتجع' ? K.Radios({ label: 'حالة المنتج *', value: f.condition, onChange: (v) => set('condition', v, true), options: O.RETURN_CONDITIONS.map((c) => ({ value: c.value, label: c.label, hint: c.hint })) }) : null,
           o && f.reason === 'مرتجع' && e.condition ? h('div', { class: 'err-msg', role: 'alert' }, e.condition) : null,
           o && f.reason === 'مرتجع' && f.condition ? K.field.area('conditionNote', 'وصف الحالة', f, e, set, { required: ['عيب بسيط', 'ناقص', 'تالف'].includes(f.condition), placeholder: f.condition === 'ناقص' ? 'إيه اللي ناقص؟' : f.condition === 'سليم' ? 'اختياري' : 'وصف العيب أو التلف' }) : null,
-          o && f.reason === 'متاح للبيع' ? K.Radios({ label: 'الملكية', value: f.mode, onChange: (v) => set('mode', v, true), options: [{ value: 'أمانة', label: OS('أمانة (فلوس المبتكر بعد البيع)') }, { value: 'ملك', label: 'ملك ابتكر' }] }) : null,
+          o && f.reason === 'متاح للبيع' ? modeField(f, set) : null,
           o ? placeField(f, e, set) : null,
           h('div', null, Button({ type: 'text', size: 'sm', label: 'استلام يدوي (من غير أوردر)', attrs: { 'data-rc-manual': '' }, onClick: () => { if (md) md.close(); receiveManual(); } }))]; },
       validate: (f) => { const e = {}; const o = f.order ? byId(f.order) : null; if (!o) { e.order = 'اختار الأوردر'; return e; }
@@ -590,14 +597,14 @@
   }
   function receiveManual() {
     K.form({ title: 'استلام في المخزن', wide: true, values: { qty: '1', loc: '', mode: 'أمانة' }, note: U.InlineNote({ children: 'السبب مطلوب — هو اللي بيحدد الحالة والخطوة الجاية.' }),
-      fields: (f, e, set) => [K.two(K.field.text('name', 'المنتج', f, e, set, { required: true }), K.field.text('sku', 'SKU', f, e, set, { required: true })), K.two(K.field.select('vendor', OS('المبتكر'), makerNames(), f, e, set, { required: true }), K.field.text('qty', 'الكمية', f, e, set, { required: true, inputmode: 'numeric' })),
-        K.Radios({ label: 'سبب الاستلام *', value: f.reason, onChange: (v) => set('reason', v, true), options: O.REASONS.map((r) => ({ value: r, label: r, hint: REASON_HINT()[r] })) }), e.reason ? h('div', { class: 'err-msg', role: 'alert' }, e.reason) : null,
-        f.reason === 'تجميع أوردر' || f.reason === 'مرتجع' ? K.field.text('order', f.reason === 'مرتجع' ? OS('الأوردر الفرعي') : 'رقم الأوردر', f, e, set, { required: true, placeholder: f.reason === 'مرتجع' ? '180549' : '180662' }) : null,
+      fields: (f, e, set) => [K.two(K.field.text('name', 'المنتج', f, e, set, { required: true }), K.field.text('sku', 'SKU', f, e, set, { required: true })), SG() ? ((f.vendor = f.vendor || makerNames()[0] || '—'), K.field.text('qty', 'الكمية', f, e, set, { required: true, inputmode: 'numeric' })) : K.two(K.field.select('vendor', 'المبتكر', makerNames(), f, e, set, { required: true }), K.field.text('qty', 'الكمية', f, e, set, { required: true, inputmode: 'numeric' })),
+        K.Radios({ label: 'سبب الاستلام *', value: f.reason, onChange: (v) => set('reason', v, true), options: reasonsNow().map((r) => ({ value: r, label: r, hint: REASON_HINT()[r] })) }), e.reason ? h('div', { class: 'err-msg', role: 'alert' }, e.reason) : null,
+        f.reason === 'تجميع أوردر' || f.reason === 'مرتجع' ? K.field.text('order', f.reason === 'مرتجع' && !SG() ? 'الأوردر الفرعي' : 'رقم الأوردر', f, e, set, { required: true, placeholder: f.reason === 'مرتجع' ? '180549' : '180662' }) : null,
         f.reason === 'مرتجع' ? K.Radios({ label: 'حالة المنتج *', value: f.condition, onChange: (v) => set('condition', v, true), options: O.RETURN_CONDITIONS.map((c) => ({ value: c.value, label: c.label, hint: c.hint })) }) : null,
         f.reason === 'مرتجع' && e.condition ? h('div', { class: 'err-msg', role: 'alert' }, e.condition) : null,
         f.reason === 'مرتجع' && f.condition ? K.field.area('conditionNote', 'وصف الحالة', f, e, set, { required: ['عيب بسيط', 'ناقص', 'تالف'].includes(f.condition), placeholder: f.condition === 'ناقص' ? 'إيه اللي ناقص؟' : f.condition === 'سليم' ? 'اختياري' : 'وصف العيب أو التلف' }) : null,
         f.reason === 'مرتجع' && (f.condition === 'تالف' || f.condition === 'عيب بسيط') ? K.field.file('conditionPhoto', 'صورة الحالة', f, e, set) : null,
-        f.reason === 'متاح للبيع' ? K.Radios({ label: 'الملكية', value: f.mode, onChange: (v) => set('mode', v, true), options: [{ value: 'أمانة', label: OS('أمانة (فلوس المبتكر بعد البيع)') }, { value: 'ملك', label: 'ملك ابتكر' }] }) : null,
+        f.reason === 'متاح للبيع' ? modeField(f, set) : null,
         placeField(f, e, set)],
       validate: (f) => { const e = O.validateReceive({ sku: f.sku, qty: f.qty, reason: f.reason, condition: f.condition, conditionNote: f.conditionNote }); Object.assign(e, K.req(f, ['name', 'vendor'])); if ((f.reason === 'تجميع أوردر' || f.reason === 'مرتجع') && !f.order) e.order = 'اكتب الرقم'; if (e.sku) e.sku = 'اكتب الـ SKU'; return e; },
       submitLabel: 'استلام', submit: (f) => { const status = O.STATUS_BY_REASON[f.reason][0]; const key = newKey(); const ref = f.order ? (f.reason === 'مرتجع' ? '#' : 'IB-') + O.toLatin(f.order) : null;
@@ -628,7 +635,7 @@
           h('div', { class: 'pd-tags' }, K.Tag(REASON_TONE[s.reason], s.reason), K.Tag(STATUS_TONE[s.status] || 'neutral', OS(s.status)), siteLink(s.sku, s.name)))),
       h('div', { class: 'pd-qty', role: 'group', 'aria-label': 'الكمية' }, qty('في المخزن', s.onHand), qty('متاح', s.available, s.available > 0 ? 'ok' : ''), qty('محجوز', s.reserved, s.reserved > 0 ? 'hold' : '')),
       h('div', { class: 'pd-grid' }, (() => { // the short facts two a row (an odd last one takes the row), then the long ones a row each
-        const small = [box(OS('المبتكر'), s.vendor + (s.mode ? ' · ' + s.mode : '')), box('المكان', s.loc && s.loc !== '—' ? locName(s.loc) : '—'),
+        const small = [SG() ? null : box('المبتكر', s.vendor + (s.mode ? ' · ' + s.mode : '')), box('المكان', s.loc && s.loc !== '—' ? locName(s.loc) : '—'),
           box('دخل المخزن', waiting(s) ? 'لسه — بيتحسب من يوم الفحص' : K.dlabel(s.since)), waiting(s) ? box('وصل مرتجع', K.dlabel(s.since)) : s.returnedAt ? box('وصل مرتجع', K.dlabel(s.returnedAt)) : null,
           box(waiting(s) ? 'مستني الفحص' : 'بقاله', h('span', { class: tooLong(s) || waitLate(s) ? 'late' : '' }, ageTxt(age(s)) + (tooLong(s) || waitLate(s) ? ' ⚠' : ''))),
           s.ref ? box('المرجع', h('span', { class: 'num', dir: 'ltr' }, s.ref)) : null, canEdit() && s.cost ? box('قيمة القطعة', K.money(s.cost) + ' ج.م') : null].filter(Boolean);
@@ -639,27 +646,27 @@
           : h('p', { class: 't-small help', style: 'margin:0' }, 'لسه مفيش حركات على القطعة دي.')));
     const md = U.Modal({ title: 'تفاصيل المنتج', share: false, body: [body],
       footer: [U.ShareButton({ primary: false, get: () => ({ title: 'تفاصيل المنتج — ' + s.name, link, spec: { title: 'تفاصيل المنتج — ' + s.name, name: 'تفاصيل ' + s.name, sub: s.sku || '',
-        summary: [[OS('المبتكر'), s.vendor + (s.mode ? ' · ' + s.mode : '')], ['السبب', s.reason], ['الحالة', s.status], ['المكان', s.loc && s.loc !== '—' ? locName(s.loc) : '—'], waiting(s) ? ['دخل المخزن', 'لسه — بانتظار الفحص (وصل ' + K.dlabel(s.since) + ')'] : ['دخل المخزن', K.dlabel(s.since) + ' (' + ageTxt(age(s)) + ')'],
-          ['في المخزن', String(s.onHand)], ['متاح', String(s.available)], ['محجوز', String(s.reserved)], s.ref ? ['المرجع', s.ref] : null, ['الخطوة الجاية', nextStep(s)], cond ? ['حالة المنتج عند الاستلام', cond] : null].filter(Boolean).map(([label, value]) => ({ label, value })),
+        summary: (SG() ? [] : [['المبتكر', s.vendor + (s.mode ? ' · ' + s.mode : '')]]).concat([['السبب', s.reason], ['الحالة', s.status], ['المكان', s.loc && s.loc !== '—' ? locName(s.loc) : '—'], waiting(s) ? ['دخل المخزن', 'لسه — بانتظار الفحص (وصل ' + K.dlabel(s.since) + ')'] : ['دخل المخزن', K.dlabel(s.since) + ' (' + ageTxt(age(s)) + ')'],
+          ['في المخزن', String(s.onHand)], ['متاح', String(s.available)], ['محجوز', String(s.reserved)], s.ref ? ['المرجع', s.ref] : null, ['الخطوة الجاية', nextStep(s)], cond ? ['حالة المنتج عند الاستلام', cond] : null]).filter(Boolean).map(([label, value]) => ({ label, value })),
         headers: ['التاريخ', 'الحركة', 'الكمية', 'بواسطة', 'ملاحظة'], rows: mv.map((m) => [K.dshort(m.at.slice(0, 10)), m.label, sign(m) + Math.abs(m.qty), m.by || '—', m.note || '']) } }) }), canApprove() ? Button({ label: 'تسوية كمية', onClick: () => { md.close(); adjust(s); } }) : null, Button({ type: 'primary', label: 'إغلاق', onClick: () => md.close() })] });
     md.el.classList.add('pd-modal');
   }
   function photoDecision(s) {
-    K.form({ title: 'قرار بعد التصوير — ' + s.name, values: { decision: 'back', mode: 'أمانة', loc: s.loc && s.loc !== '—' ? s.loc : '' }, note: U.InlineNote({ children: s.vendor + ' · في المخزن من ' + K.dlabel(s.since) + ' (' + ageTxt(age(s)) + ')' }),
-      fields: (f, e, set) => [K.Radios({ label: 'القرار', value: f.decision, onChange: (v) => set('decision', v, true), options: [{ value: 'back', label: OS('يرجع للمبتكر') }, { value: 'sell', label: 'يتحوّل «متاح للبيع» من المخزن' }] }),
-        f.decision === 'sell' ? K.Radios({ label: 'الملكية', value: f.mode, onChange: (v) => set('mode', v, true), options: [{ value: 'أمانة', label: 'أمانة' }, { value: 'ملك', label: 'ملك ابتكر (اتشترى)' }] }) : null, f.decision === 'sell' ? K.field.select('loc', 'المكان (اختياري)', LOC_OPTS(), f, e, set) : null],
+    K.form({ title: 'قرار بعد التصوير — ' + s.name, values: { decision: SG() ? 'sell' : 'back', mode: 'أمانة', loc: s.loc && s.loc !== '—' ? s.loc : '' }, note: U.InlineNote({ children: (SG() ? '' : s.vendor + ' · ') + 'في المخزن من ' + K.dlabel(s.since) + ' (' + ageTxt(age(s)) + ')' }),
+      fields: (f, e, set) => [K.Radios({ label: 'القرار', value: f.decision, onChange: (v) => set('decision', v, true), options: [{ value: 'back', label: 'يرجع للمبتكر' }, { value: 'sell', label: 'يتحوّل «متاح للبيع» من المخزن' }].filter((o) => !(SG() && o.value === 'back')) }),
+        f.decision === 'sell' ? modeField(f, set, true) : null, f.decision === 'sell' ? K.field.select('loc', 'المكان (اختياري)', LOC_OPTS(), f, e, set) : null],
       submitLabel: 'حفظ القرار',
       submit: (f) => { const it = S.stock.find((x) => x.key === s.key);
         if (f.decision === 'back') { move({ key: s.key, type: 'out', qty: s.onHand, label: 'رجوع للمبتكر', reason: 'تصوير', ref: '—', note: 'بعد التصوير' }); it.status = 'راجع للمبتكر'; patchLot(s.key, { status: 'راجع للمبتكر' }, 'inventory.photo'); }
         else { it.reason = 'متاح للبيع'; it.status = 'متاح'; it.mode = f.mode; it.loc = f.loc || '—'; patchLot(s.key, { reason: 'متاح للبيع', status: 'متاح', mode: f.mode, loc: f.loc || '' }, 'inventory.photo'); move({ key: s.key, type: 'move', qty: 0, label: 'تحويل للبيع', reason: 'قرار بعد التصوير', ref: 'تصوير ← للبيع', note: f.mode + ' من ' + s.vendor }); }
-        K.logEvent('stock.photo.decision', s.name + ' ' + f.decision); K.toast(f.decision === 'back' ? OS('هيرجع للمبتكر') : 'بقى متاح للبيع (' + f.mode + ')', 'success'); rerender(); } });
+        K.logEvent('stock.photo.decision', s.name + ' ' + f.decision); K.toast(f.decision === 'back' ? 'هيرجع للمبتكر' : 'بقى متاح للبيع (' + f.mode + ')', 'success'); rerender(); } });
   }
   function inspect(s, ret) {
     const r = ret || S.returns.find((x) => x.key === s.key);
     const cond = (r && r.condition) || s.condition; const condNote = (r && r.conditionNote) || s.conditionNote;
-    K.form({ title: 'فحص مرتجع — ' + s.name, values: { next: S.invSettings.returnDefault === 'يرجع للمبتكر' ? 'رجوع للمبتكر' : S.invSettings.returnDefault === 'اسألني في كل مرة' ? '' : 'متاح للبيع', result: O.inspectDefault(cond) }, note: U.InlineNote({ children: (s.ref || '') + ' · ' + s.vendor + ' · وصل ' + K.dlabel(s.since) + (r ? ' · السبب: ' + r.reason : '') + (cond ? ' · حالته عند الاستلام: ' + (O.RETURN_CONDITIONS.find((c) => c.value === cond) || {}).label + (condNote ? ' (' + condNote + ')' : '') : '') }),
+    K.form({ title: 'فحص مرتجع — ' + s.name, values: { next: S.invSettings.returnDefault === 'يرجع للمبتكر' ? (SG() ? 'متاح للبيع' : 'رجوع للمبتكر') : S.invSettings.returnDefault === 'اسألني في كل مرة' ? '' : 'متاح للبيع', result: O.inspectDefault(cond) }, note: U.InlineNote({ children: (s.ref || '') + (SG() ? '' : ' · ' + s.vendor) + ' · وصل ' + K.dlabel(s.since) + (r ? ' · السبب: ' + r.reason : '') + (cond ? ' · حالته عند الاستلام: ' + (O.RETURN_CONDITIONS.find((c) => c.value === cond) || {}).label + (condNote ? ' (' + condNote + ')' : '') : '') }),
       fields: (f, e, set) => [K.Radios({ label: 'النتيجة *', value: f.result, onChange: (v) => set('result', v, true), options: [{ value: 'سليم', label: 'سليم' }, { value: 'تالف', label: 'تالف' }] }), e.result ? h('div', { class: 'err-msg', role: 'alert' }, e.result) : null,
-        f.result === 'سليم' ? K.Radios({ label: 'هيروح فين', value: f.next, onChange: (v) => set('next', v, true), options: [{ value: 'متاح للبيع', label: '+ متاح للبيع من المخزن' }, { value: 'رجوع للمبتكر', label: OS('إرجاع للمبتكر') }] }) : null, f.result === 'سليم' && e.next ? h('div', { class: 'err-msg', role: 'alert', 'data-err-next': '' }, e.next) : null,
+        f.result === 'سليم' ? K.Radios({ label: 'هيروح فين', value: f.next, onChange: (v) => set('next', v, true), options: [{ value: 'متاح للبيع', label: '+ متاح للبيع من المخزن' }, { value: 'رجوع للمبتكر', label: 'إرجاع للمبتكر' }].filter((o) => !(SG() && o.value === 'رجوع للمبتكر')) }) : null, f.result === 'سليم' && e.next ? h('div', { class: 'err-msg', role: 'alert', 'data-err-next': '' }, e.next) : null,
         K.field.area('note', 'ملاحظات الفحص', f, e, set, { required: f.result === 'تالف', placeholder: f.result === 'تالف' ? 'وصف التلف' : '' }), f.result === 'تالف' ? K.field.file('photo', 'صورة التلف', f, e, set) : null],
       validate: (f) => { const e = {}; if (!f.result) e.result = 'اختار نتيجة الفحص'; if (f.result === 'سليم' && !f.next) e.next = 'اختار هيروح فين'; if (f.result === 'تالف' && !String(f.note || '').trim()) e.note = 'اكتب وصف التلف'; return e; }, submitLabel: 'حفظ الفحص',
       submit: (f) => { const it = S.stock.find((x) => x.key === s.key);
@@ -671,7 +678,7 @@
   }
   function newCount() {
     if (S.count) { st.tab = 'count'; R(); return K.toast('فيه جرد شغال (' + S.count.id + ') — كمّله أو اعتمده الأول'); }
-    K.form({ title: 'جرد جديد', values: { zone: 'كل المخزن' }, fields: (f, e, set) => [K.field.select('zone', 'النطاق', ['كل المخزن', 'منطقة التجميع T', 'المرتجعات R', 'التصوير P'], f, e, set, { required: true }), h('p', { class: 't-small help', style: 'margin:0' }, '«في السيستم» هيتثبت على لحظة البداية. العدّ بيتحفظ تلقائي.')], submitLabel: 'ابدأ الجرد',
+    K.form({ title: 'جرد جديد', values: { zone: 'كل المخزن' }, fields: (f, e, set) => [K.field.select('zone', 'النطاق', ['كل المخزن', 'منطقة التجميع T', 'المرتجعات R', 'التصوير P'].filter((z) => !(SG() && z === 'منطقة التجميع T')), f, e, set, { required: true }), h('p', { class: 't-small help', style: 'margin:0' }, '«في السيستم» هيتثبت على لحظة البداية. العدّ بيتحفظ تلقائي.')], submitLabel: 'ابدأ الجرد',
       submit: (f) => { const items = K.stockNow().filter((s) => s.onHand > 0); if (live()) { saved(A().startCount(f.zone, items.map((s) => s.key)), 'بدأ الجرد').then((r) => { if (r.ok) { st.tab = 'count'; reload().then(() => openCount()); } }); return; } S.count = { id: 'CNT-' + String(8 + S.counts.length).padStart(2, '0'), zone: f.zone, started: TODAY + ' ' + K.clockNow(), total: items.length, base: 0, lines: items.map((s) => ({ key: s.key, sku: s.sku, name: s.name, loc: s.loc, system: s.onHand, counted: '', cost: s.cost, note: '' })) }; st.tab = 'count'; K.logEvent('stock.count.start', f.zone); R(); openCount(); } });
   }
   // phase 7 decision 10 (d) (owner, 4 Nov — «أيوه، بس بتأكيد»): the orders page shows «في المخزن» on a line whose SKU is held
@@ -683,7 +690,7 @@
     if (!canEdit()) { K.toast('السحب من المخزن محتاج صلاحية المخزن', 'error'); return; }
     const qty = Number(info.qty) || 1;
     K.confirm({ title: 'اسحب من المخزن — IB-' + info.order, okLabel: 'اسحب من المخزن',
-      text: info.prod + ' × ' + qty + ' — متاح ' + it.available + ' في ' + (it.loc || 'المخزن') + (it.mode ? ' (' + it.mode + ')' : '') + OS('. القطعة هتتحجز للأوردر، والأوردر الفرعي #') + info.sid + ' هيتنفذ من مخزن ابتكر بدل ' + (info.vendor || OS('المبتكر')) + '.',
+      text: info.prod + ' × ' + qty + ' — متاح ' + it.available + ' في ' + (it.loc || 'المخزن') + (it.mode ? ' (' + it.mode + ')' : '') + (SG() ? '. القطعة هتتحجز للأوردر وهتتنفذ من المخزن.' : '. القطعة هتتحجز للأوردر، والأوردر الفرعي #' + info.sid + ' هيتنفذ من مخزن ابتكر بدل ' + (info.vendor || 'المبتكر') + '.'),
       onOk: () => { move({ key: it.key, type: 'reserve', qty, label: 'حجز لأوردر', reason: 'متاح للبيع', ref: 'IB-' + info.order, note: 'سحب من المخزن · #' + info.sid });
         const lot = S.stock.find((s) => s.key === it.key); if (lot && it.available - qty <= 0) { lot.status = 'محجوز لأوردر'; patchLot(it.key, { status: 'محجوز لأوردر' }, 'inventory.pull'); }
         K.logEvent('stock.pull', info.sku + ' → IB-' + info.order); K.toast('اتسحب من المخزن لـ IB-' + info.order, 'success'); if (ok) ok(); rerender(); } });

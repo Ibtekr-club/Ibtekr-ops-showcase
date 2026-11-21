@@ -129,9 +129,10 @@ function singleStore(mock) {
   if (mock.inv && Array.isArray(mock.inv.inv_lots)) mock.inv.inv_lots.forEach((x, i) => { const p = DECORO[i % DECORO.length]; Object.assign(x, { vendor_id: V(9), sku: p[1], name: p[2], mode: 'ملك ابتكر' }); });
   if (Array.isArray(mock.tickets)) mock.tickets = mock.tickets.filter((t) => t.type !== 'vendor');
   if (mock.cs && Array.isArray(mock.cs.conversations)) mock.cs.conversations = mock.cs.conversations.filter((c) => c.seg !== 'vendors');
-  // words in the made-up messages and notes that name a maker read as the brand's own workshop
-  if (mock.cs && Array.isArray(mock.cs.messages)) mock.cs.messages.forEach((m) => { if (typeof m.text === 'string') m.text = m.text.replace(/على واتساب 2/g, '').replace(/المبتكرين/g, 'الورشة').replace(/المبتكر/g, 'الورشة').replace(/\s+$/, ''); });
-  if (Array.isArray(mock.tickets)) mock.tickets.forEach((t) => { ['title', 'description'].forEach((k) => { if (typeof t[k] === 'string') t[k] = t[k].replace(/المبتكرين/g, 'الورشة').replace(/المبتكر/g, 'الورشة'); }); });
+  // the made-up messages and requests say nothing of a maker: the store makes and ships its own products
+  const own = (t) => t.replace(/ ?على واتساب 2/g, '').replace(/كلم(وا)? المبتكر(ين)?/g, 'راجع$1 التصنيع').replace(/من المبتكر(ين)?/g, 'من التصنيع').replace(/ ?(لل|ال)مبتكر(ين)?/g, '').replace(/\s+$/, '');
+  if (mock.cs && Array.isArray(mock.cs.messages)) mock.cs.messages.forEach((m) => { if (typeof m.text === 'string') m.text = own(m.text); });
+  if (Array.isArray(mock.tickets)) mock.tickets.forEach((t) => { ['title', 'description'].forEach((k) => { if (typeof t[k] === 'string') t[k] = own(t[k]); }); });
   // the site runs WooCommerce alone (no Dokan plugin), and the requests that went to the makers' team go to customer service
   const wp = mock.mkt && Array.isArray(mock.mkt.siteChecks) ? mock.mkt.siteChecks.find((r) => r.kind === 'wp_updates') : null;
   if (wp && wp.data && Array.isArray(wp.data.plugins)) wp.data.plugins = wp.data.plugins.filter((x) => !/dokan/i.test(x.name));
@@ -140,7 +141,29 @@ function singleStore(mock) {
   (mock.roles || []).forEach((r) => { if (r.id === 'vendors_followup') r.hidden = true; });
   // the log has no makers' lines (vendor.* — makers' changes, Dokan syncs) in a store with no makers
   if (Array.isArray(mock.activityRows)) mock.activityRows = mock.activityRows.filter((r) => !/^(vendor|suborder)\./.test(r.action || ''));
+  // …and its one member: the team is the four who run the store
+  const gone = (mock.profiles || []).filter((x) => x.role_id === 'vendors_followup').map((x) => x.id);
+  if (gone.length) {
+    mock.profiles = mock.profiles.filter((x) => !gone.includes(x.id));
+    const hr = mock.hr || {}; const left = (hr.payroll_lines || []).filter((x) => gone.includes(x.member_id));
+    left.forEach((l) => { const sheet = (hr.payroll || []).find((x) => x.month === l.month); if (sheet && typeof sheet.total === 'number') sheet.total -= l.net; });
+    Object.keys(hr).forEach((k) => { if (Array.isArray(hr[k])) hr[k] = hr[k].filter((x) => !x || !gone.includes(x.member_id)); });
+  }
+  // the hub holds the store's own pieces — returns, pieces out for a shoot, pieces for sale: nothing waits there to be gathered into an order
+  if (mock.inv) {
+    (mock.inv.inv_lots || []).forEach((x) => { if (x.reason === 'تجميع أوردر') Object.assign(x, { reason: 'متاح للبيع', status: 'متاح', order_id: null, item_id: null, ref: null }); if (x.loc === 'T') x.loc = null; x.mode = 'ملك ابتكر'; });
+    (mock.inv.inv_moves || []).forEach((x) => { if (x.reason === 'تجميع أوردر') Object.assign(x, { reason: 'متاح للبيع', label: 'دخول — للبيع', ref: null }); });
+    ['inv_consolidations', 'inv_consolidation_items'].forEach((k) => { if (Array.isArray(mock.inv[k])) mock.inv[k] = []; });
+    if (Array.isArray(mock.inv.inv_locations)) mock.inv.inv_locations = mock.inv.inv_locations.filter((x) => x.code !== 'T');
+  }
+  // the marketing notes (trends, the assistants' skills) name no maker either
+  const deep = (v) => (typeof v === 'string' ? v.replace(/لإيد المبتكر وهو بيشتغل/g, 'للإيد وهي بتشتغل').replace(/بإيد المبتكر/g, 'بالإيد').replace(/ ?(لل|ال)مبتكر(ين)?/g, '')
+    : Array.isArray(v) ? v.map(deep) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, deep(x)])) : v);
+  if (mock.mkt) ['trends', 'agents', 'agentKb', 'kb'].forEach((k) => { if (mock.mkt[k]) mock.mkt[k] = deep(mock.mkt[k]); });
   addOrders(mock, true);
+  // and no product stands in a status that names a maker
+  const OWN_STATUS = { 'جاهز للشحن من المبتكر للمخزن': '', 'تم الشحن للمخزن': '', 'وصل المخزن': '', 'مرتجع للمبتكر': 'مرتجع للمخزن' };
+  mock.orderItems.forEach((l) => { if (Object.prototype.hasOwnProperty.call(OWN_STATUS, l.status)) l.status = OWN_STATUS[l.status]; if (l.ret && /مبتكر/.test(String(l.ret.to || l.ret.type || ''))) l.ret = null; });
 }
 
 /** The money the dashboard and «الحسابات» show: the accounts' balances (an opening deposit and what this month's expenses took) and

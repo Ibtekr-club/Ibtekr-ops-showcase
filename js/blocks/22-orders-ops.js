@@ -25,10 +25,12 @@
   // comments decision 15 (the owner 15 Nov — «حالة الاسترجاع على الأوردر الكبير لو اتعملت وكتبت السبب مايظهرش السبب في الأوردر الفرعي — بس
   // لو عملت الفرعي مرتجع لازم يكتب السبب»): the order already on «استرجاع» with its reason (info.orderReason) → the product's return
   // takes that reason and the field is not shown; a product returned by itself (the order not refunded) must have its own reason.
+  // single-seller mode: the popups say nothing about makers or sub-orders
+  const SG = () => !!(window.IBSettings && window.IBSettings.single && window.IBSettings.single());
   function returnPopup(info, ok) {
     const toStock = info.status === 'مرتجع للمخزن'; const RR = reasonsOf('returns'); const fromOrder = String(info.orderReason || '').trim();
-    K.form({ title: info.status + ' — فرعي #' + info.sid, values: { date: DAY() },
-      note: U.InlineNote({ children: info.prod + ' · ' + info.vendor + ' · IB-' + info.order + ' · ' + K.money(info.tot) + ' ج.م' }),
+    K.form({ title: SG() ? 'مرتجع للمخزن — ' + info.prod : info.status + ' — فرعي #' + info.sid, values: { date: DAY() },
+      note: U.InlineNote({ children: info.prod + (SG() ? '' : ' · ' + info.vendor) + ' · IB-' + info.order + ' · ' + K.money(info.tot) + ' ج.م' }),
       fields: (f, e, set) => [fromOrder ? U.InlineNote({ children: h('span', { 'data-ret-from-order': '' }, 'سبب الاسترجاع متسجّل على الأوردر: ', h('b', null, fromOrder), ' — مش محتاج تكتبه تاني.') }) : K.field.select('reason', 'سبب المرتجع', RR, f, e, set, { required: true }), !fromOrder && f.reason === 'أخرى' ? K.field.area('other', 'اكتب السبب', f, e, set, { required: true }) : null, K.field.date('date', 'تاريخ المرتجع', f, e, set, { required: true }),
         U.InlineNote({ kind: 'warning', children: toStock ? 'الأثر: القطعة هتتسجل في المخزن «مرتجع — بانتظار الفحص»' + (S.invSettings.returnsInspect ? ' (لازم تتفحص خلال ' + S.invSettings.returnsInspect + ' ساعة)' : '') + ' وقيمتها تتشال من مبيعات الأوردر لحد قرار الفحص.' : 'الأثر: حصة المبتكر في الفرعي ده بس هتتلغي (' + K.money(info.tot) + ' ج.م) والقطعة هترجع للمبتكر مباشرة — باقي الأوردر زي ما هو.' }),
         K.field.area('note', 'ملاحظة', f, e, set, { placeholder: 'اختياري' })],
@@ -51,9 +53,9 @@
   function orderReasonPopup(info, ok, closed) {
     const cancel = info.kind === 'ملغي'; const word = cancel ? 'الإلغاء' : 'الاسترجاع'; const RS = reasonsOf(cancel ? 'cancel' : 'returns');
     K.form({ title: (cancel ? 'إلغاء' : 'استرجاع') + ' — IB-' + info.order, values: { date: DAY() }, onClose: closed,
-      note: U.InlineNote({ children: info.name + ' · IB-' + info.order + ' · ' + K.money(info.tot) + ' ج.م · ' + info.subs + ' أوردر فرعي · الحالة الحالية «' + (info.from || '—') + '»' }),
+      note: U.InlineNote({ children: info.name + ' · IB-' + info.order + ' · ' + K.money(info.tot) + ' ج.م · ' + info.subs + (SG() ? ' منتج' : ' أوردر فرعي') + ' · الحالة الحالية «' + (info.from || '—') + '»' }),
       fields: (f, e, set) => [K.field.select('reason', 'سبب ' + word, RS, f, e, set, { required: true }), f.reason === 'أخرى' ? K.field.area('other', 'اكتب السبب', f, e, set, { required: true }) : null, K.field.date('date', 'تاريخ ' + word, f, e, set, { required: true }),
-        U.InlineNote({ kind: 'warning', children: cancel ? 'الأثر: الأوردر هيتقفل كـ «ملغي» وقيمته (' + K.money(info.tot) + ' ج.م) مش هتتحسب في المبيعات. السبب بيظهر في تقارير الأوردرات › أوردرات ملغية.' : 'الأثر: الأوردر هيتقفل كـ «استرجاع» وقيمته (' + K.money(info.tot) + ' ج.م) تتشال من المبيعات. الأوردرات الفرعية اللي هترجع للمخزن أو للمبتكر تتسجل من حالة كل فرعي.' }),
+        U.InlineNote({ kind: 'warning', children: cancel ? 'الأثر: الأوردر هيتقفل كـ «ملغي» وقيمته (' + K.money(info.tot) + ' ج.م) مش هتتحسب في المبيعات. السبب بيظهر في تقارير الأوردرات › أوردرات ملغية.' : 'الأثر: الأوردر هيتقفل كـ «استرجاع» وقيمته (' + K.money(info.tot) + ' ج.م) تتشال من المبيعات.' + (SG() ? ' المنتجات اللي هترجع المخزن تتسجل من حالة كل منتج.' : ' الأوردرات الفرعية اللي هترجع للمخزن أو للمبتكر تتسجل من حالة كل فرعي.') }),
         K.field.area('note', 'ملاحظة', f, e, set, { placeholder: 'اختياري' })],
       validate: (f) => { const err = cancel ? O.validateCancel({ reason: f.reason, other: f.other }, RS) : O.validateReturn({ reason: f.reason, other: f.other }, RS); const e = {}; if (err) e[err === 'اكتب السبب' ? 'other' : 'reason'] = err === 'اختار سبب المرتجع' ? 'اختار سبب الاسترجاع' : err; if (!f.date) e.date = 'اختار التاريخ'; return e; },
       submitType: 'danger', submitLabel: 'تأكيد', cancelLabel: 'ليس الآن',

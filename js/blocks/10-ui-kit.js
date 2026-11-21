@@ -337,7 +337,17 @@
     });
     return list;
   }
-  function Table({ cls, headers, rows, totalRow, caption }) {
+  // single-seller mode: a table has no makers' or sub-orders' column — on a page, in a popup, in an export (window.IBUI.noMakerCols)
+  const oneSellerOn = () => { const S = window.IBSettings; return !!(S && S.single && S.single()); };
+  const MAKER_COLS = ['المبتكر', 'المبتكرين', 'الأوردر الفرعي', 'فرعيات'];
+  function noMakerCols(headers, rows, totalRow) {
+    if (!oneSellerOn() || !Array.isArray(headers)) return { headers, rows, totalRow };
+    const off = headers.map((x) => typeof x === 'string' && MAKER_COLS.includes(x.trim())); if (!off.some(Boolean)) return { headers, rows, totalRow };
+    const n = headers.length; const cut = (r) => (Array.isArray(r) && r.length === n ? r.filter((_, i) => !off[i]) : r);
+    return { headers: cut(headers), rows: Array.isArray(rows) ? rows.map(cut) : rows, totalRow: cut(totalRow) };
+  }
+  function Table(o) {
+    const { cls, caption } = o; const { headers, rows, totalRow } = noMakerCols(o.headers, o.rows, o.totalRow);
     const t = h('table', { class: cls || '' }, caption ? h('caption', { class: 'sr', style: 'position:absolute;left:-9999px' }, caption) : null,
       h('thead', null, h('tr', null, headers.map((x) => h('th', { scope: 'col' }, x)))),
       h('tbody', null, rows.map((r) => h('tr', null, r.map((c, i) => h('td', { 'data-l': headers[i] || '' }, c))))),
@@ -430,6 +440,7 @@
   // ---- Details popup (Figma: Modal / KPI details) ----
   function DetailsModal(details, tile) {
     const DT = window.IbtekrDetails; const s = DT.normalize(details, tile || {}); let m = null;
+    { const c = noMakerCols(s.headers, s.rows, s.total); s.headers = c.headers; s.rows = c.rows; s.total = c.totalRow; } // single-seller mode
     const sum = s.summary.length ? h('div', { class: 'dt-sum' }, s.summary.map((x) => h('div', { class: 'dt-chip' }, h('span', { class: 't-small' }, x.label), h('b', null, num(String(x.value)))))) : null;
     const table = s.headers.length ? (s.rows.length ? h('div', { style: 'overflow-x:auto' }, h('table', { class: 'vlo-table dt-table' },
       h('thead', null, h('tr', null, s.headers.map((x) => h('th', { scope: 'col' }, x)))),
@@ -530,6 +541,6 @@
     return h('div', { class: 'contract contract-' + status }, Icon(icon, 'sm'), h('div', { class: 'txt' }, h('div', { class: 't-label' }, title), h('div', { class: 't-small' }, sub)), h('div', { class: 'acts' }, actions));
   }
 
-  window.IBUI = { h, num, Icon, Button, IconButton, ShareButton, shareSpecOf, DetailsModal, shareVia, popover, closePopover, DropdownMenu, Select, FieldShell, Calendar, shiftMonth, DateField, TextInput, Modal, CategoryCard, ProgressBar, KpiTile, BarRow, ChartCard, FreshnessNote, DelayBadge, Textarea, Avatar, VendorLogo, VendorStatus, InfoRow, SecureField, ContractCard, TicketStatus, PriorityTag, TimelineMessage, TimelineEvent, ReplyBox, Drawer, TICKET_STATUS, PRIORITY, InlineNote, EmptyState, Tabs, Table, setModalRoot: (n) => { modalRoot = n; } };
+  window.IBUI = { noMakerCols, h, num, Icon, Button, IconButton, ShareButton, shareSpecOf, DetailsModal, shareVia, popover, closePopover, DropdownMenu, Select, FieldShell, Calendar, shiftMonth, DateField, TextInput, Modal, CategoryCard, ProgressBar, KpiTile, BarRow, ChartCard, FreshnessNote, DelayBadge, Textarea, Avatar, VendorLogo, VendorStatus, InfoRow, SecureField, ContractCard, TicketStatus, PriorityTag, TimelineMessage, TimelineEvent, ReplyBox, Drawer, TICKET_STATUS, PRIORITY, InlineNote, EmptyState, Tabs, Table, setModalRoot: (n) => { modalRoot = n; } };
 })();
 

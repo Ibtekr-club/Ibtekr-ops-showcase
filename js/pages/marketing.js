@@ -1498,7 +1498,7 @@
   // single-seller mode: the operations assistant has no makers or sub-orders to read
   const AG_INTRO_ONE = { stock: 'أنا التشغيل الذكي. بشوف الأوردرات والمتأخر منها، وطلبات فريق العمليات، والمخزن والمرتجعات — اسألني إيه اللي يتعمل النهارده وبإيه نبدأ. وأقدر أرفعلك منتجات جديدة.' };
   const agIntro = (a) => (window.IBSettings && window.IBSettings.single && window.IBSettings.single() && AG_INTRO_ONE[a]) || AG_INTRO[a] || ('أنا ' + agName(a) + '.' + ((agReg(a) || {}).about ? ' ' + agReg(a).about : ''));
-  const agSugg = (a) => AG_SUGG[a] || [];
+  const agSugg = (a) => (AG_SUGG[a] || []).filter((x) => !(window.IBSettings && window.IBSettings.single && window.IBSettings.single() && x === 'التجميعات المفتوحة'));
   const AG_SUB = { buyer: 'بيقرا أرقام ميتا + أوردرات ووكومرس · بيقترح وانت توافق — مابينفّذش حاجة من الشات', designer: 'أفكار وتصميمات بالبراند · بيولّد صورة لما تطلب — بكريدت الصور', dev: 'صفحات الموقع وتطوير السيستم · بيكتب المواصفات — والتنفيذ من «تقديم طلب»' };
   const agCfg = (a) => { const x = MK() && MK().agentSettingsNow && MK().agentSettingsNow(); return (x && x[a]) || null; };
   const agTime = (iso) => { if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(d); const t = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d); return day === TODAY() ? t : D2(day) + ' · ' + t; };

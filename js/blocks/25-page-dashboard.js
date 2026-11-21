@@ -124,7 +124,7 @@
   function followCustomers(S) { const s = S.sections.find((x) => x.id === 'customers'); const items = s ? s.tabs[0][2].filter((x) => !x.muted).slice(0, 5) : [];
     return card('followCustomers', 'عملاء محتاجين متابعة', 'متأخرة · معلّقة · مستنية ردهم', items.length ? h('div', { class: 'dash-need' }, items.map((it) => h('button', { type: 'button', class: 'dn-item tone-' + (it.tone || 'info'), onClick: () => it.run && it.run() }, h('span', { class: 'dn-ic' }, Icon('users', 'sm')), h('span', { class: 'dn-txt' }, h('b', null, it.title), h('small', { class: 't-small' }, it.sub || ''))))) : K.Empty('مفيش عملاء محتاجين متابعة', 'تمام كده')); }
   function stockToday() { const S2 = K.stockNow(); const cons = K.store.consolidations || []; const ret = (K.store.returns || []).filter((x) => x.status === 'بانتظار الفحص');
-    return card('stockToday', 'المخزن النهارده', 'مخزن إبتكر المؤقت', kv([['في المخزن', num(String(S2.length)) ], ['تجميع مفتوح', num(String(cons.length))], ['تجميع عدّى 5 أيام', num(String(cons.filter((c) => daysAgo(c.since) >= 5).length)), 'warn'], ['مرتجعات بانتظار الفحص', num(String(ret.length))], ['تصوير', num(String(S2.filter((x) => /تصوير/.test(x.reason + ' ' + x.status)).length))]]), link('فتح المخزن', () => go('inventory-now'))); }
+    return card('stockToday', 'المخزن النهارده', 'مخزن إبتكر المؤقت', kv([['في المخزن', num(String(S2.length)) ]].concat(single() ? [] : [['تجميع مفتوح', num(String(cons.length))], ['تجميع عدّى 5 أيام', num(String(cons.filter((c) => daysAgo(c.since) >= 5).length)), 'warn']]).concat([['مرتجعات بانتظار الفحص', num(String(ret.length))], ['تصوير', num(String(S2.filter((x) => /تصوير/.test(x.reason + ' ' + x.status)).length))]])), link('فتح المخزن', () => go('inventory-now'))); }
   function moneyCard(S) { const M = S.money; const p = M.payroll;
     return card('money', 'الفلوس', 'الأرصدة لحظة بلحظة · للأدمن والحسابات بس', kv([['الحساب الفعلي', num(money(M.actual) + ' ج.م')]].concat(single() ? [] : [['رصيد المبتكرين (ليهم)', num(money(M.vs.positive) + ' ج.م')], ['رصيد عند المبتكرين (عليهم)', num(money(M.vs.negative) + ' ج.م'), 'neg'], ['عرابين معلّقة', num(money(M.vs.deposits) + ' ج.م')]]).concat([[single() ? 'المواصلات' : 'المواصلات (مبتكرين + تشغيل)', num(money(M.transport.total) + ' ج.م')], ['المرتبات الجاية', p ? h('span', null, p.due && p.due.date ? num(p.due.date.slice(8) + '/' + p.due.date.slice(5, 7)) : null, p.due && p.due.date ? ' · ' : null, num(money(p.net) + ' ج.م'), ' · ' + p.status) : '—']])),
       link('فتح الحساب الفعلي', () => go('actual'))); }
@@ -176,7 +176,7 @@
     const owner = K.ME; const L = DD.layout(K.member(owner).role, prefsOf(owner));
     // saved per user on the server (IBPrefs → user_prefs, owner-only RLS); a refused write keeps the change on this device
     const synced = (r) => { if (!r.ok) K.toast('اتطبّق دلوقتي بس — معرفناش نحفظه على السيرفر، جرّب تاني', 'error'); };
-    K.form({ title: 'تخصيص اللوحة', wide: true, values: { list: L.map((c) => ({ id: c.id, label: c.label, locked: c.locked, hidden: c.hidden })) },
+    K.form({ title: 'تخصيص اللوحة', wide: true, values: { list: L.filter((c) => !(single() && ['vendors', 'statements'].includes(c.id))).map((c) => ({ id: c.id, label: c.label, locked: c.locked, hidden: c.hidden })) },
       note: U.InlineNote({ children: 'اختار الكروت اللي تظهر ورتّبها بالسحب من المسكة اللي جنب الاسم (أو بالكيبورد: فوق وتحت). «محتاج منك دلوقتي» مايتشالش. التخصيص بيتحفظ ليك انت بس.' }),
       // phase 5.5 decision 6 (owner 28 Oct): the order by drag (a grip per row — pointer or ArrowUp / ArrowDown), instead of the arrow buttons
       fields: (f, e, set) => { const wrap = h('div', { class: 'dash-cust', role: 'list' }, f.list.map((c) => h('div', { class: 'dc-row', role: 'listitem', 'data-dash-item': c.id },
@@ -194,7 +194,7 @@
   function refresh() { st.loading = true; render(); setTimeout(() => { st.loading = false; st.updated = K.clockNow(); render(); }, 500); }
   function skeleton() { return h('div', { class: 'dash-skel', 'aria-busy': 'true', 'aria-label': 'بيحمّل' }, h('div', { class: 'dash-kpis' }, [1, 2, 3, 4, 5].map(() => h('div', { class: 'card sk sk-kpi' }))), h('div', { class: 'dash-grid' }, [1, 2, 3, 4].map(() => h('div', { class: 'card sk sk-card' })))); }
   // single-seller mode (the plan 2026-11-17-stores-single.md decision 3): the makers' tiles and cards leave the dashboard
-  const MAKER_KPIS = ['vendorBal', 'deposits', 'vendorsLate', 'vendorsRisk', 'subsUnnotified', 'nextStatement'];
+  const MAKER_KPIS = ['vendorBal', 'deposits', 'vendorsLate', 'vendorsRisk', 'subsUnnotified', 'nextStatement', 'contracts', 'consLate']; // …and nothing to gather
   const single = () => !!(window.IBSettings && window.IBSettings.single && window.IBSettings.single());
   function view() {
     const m = me(); const r = role(); const D = DATA(); st.updated = st.updated || K.clockNow();

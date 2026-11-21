@@ -521,8 +521,11 @@
   function statusList(kind) {
     if (!ADDED_KINDS.includes(kind)) return (STATUS_KINDS[kind] || []).slice();
     const src = listSrc() || {}; const all = STATUS_KINDS[kind].concat(cleanAdded(src.statusAdded, kind));
-    const ord = cleanOrder(src.statusOrder, kind, all); return ord.concat(all.filter((x) => !ord.includes(x)));
+    const ord = cleanOrder(src.statusOrder, kind, all); const list = ord.concat(all.filter((x) => !ord.includes(x)));
+    // single-seller mode: a product is never sent by a maker to the hub or back to a maker — those four are no choice
+    return kind === 'sub' && single() ? list.filter((x) => !SINGLE_OFF_SUB.includes(x)) : list;
   }
+  const SINGLE_OFF_SUB = ['جاهز للشحن من المبتكر للمخزن', 'تم الشحن للمخزن', 'وصل المخزن', 'مرتجع للمبتكر'];
   const cleanLabels = (v, src) => {
     const out = {}; if (!v || typeof v !== 'object' || Array.isArray(v)) return out;
     for (const kind of Object.keys(STATUS_KINDS)) {
@@ -549,13 +552,22 @@
   // the shown name of a status (the value when nothing is set) — kind: order | confirm | sub | expense | priority (by its code)
   // single-seller mode: the seller makes its own products, so a status about «the maker» shows «the workshop» (the value stays the same)
   function statusLabel(kind, value) { const src = listSrc() || {}; const L = cleanLabels(src.labels, src); const own = (L[kind] && L[kind][value]) || (SHOWN_DEF[kind] && SHOWN_DEF[kind][value]); if (own) return own; return single() && typeof value === 'string' ? workshop(value) : value; }
-  /** «المبتكر» → «الورشة» in a text shown in single-seller mode (statuses, reasons) */
-  function workshop(t) { return String(t).replace(/المبتكرين/g, 'الورش').replace(/المبتكر/g, 'الورشة').replace(/لمبتكر/g, 'لورشة').replace(/مبتكر/g, 'ورشة'); }
-  /** a text written for the marketplace, as single-seller mode says it: a sub-order is the order's product, a maker is the workshop.
-   *  The pages call it on their own texts (messages, labels) — never on data. Outside single mode it returns the text unchanged. */
+  /** A text about a maker, as single-seller mode says it: there is no second party, so the maker's part goes («جاهز للشحن من المبتكر
+   *  للعميل» → «جاهز للشحن»، «مرتجع للمبتكر» → «مرتجع»، «تكلفة المبتكر» → «التكلفة»). A text no rule covers comes back unchanged —
+   *  the page then leaves that piece out itself. */
+  const ONE_SELLER_RULES = [
+    [/«مرتجع للمخزن» أو «مرتجع للمبتكر»/g, '«مرتجع للمخزن»'], [/«مرتجع للمخزن \/ للمبتكر»/g, '«مرتجع للمخزن»'], [/ · ممكن يتحوّل «إرجاع للمبتكر»/g, ''],
+    [/«من المخزن للعميل» و«من المبتكر للمخزن»/g, '«من المخزن للعميل»'], [/ من المبتكر للعميل/g, ''], [/ من المبتكر للمخزن/g, ' للمخزن'],
+    [/تاريخ تبليغ المبتكر/g, 'تاريخ بدء التصنيع'], [/تبليغ مبتكر/g, 'تاريخ بداية'], [/تعليق المبتكر/g, 'تعليق التصنيع'], [/ملاحظة للمبتكر/g, 'ملاحظة التصنيع'],
+    [/التكلفة هي تكلفة المبتكر المسجلة/g, 'التكلفة هي المسجلة'], [/(?:تكلفة|سعر) المبتكر/g, 'التكلفة'], [/ \(المبتكر\)/g, ''],
+    [/المبتكر ده مالوش منتجات على الموقع/g, 'مفيش منتجات على الموقع'], [/ عند المبتكر/g, ''], [/منتجات المبتكر(?: ده)?/g, 'المنتجات'], [/ ?للمبتكر/g, ''],
+  ];
+  function workshop(t) { return ONE_SELLER_RULES.reduce((x, [re, to]) => x.replace(re, to), String(t)); }
+  /** a text written for the marketplace, as single-seller mode says it: a sub-order is the order's product, and a maker's part is left
+   *  out (workshop). The pages call it on their own texts (messages, labels) — never on data. Outside single mode it returns the text unchanged. */
   function oneSeller(t) {
     if (!single() || t == null) return t;
-    return workshop(String(t).replace(/ (?:هو )?وأوردراته الفرعية/g, '').replace(/الأوردرات الفرعية/g, 'المنتجات').replace(/الأوردر الفرعي/g, 'المنتج').replace(/أوردرات فرعية/g, 'منتجات').replace(/أوردر فرعي/g, 'منتج').replace(/فرعيات/g, 'منتجات').replace(/فرعي #/g, '#').replace(/ فرعي(?![؀-ۿ])/g, ''));
+    return workshop(String(t).replace(/ (?:هو )?وأوردراته الفرعية/g, '').replace(/الأوردرات الفرعية/g, 'المنتجات').replace(/للأوردر الفرعي/g, 'للمنتج').replace(/الأوردر الفرعي/g, 'المنتج').replace(/أوردرات فرعية/g, 'منتجات').replace(/أوردر فرعي/g, 'منتج').replace(/فرعيات/g, 'منتجات').replace(/فرعي #/g, '#').replace(/ للفرعي/g, '').replace(/ فرعي(?![؀-ۿ])/g, ''));
   }
   // the expense types a new expense can take: the four base ones then the admin's (decision 1)
   const expenseKinds = () => STATUS_KINDS.expense.concat(cleanKinds((listSrc() || {}).expenseKinds));

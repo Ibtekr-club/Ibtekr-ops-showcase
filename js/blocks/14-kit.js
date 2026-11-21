@@ -722,7 +722,9 @@
   function saveFile(filename, data, type) {
     try { const blob = data instanceof Blob ? data : new Blob([data], type ? { type } : undefined); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); return Promise.resolve('saved'); } catch (e) { return Promise.resolve('unavailable'); }
   }
-  function xlsxExport(filename, sheetName, aoa) {
+  function xlsxExport(filename, sheetName, aoa0) {
+    // single-seller mode: no makers' column in the file either (the UI kit's noMakerCols)
+    const cut = aoa0 && aoa0.length && window.IBUI && window.IBUI.noMakerCols ? window.IBUI.noMakerCols(aoa0[0], aoa0.slice(1)) : null; const aoa = cut ? [cut.headers].concat(cut.rows) : aoa0;
     window.__lastExport = { filename, sheetName, rows: aoa.length }; // the e2e reads what was exported
     // a cell that starts like a formula (= + - @ tab CR) gets a leading apostrophe so a spreadsheet never runs it (CSV injection)
     const csv = () => { const esc = (c) => { let v = c == null ? '' : String(c); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
