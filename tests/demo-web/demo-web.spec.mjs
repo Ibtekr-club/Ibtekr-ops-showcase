@@ -237,7 +237,16 @@ test.describe('a phone', () => {
     expect(st.n).toBeGreaterThanOrEqual(4); expect(st.h).toBeLessThanOrEqual(110); expect(st.tapW).toBeGreaterThan(300); expect(st.tapH).toBeGreaterThanOrEqual(60); // the whole row opens its page
     await page.locator('#pg-settings .set-card .btn').first().click(); await expect(page.locator('#pg-settings .set-back, #pg-settings .set-page').first()).toBeVisible(); await go(page, 'settings');
     // the page's main action floats over the bottom bar, inside the thumb's reach
-    await go(page, 'inventory'); const fab = page.locator('#pg-inventory .page-head .actions > .btn.btn-brand'); await expect(fab).toBeVisible();
+    // (the owner 21 Nov, an iPhone — «الزراير الطايرة متنزلش تحت كومبوننتس الصفحة»): it is a button of the page itself, on <body> —
+    // not inside the head's sliding row, where Safari draws it under the table's cards — carrying the page's own main action;
+    // with the list scrolled under it nothing of the page is over it, and a tap presses the real action
+    await go(page, 'inventory'); const fab = page.locator('[data-m-fab]'); await expect(fab).toBeVisible(); await expect(fab).toHaveText('استلام في المخزن');
+    expect(await fab.evaluate((f) => f.parentElement === document.body)).toBe(true);
+    await expect(page.locator('#pg-inventory .page-head .actions > .btn.btn-brand')).toBeHidden();
+    await page.locator('#pg-inventory .tab', { hasText: 'سجل المخزون' }).click(); await page.waitForTimeout(600); await page.evaluate(() => window.scrollTo(0, 500)); await page.waitForTimeout(300);
+    expect(await fab.evaluate((f) => { const r = f.getBoundingClientRect(); return [[r.left + 8, r.top + 2], [r.left + r.width / 2, r.top + 2], [r.right - 8, r.bottom - 2]].every(([x, y]) => f.contains(document.elementFromPoint(x, y))); })).toBe(true);
+    await fab.tap(); await expect(page.locator('.scrim')).toBeVisible(); await expect(fab).toBeHidden(); await page.keyboard.press('Escape'); await expect(page.locator('.scrim')).toHaveCount(0); await expect(fab).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, 0)); await go(page, 'dashboard'); await expect(fab).toBeHidden(); await go(page, 'inventory'); await expect(fab).toBeVisible(); // a page without a main action has no button
     const fr = await fab.boundingBox(); expect(fr.y).toBeGreaterThan(844 / 2); expect(fr.y + fr.height).toBeLessThanOrEqual(844 - 64); expect(fr.height).toBeGreaterThanOrEqual(44);
     // «المزيد»: a sheet from the bottom with every page of the menu
     await page.locator('.bottom-nav .bn-more .bn-item').click(); const sheet = page.locator('.menu.bn-sheet'); await expect(sheet).toBeVisible(); await page.waitForTimeout(400); // the sheet slides up
@@ -299,7 +308,7 @@ test.describe('a phone', () => {
     await page.touchscreen.tap(195, 70); await expect(page.locator('.menu.notif')).toHaveCount(0);
     expect(await page.evaluate(() => document.activeElement.tagName)).not.toBe('INPUT'); expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(at);
     // … behind a popup, and behind the orders page's filter (its popups live in a shadow root)
-    await page.evaluate(() => window.scrollTo(0, 0)); await page.locator('main:not([hidden]) .page-head .actions .btn.btn-brand').first().tap(); await expect(page.locator('.scrim')).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, 0)); await page.tap('[data-m-fab]'); await expect(page.locator('.scrim')).toBeVisible();
     await swipe(20, 100, 200); await swipe(20, 300, -200); expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(0);
     await page.keyboard.press('Escape'); await expect(page.locator('.scrim')).toHaveCount(0);
     await swipe(195, 600, -300); expect(await page.evaluate(() => Math.round(window.scrollY))).toBeGreaterThan(100); // and free again once it is closed

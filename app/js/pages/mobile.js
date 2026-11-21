@@ -257,6 +257,38 @@
     e.preventDefault();
   }, { capture: true, passive: false });
   document.addEventListener('touchcancel', function () { drag = null; }, { capture: true, passive: true });
+  /* · The floating main action lives on the page itself (css §35 — on an iPhone a pinned button inside a sliding row is drawn
+     under the cards further down the page). On a touch phone a button of ours on <body> carries the open page's main
+     action: its icon and words (copied as they are, so the English layer's words too), its «disabled», and a tap on it
+     presses the real one — the same code runs. It follows the page as it is drawn again, changes tab or language. */
+  var fabOn = window.matchMedia ? window.matchMedia('(max-width:767px) and (pointer:coarse)') : null;
+  var fab = null; var fabSrc = null; var fabSig = ''; var fabTick = 0;
+  function fabSource() {
+    var list = document.querySelectorAll('main:not([hidden]) .page-head .actions>.btn.btn-brand');
+    for (var i = 0; i < list.length; i++) { var row = list[i].parentElement; if (row && row.getClientRects().length) return list[i]; }
+    return null;
+  }
+  function fabSync() {
+    fabTick = 0; var on = !!(fabOn && fabOn.matches); if (rootEl.classList.contains('m-fab-on') !== on) rootEl.classList.toggle('m-fab-on', on);
+    var src = on ? fabSource() : null;
+    if (!src) { fabSrc = null; fabSig = ''; if (fab && !fab.hidden) fab.hidden = true; return; }
+    if (!fab) { fab = document.createElement('button'); fab.type = 'button'; fab.className = 'btn btn-brand m-fab'; fab.setAttribute('data-m-fab', '');
+      fab.addEventListener('click', function () { if (fabSrc && fabSrc.isConnected && !fabSrc.disabled) fabSrc.click(); }); document.body.appendChild(fab); }
+    var sig = src.textContent + '|' + src.disabled + '|' + (src.getAttribute('aria-label') || '') + '|' + src.childNodes.length;
+    if (src !== fabSrc || sig !== fabSig) { fabSrc = src; fabSig = sig;
+      var kids = []; for (var k = 0; k < src.childNodes.length; k++) kids.push(src.childNodes[k].cloneNode(true)); fab.replaceChildren.apply(fab, kids);
+      fab.disabled = src.disabled; var al = src.getAttribute('aria-label'); if (al) fab.setAttribute('aria-label', al); else fab.removeAttribute('aria-label'); }
+    if (fab.hidden) fab.hidden = false;
+  }
+  function fabSoon() { if (!fabTick) fabTick = requestAnimationFrame(fabSync); }
+  function fabWatch() {
+    new MutationObserver(function (list) { for (var i = 0; i < list.length; i++) { var t = list[i].target; if (fab && (t === fab || fab.contains(t))) continue; fabSoon(); return; } })
+      .observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['hidden', 'disabled'] });
+    window.addEventListener('hashchange', fabSoon); window.addEventListener('resize', fabSoon); if (fabOn && fabOn.addEventListener) fabOn.addEventListener('change', fabSoon);
+    fabSync();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fabWatch); else fabWatch();
+
   /* The assistant takes the focus as it opens — with a keyboard on the desk that is a help, on a touch screen it throws the
      keyboard over the chat before the member has read it. So there the focus is given back; a tap in the box types as always. */
   var touch = window.matchMedia ? window.matchMedia('(pointer:coarse)') : null;
