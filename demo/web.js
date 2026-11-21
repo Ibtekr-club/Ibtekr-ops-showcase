@@ -10,7 +10,7 @@ window.IB_DEMO = true;
   var set = function (k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch (e) { return false; } };
   var MODES = { marketplace: 'Marketplace', single: 'Single store' };
   // a new build of the demo starts from its own data: changes a visitor saved on an older build are dropped (the model he picked stays)
-  var BUILD = '9aa3207e8a', KEY_BUILD = 'ib.demo.build';
+  var BUILD = 'bd1813d2ef', KEY_BUILD = 'ib.demo.build';
   if (get(KEY_BUILD) !== BUILD) { set(KEY_LOG, null); set(KEY_BUILD, BUILD); }
   var mode = MODES[get(KEY_MODE)] ? get(KEY_MODE) : null;
   // the language: Arabic as the system is, or English — the dictionary (en.js) and the layer that writes the page in English (i18n.js)
@@ -61,7 +61,7 @@ window.IB_DEMO = true;
     '#demo-entry .de-tag{font-size:12px;line-height:20px;font-weight:700;color:#005642;background:#dfece6;border-radius:999px;padding:1px 10px}',
     '#demo-entry .de-skip{all:unset;box-sizing:border-box;margin-inline-start:auto;cursor:pointer;min-height:40px;padding:0 14px;display:inline-flex;align-items:center;border-radius:999px;font-weight:700;font-size:14px;color:#005642}',
     '#demo-entry .de-skip:hover,#demo-entry .de-skip:focus-visible{background:#ebe3d0}',
-    '#demo-entry .de-track{flex:1 1 auto;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}',
+    '#demo-entry .de-track{flex:1 1 auto;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior:contain}',
     '#demo-entry .de-track::-webkit-scrollbar{display:none}',
     '#demo-entry .de-slide{flex:0 0 100%;width:100%;min-width:0;scroll-snap-align:center;scroll-snap-stop:always;overflow-y:auto;overscroll-behavior-y:contain;display:flex;padding:10px 20px 16px}',
     '#demo-entry .de-in{margin:auto;width:100%;max-width:980px;display:grid;grid-template-columns:minmax(0,1fr);gap:22px;justify-items:center;text-align:center}',
