@@ -1,0 +1,7 @@
+# The web demo: html / js / css revalidate on every load (cheap 304s), so a redeploy is seen at once.
+<FilesMatch "\.(html|js|css)$">
+  <IfModule mod_headers.c>
+    Header set Cache-Control "no-cache"
+    Header unset Expires
+  </IfModule>
+</FilesMatch>
