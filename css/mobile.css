@@ -534,24 +534,29 @@
 
 /* ---------- 33. The header's controls: one size, one order (the owner 21 Nov) ----------
    «خلي زرار الايه اي و البروفايل جمب بعض و النوتيفكشين بعد الايه اي و خلي الايقونز و الزراير قد بعض»: after the search come
-   the bell, the assistant, then the account — three circles of 40 (44 to the finger), 8 apart; the bell on the search's
-   own soft fill so it reads as a button like the other two. */
+   the bell, the assistant, then the account — three circles of one size; the bell on the search's own soft fill so it reads
+   as a button like the other two. Then (22 Nov — «زود المسافة بين خانة البحث و الشريط الاخضر من فوق و نفس المسافة من تحت و صغر
+   دايرة البروفايل و النوتيفيكيشن و الايه اي شوية بحيث الاستخدام ميتأثرش»): the bar is 56 high on a phone as on a tablet, so the
+   search has 8px over it and 8px under it, and the circles are 36 to look at — still 44 to the finger, 12 apart. */
 @media (max-width:1023px){
   .topbar>.gq-wrap{order:0}
   .topbar>.pop-anchor:has(>.notif-btn){order:1}
   .topbar>.ai-btn{order:2}
   .topbar>.pop-anchor.user{order:3}
   .topbar>.qa-anchor,.topbar>.clock-widget{order:4}
-  .topbar .ai-btn,.topbar .notif-btn,.topbar .user-btn{box-sizing:border-box;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border:2px solid transparent;border-radius:50%;background-clip:content-box;align-items:center;justify-content:center;place-items:center}
+  .topbar .ai-btn,.topbar .notif-btn,.topbar .user-btn{box-sizing:border-box;width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border:4px solid transparent;border-radius:50%;background-clip:content-box;align-items:center;justify-content:center;place-items:center}
   .topbar .notif-btn{background-color:var(--color-bg-container);color:var(--color-brand-default)}
   .topbar .user-btn{background:none}
-  .topbar .user-btn .avatar{width:40px;height:40px;font-size:16px;line-height:40px}
-  .topbar .ai-btn svg,.topbar .notif-btn svg{width:20px;height:20px}
-  .topbar .notif-badge{top:-2px;inset-inline-start:-2px;box-shadow:0 0 0 2px var(--color-bg-base)}
+  .topbar .user-btn .avatar{width:36px;height:36px;font-size:15px;line-height:36px}
+  .topbar .ai-btn svg,.topbar .notif-btn svg{width:18px;height:18px}
+  .topbar .notif-badge{top:-1px;inset-inline-start:-1px;box-shadow:0 0 0 2px var(--color-bg-base)}
   .topbar .search{height:40px}
 }
 @media (max-width:767px){
-  .topbar{gap:4px}
+  .topbar{height:56px;gap:4px}
+  .content>.tabs{top:56px}
+  .mx-wrap .mx-head{top:56px}
+  .topbar .search:focus-within{inset:6px 8px}
   .topbar>.gq-wrap{margin-inline-end:4px}
   .topbar>.qa-anchor,.topbar>.clock-widget{margin-inline-start:-4px}
 }
