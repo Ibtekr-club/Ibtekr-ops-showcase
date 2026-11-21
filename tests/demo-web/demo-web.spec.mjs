@@ -209,6 +209,23 @@ test.describe('a phone', () => {
     await page.locator('#orders >> #fbai').tap(); expect(await page.evaluate(() => document.getElementById('orders').shadowRoot.activeElement.id)).toBe('fbai'); // a tap on the field still types in it
     await page.locator('#orders >> [data-fbcancel]').click(); await expect(fb).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+    // the chips of the filters in force: one line that slides, however many are picked — the orders stay near the top
+    for (const q of ['multi', 'unconf', 'risk']) { if (!(await page.locator('#orders >> .fb').count())) await page.locator('#orders >> #fbtn').click(); await page.locator(`#orders >> [data-qf="${q}"]`).click(); await page.waitForTimeout(200); }
+    if (await page.locator('#orders >> .fb').count()) await page.locator('#orders >> [data-fbapply]').click();
+    const chips = await page.evaluate(() => { const r = document.getElementById('orders').shadowRoot; const row = r.querySelector('.afc-row'); const tops = [...row.querySelectorAll('.afc-chip')].map((c) => Math.round(c.getBoundingClientRect().top)); const clr = row.querySelector(':scope > .btn').getBoundingClientRect(); return { n: tops.length, lines: new Set(tops).size, h: Math.round(row.getBoundingClientRect().height), scrolls: row.scrollWidth > row.clientWidth, clr: [Math.round(clr.left), Math.round(clr.right)] }; });
+    expect(chips.n).toBeGreaterThanOrEqual(3); expect(chips.lines).toBe(1); expect(chips.h).toBeLessThanOrEqual(56); expect(chips.scrolls).toBe(true);
+    expect(chips.clr[0]).toBeGreaterThanOrEqual(0); expect(chips.clr[1]).toBeLessThanOrEqual(390); // «مسح الفلاتر» stays on screen
+    await page.locator('#orders >> .afc-row > .btn').click();
+    // a date: a sheet from the bottom with days a finger can hit
+    await page.locator('#orders >> [data-tg]').first().click(); await page.locator('#orders >> [data-dp]').first().click(); await page.waitForTimeout(400);
+    const cal = await page.evaluate(() => { const r = document.getElementById('orders').shadowRoot; const d = r.querySelector('#dpop'); const b = d.getBoundingClientRect(); const day = d.querySelector('.d').getBoundingClientRect(); return { x: b.left, w: b.width, bottom: Math.round(b.bottom), day: [Math.round(day.width), Math.round(day.height)] }; });
+    expect(cal.x).toBe(0); expect(cal.w).toBe(390); expect(cal.bottom).toBe(844); expect(cal.day[0]).toBeGreaterThanOrEqual(44); expect(cal.day[1]).toBeGreaterThanOrEqual(44);
+    await page.keyboard.press('Escape'); await page.mouse.click(10, 120);
+    // the period picker: nothing off the screen, days of 44px, its buttons on screen
+    await go(page, 'dashboard'); await page.locator('.dash-period button').first().click(); await page.waitForTimeout(400);
+    const rp = await page.evaluate(() => { const d = document.querySelector('.dp.range'); const b = d.getBoundingClientRect(); const spill = [...d.querySelectorAll('*')].filter((c) => { const x = c.getBoundingClientRect(); return x.width > 0 && (x.right > 391 || x.left < -1); }).length; const day = d.querySelector('.day').getBoundingClientRect(); const foot = d.querySelector('.dp-foot .btn').getBoundingClientRect(); return { top: b.top, bottom: Math.round(b.bottom), spill, day: Math.round(day.height), foot: Math.round(foot.bottom) }; });
+    expect(rp.spill).toBe(0); expect(rp.day).toBeGreaterThanOrEqual(44); expect(rp.bottom).toBe(844); expect(rp.foot).toBeLessThanOrEqual(844); expect(rp.top).toBeGreaterThanOrEqual(44);
+    await page.keyboard.press('Escape');
     // a conversation takes the whole screen, its reply box on screen
     await go(page, 'cs'); await page.locator('#pg-cs .tab', { hasText: 'الرسايل' }).click(); await page.locator('.cs-items .cv').first().click(); await page.waitForTimeout(300);
     const chat = await page.locator('.cs-inbox.show-chat .cs-chat').boundingBox(); expect(chat.x).toBe(0); expect(chat.width).toBe(390); expect(Math.round(chat.y + chat.height)).toBe(844);
