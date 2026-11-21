@@ -277,6 +277,10 @@
     if (!drag || !e.touches || e.touches.length !== 1) return;
     var dx = e.touches[0].clientX - drag.x; var dy = e.touches[0].clientY - drag.y; var flat = Math.abs(dx) > Math.abs(dy);
     if (Math.abs(dx) > 10 || Math.abs(dy) > 10) drag.moved = true;
+    /* A finger is never still: a tap comes with a move of a few pixels. Safari takes a move whose default was called off as
+       «this was not a tap» and drops the click — a tick in a filter needed several presses (the owner 22 Nov). So a move is
+       held back only once it is a drag (8px — the page itself does not start to scroll before 10). */
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
     if (!e.cancelable) return;
     for (var i = 0; i < drag.may.length; i++) { var n = drag.may[i][0];
       if (drag.may[i][1] === 'x') { if (flat) return; continue; }

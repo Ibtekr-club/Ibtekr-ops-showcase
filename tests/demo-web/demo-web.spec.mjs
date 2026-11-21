@@ -323,6 +323,12 @@ test.describe('a phone', () => {
     await page.evaluate(() => window.scrollTo(0, 400)); await page.waitForTimeout(300); const at = await page.evaluate(() => Math.round(window.scrollY)); expect(at).toBeGreaterThan(100);
     await page.tap('.topbar .notif-btn'); await expect(page.locator('.menu.notif')).toBeVisible(); await page.waitForTimeout(400);
     await swipe(195, 110, -80); await swipe(195, 110, 80); expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(at);
+    // (22 Nov, an iPhone — «لازم ادوس اكتر من مرة عشان تعلم»): a tap is never still, and Safari drops the click of a touch whose
+    // move was called off — so inside an open popup a move of a few pixels is left alone, and only a real drag is held back
+    const held = await page.evaluate(() => { const el = document.querySelector('.menu.notif .ntf-item, .menu.notif button, .menu.notif'); const r = el.getBoundingClientRect(); const x = r.left + r.width / 2; const y = r.top + r.height / 2;
+      const fire = (type, dy) => { const t = new Touch({ identifier: 7, target: el, clientX: x, clientY: y + dy, pageX: x, pageY: y + dy }); const e = new TouchEvent(type, { bubbles: true, cancelable: true, composed: true, touches: type === 'touchend' ? [] : [t], targetTouches: type === 'touchend' ? [] : [t], changedTouches: [t] }); el.dispatchEvent(e); return e.defaultPrevented; };
+      fire('touchstart', 0); const small = fire('touchmove', 3); const big = fire('touchmove', 40); fire('touchend', 40); const far = document.querySelector('main:not([hidden]) .page-head'); return { small, big, list: [...document.querySelectorAll('.menu.notif *')].some((n) => /(auto|scroll)/.test(getComputedStyle(n).overflowY) && n.scrollHeight > n.clientHeight + 1) }; });
+    expect(held.small, 'a tap with a few pixels of move keeps its click').toBe(false); if (!held.list) expect(held.big, 'a drag where nothing scrolls is held').toBe(true);
     await page.touchscreen.tap(195, 70); await expect(page.locator('.menu.notif')).toHaveCount(0);
     expect(await page.evaluate(() => document.activeElement.tagName)).not.toBe('INPUT'); expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(at);
     // … behind a popup, and behind the orders page's filter (its popups live in a shadow root)
