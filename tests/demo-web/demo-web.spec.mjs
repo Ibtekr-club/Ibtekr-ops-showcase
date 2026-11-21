@@ -311,10 +311,10 @@ test.describe('a tablet, upright', () => {
     // the header: the bell, the assistant, the account — one size, in that order after the search
     const thd = await page.evaluate(() => ['.topbar .search', '.topbar .notif-btn', '.topbar .ai-btn', '.topbar .user-btn'].map((q) => { const r = document.querySelector(q).getBoundingClientRect(); return [Math.round(r.right), Math.round(r.width), Math.round(r.height)]; }));
     expect(thd[0][0]).toBeGreaterThan(thd[1][0]); expect(thd[1][0]).toBeGreaterThan(thd[2][0]); expect(thd[2][0]).toBeGreaterThan(thd[3][0]); for (const c of thd.slice(1)) { expect(c[1]).toBe(44); expect(c[2]).toBe(44); }
-    // the assistant is a page of its own with «إغلاق»: the whole screen under the banner, the talk in one column
+    // the assistant here is the desktop's box under its button (the owner 21 Nov: «التابلت خليه زي الديسكتوب») — the full page is a phone's
     await page.tap('.ai-btn'); await page.waitForTimeout(400);
-    const tai = await page.evaluate(() => { const r = document.querySelector('.ai-panel').getBoundingClientRect(); const bar = document.getElementById('demo-bar').getBoundingClientRect(); const f = document.querySelector('.ai-form').getBoundingClientRect(); return { top: Math.round(r.top), bar: Math.round(bar.bottom), bottom: Math.round(r.bottom), w: Math.round(r.width), form: Math.round(f.width), focus: document.activeElement.classList.contains('ai-input') }; });
-    expect(tai.top).toBe(tai.bar); expect(tai.bottom).toBe(1180); expect(tai.w).toBe(820); expect(tai.form).toBeLessThanOrEqual(760); expect(tai.focus).toBe(false);
+    const tai = await page.evaluate(() => { const r = document.querySelector('.ai-panel').getBoundingClientRect(); const t = document.querySelector('.topbar').getBoundingClientRect(); return { top: Math.round(r.top), bar: Math.round(t.bottom), bottom: Math.round(r.bottom), w: Math.round(r.width), bubble: getComputedStyle(document.querySelector('.ai-msg.ai')).backgroundColor }; });
+    expect(tai.w).toBeLessThanOrEqual(420); expect(tai.top).toBeGreaterThanOrEqual(tai.bar - 2); expect(tai.bottom).toBeLessThan(1180); expect(tai.bubble).not.toBe('rgba(0, 0, 0, 0)');
     await page.tap('.ai-panel .ai-head .icon-btn'); await expect(page.locator('.ai-panel')).toBeHidden();
     // «ملفي»: its ten tiles take the same full rows (4 + 4 + 2)
     await go(page, 'profile'); await page.waitForTimeout(900);

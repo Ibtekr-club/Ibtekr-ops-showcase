@@ -465,15 +465,16 @@
   #pg-profile .prof-head>.acts-inline .btn{width:100%}
 }
 
-/* ---------- 32. The assistant on a phone or a tablet: a page of its own, as chat apps are (the owner 21 Nov) ----------
-   «عايز الشات مع الايه اي في الموبايل و التابلت يشتغل بنفس طريقة شات جي بي تي و يبقى البوب صفحة كاملة فيها اغلاق». It was a 560px
+/* ---------- 32. The assistant on a phone: a page of its own, as chat apps are (the owner 21 Nov) ----------
+   «يشتغل بنفس طريقة شات جي بي تي و يبقى البوب صفحة كاملة فيها اغلاق» — then «التابلت خليه زي الديسكتوب بس الموبايل اللي اعمل فيه
+   الصفحة الكاملة»: on a phone only; a tablet keeps the desktop's box under the button. It was a 560px
    box hung under the bar; on an iPhone the keyboard came up at once, the page slid under it, the box lost its head off the
    top and the bottom bar floated in the middle of the screen. Now it is the whole screen under the banner: a head with the
    name and «إغلاق», the talk in one column (the assistant's words plain on the page, mine in a green bubble), the examples
    on one sliding line, and the box to type in — a pill with its send button inside — resting on the keyboard. The page
    follows the part of the screen the keyboard leaves in sight (--m-vv-top / --m-vv-h, js/pages/mobile.js). And while any
    keyboard is up the bottom bar steps aside (html.m-kb) — it has no place floating over a field being typed in. */
-@media (max-width:1023px),(pointer:coarse){
+@media (max-width:767px){
   .ai-panel{left:0!important;right:0!important;top:var(--m-vv-top,var(--dm-h,0px))!important;width:auto!important;max-width:none!important;min-width:0;height:var(--m-vv-h,calc(100dvh - var(--dm-h,0px)))!important;min-height:0;max-height:none;border:0;border-radius:0;box-shadow:none;resize:none;z-index:46;background:var(--color-bg-base)}
   .ai-panel>*{width:100%;max-width:760px;margin-inline:auto;box-sizing:border-box}
   .ai-panel .ai-head{flex:none;min-height:56px;padding-block:6px;padding-inline:var(--m-s4) 6px;border-bottom:0;cursor:default;touch-action:auto}
@@ -494,7 +495,14 @@
   .ai-panel .ai-note{flex:none;padding:var(--m-s2) var(--m-s4) calc(var(--m-s2) + env(safe-area-inset-bottom,0px));font-size:12px;line-height:18px;text-align:center}
   html.m-kb .ai-panel .ai-note{padding-bottom:var(--m-s2)}
   body:has(.ai-panel:not([hidden])) .page-head .actions>.btn.btn-brand,html.m-kb .page-head .actions>.btn.btn-brand{display:none}
+}
+@media (max-width:1023px),(pointer:coarse){
   html.m-kb .bottom-nav{display:none}
+}
+/* a tablet: the desktop's box, as it is — only it never runs under the keyboard, and its field does not make an iPad zoom */
+@media (min-width:768px) and (pointer:coarse){
+  html.m-kb .ai-panel{top:calc(var(--m-vv-top,0px) + 8px)!important;height:calc(var(--m-vv-h,100dvh) - 16px)!important;min-height:0}
+  .ai-panel .ai-input{font-size:16px}
 }
 
 /* ---------- 33. The header's controls: one size, one order (the owner 21 Nov) ----------
