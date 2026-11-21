@@ -4,8 +4,8 @@
 // server tool, the reading of what the search returned, and the cleaning of the rows. A row is kept only when its link is a
 // page the search really returned (or a page of a site it returned) — the model never writes a source of its own.
 // Nothing here talks to a provider or a database.
-import { FALLBACK, line, paras } from './ai-content.js?v=9b3dc345d4';
-import { kbBlocks } from './agent-kb.js?v=9b3dc345d4';
+import { FALLBACK, line, paras } from './ai-content.js?v=85d64170c7';
+import { kbBlocks } from './agent-kb.js?v=85d64170c7';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 export const TRENDS_MAX = 12; // rows of one refresh (the general roundup)
