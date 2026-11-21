@@ -3,6 +3,7 @@
 // page with its link preview, plus web.js: the entry screen with the two business models, the banner, and the changes kept in this
 // browser until «Reset». The demo-only behaviour in the app runs only when window.IB_DEMO === true, which web.js sets.
 import { cpSync, readFileSync, readdirSync, statSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, FORBIDDEN } from './build.mjs';
@@ -55,7 +56,15 @@ export function buildWeb(out) {
   const head = body.slice(0, at).replace(/^(<link\b[^>]*>)+\n?/, (links) => '');
   const links = (body.match(/^(?:<link\b[^>]*>)+/) || [''])[0];
   const page = `<!doctype html>\n<html lang="ar" dir="rtl">\n<head>\n${meta}\n${links}\n</head>\n<body>\n${head}<script src="demo/web.js"></script>${body.slice(at)}</body>\n</html>\n`;
-  writeFileSync(join(out, 'index.html'), page);
+  // every deploy is served fresh: the host's CDN and the browser kept the old scripts under the same URLs (a redeploy showed no change).
+  // The build's id (a hash of its files) goes on every local script and stylesheet of the page, web.js drops a visitor's saved changes
+  // made on another build, and .htaccess (the app's own cache rule) makes html / js / css revalidate on every load.
+  const id = createHash('sha256'); for (const f of walk(out).sort()) { if (f === 'index.html') continue; id.update(f); id.update(readFileSync(join(out, f))); }
+  const BUILD = id.digest('hex').slice(0, 10);
+  const webJs = readFileSync(join(out, 'demo', 'web.js'), 'utf8'); if (!webJs.includes("'__BUILD__'")) throw new Error('demo:web: web.js lost its build mark');
+  writeFileSync(join(out, 'demo', 'web.js'), webJs.replace("'__BUILD__'", `'${BUILD}'`));
+  writeFileSync(join(out, 'index.html'), page.replace(/(<(?:script\b[^>]*\bsrc|link\b[^>]*\bhref)=")((?!https?:|data:|\/\/)[^"?#]+\.(?:js|css))"/g, `$1$2?v=${BUILD}"`));
+  writeFileSync(join(out, '.htaccess'), ['# The web demo: html / js / css revalidate on every load (cheap 304s), so a redeploy is seen at once.', '<FilesMatch "\\.(html|js|css)$">', '  <IfModule mod_headers.c>', '    Header set Cache-Control "no-cache"', '    Header unset Expires', '  </IfModule>', '</FilesMatch>', ''].join('\n'));
   for (const f of walk(out)) { if (!/\.(js|html|css|json)$/.test(f)) continue; const s = readFileSync(join(out, f), 'utf8'); const hit = FORBIDDEN.find((re) => re.test(s)); if (hit) throw new Error(`demo:web: ${f} still holds ${hit}`); }
   const personal = personalData(out); if (personal.length) throw new Error('demo:web: a phone number or e-mail that is not made up —\n' + personal.join('\n'));
   return { out };

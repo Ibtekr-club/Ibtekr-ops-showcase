@@ -9,6 +9,9 @@ window.IB_DEMO = true;
   var get = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
   var set = function (k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch (e) { return false; } };
   var MODES = { marketplace: 'Marketplace', single: 'Single store' };
+  // a new build of the demo starts from its own data: changes a visitor saved on an older build are dropped (the model he picked stays)
+  var BUILD = '__BUILD__', KEY_BUILD = 'ib.demo.build';
+  if (get(KEY_BUILD) !== BUILD) { set(KEY_LOG, null); set(KEY_BUILD, BUILD); }
   var mode = MODES[get(KEY_MODE)] ? get(KEY_MODE) : null;
   var log = []; try { log = JSON.parse(get(KEY_LOG) || '[]'); if (!Array.isArray(log)) log = []; } catch (e) { log = []; }
   var replaying = false;
