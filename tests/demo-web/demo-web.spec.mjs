@@ -250,7 +250,21 @@ test.describe('a phone', () => {
     const rp = await page.evaluate(() => { const d = document.querySelector('.dp.range'); const b = d.getBoundingClientRect(); const spill = [...d.querySelectorAll('*')].filter((c) => { const x = c.getBoundingClientRect(); return x.width > 0 && (x.right > 391 || x.left < -1); }).length; const day = d.querySelector('.day').getBoundingClientRect(); const foot = d.querySelector('.dp-foot .btn').getBoundingClientRect(); return { top: b.top, bottom: Math.round(b.bottom), spill, day: Math.round(day.height), foot: Math.round(foot.bottom) }; });
     expect(rp.spill).toBe(0); expect(rp.day).toBeGreaterThanOrEqual(44); expect(rp.bottom).toBe(844); expect(rp.foot).toBeLessThanOrEqual(844); expect(rp.top).toBeGreaterThanOrEqual(44);
     await page.keyboard.press('Escape');
-    // a conversation takes the whole screen, its reply box on screen
+    // the assistant: the whole screen under the banner, the keyboard not thrown up by itself, the examples on one line;
+    // with a keyboard up it ends where the keyboard starts and the bottom bar steps aside
+    await page.tap('.ai-btn'); await page.waitForTimeout(400);
+    const ai = await page.evaluate(() => { const r = document.querySelector('.ai-panel').getBoundingClientRect(); const bar = document.getElementById('demo-bar').getBoundingClientRect(); const ch = [...document.querySelectorAll('.ai-chips .btn')].map((c) => Math.round(c.getBoundingClientRect().top)); return { top: Math.round(r.top), bar: Math.round(bar.bottom), bottom: Math.round(r.bottom), w: Math.round(r.width), focus: document.activeElement.classList.contains('ai-input'), chipLines: new Set(ch).size, font: parseFloat(getComputedStyle(document.querySelector('.ai-input')).fontSize) }; });
+    expect(ai.top).toBe(ai.bar); expect(ai.bottom).toBe(844); expect(ai.w).toBe(390); expect(ai.focus).toBe(false); expect(ai.chipLines).toBe(1); expect(ai.font).toBeGreaterThanOrEqual(16);
+    await page.evaluate(() => { document.documentElement.style.setProperty('--m-vv-h', '420px'); document.documentElement.classList.add('m-kb'); });
+    const kb = await page.evaluate(() => ({ bottom: Math.round(document.querySelector('.ai-panel').getBoundingClientRect().bottom), top: Math.round(document.querySelector('.ai-panel').getBoundingClientRect().top), form: Math.round(document.querySelector('.ai-form').getBoundingClientRect().bottom), nav: getComputedStyle(document.querySelector('.bottom-nav')).display }));
+    expect(kb.bottom).toBe(kb.top + 420); expect(kb.form).toBeLessThanOrEqual(kb.bottom); expect(kb.nav).toBe('none');
+    await page.evaluate(() => { document.documentElement.classList.remove('m-kb'); window.dispatchEvent(new Event('resize')); });
+    await page.tap('.ai-panel .ai-head .icon-btn'); await expect(page.locator('.ai-panel')).toBeHidden();
+    // «ملفي»: the head is short — the name on one line beside the picture, the tags on one line
+    await go(page, 'profile'); await page.waitForTimeout(900);
+    const ph = await page.evaluate(() => { const h = document.querySelector('#pg-profile .prof-head'); const n = h.querySelector('h1').getBoundingClientRect(); const tg = [...h.querySelectorAll('.grow .tg')].map((t) => Math.round(t.getBoundingClientRect().top)); return { h: Math.round(h.getBoundingClientRect().height), name: Math.round(n.height), tagLines: new Set(tg).size }; });
+    expect(ph.h).toBeLessThanOrEqual(180); expect(ph.name).toBeLessThanOrEqual(30); expect(ph.tagLines).toBe(1);
+    await go(page, 'orders'); await page.waitForTimeout(600);
     await go(page, 'cs'); await page.locator('#pg-cs .tab', { hasText: 'الرسايل' }).click(); await page.locator('.cs-items .cv').first().click(); await page.waitForTimeout(300);
     const chat = await page.locator('.cs-inbox.show-chat .cs-chat').boundingBox(); expect(chat.x).toBe(0); expect(chat.width).toBe(390); expect(Math.round(chat.y + chat.height)).toBe(844);
     const cmp = await page.locator('.cs-chat .cmp').boundingBox(); expect(cmp.y + cmp.height).toBeLessThanOrEqual(845);
@@ -267,7 +281,17 @@ test.describe('a tablet, upright', () => {
     await expect(page.locator('#demo-bar [data-demo-dd="lang"]')).toBeVisible(); await expect(page.locator('#demo-bar [data-demo-dd="mode"]')).toBeVisible(); await expect(page.locator('.sidebar .dm-lang')).toBeHidden();
     // the bar: «إجراءات سريعة» and «ابدأ الدوام» are in the account's menu here too
     await page.locator('.topbar .user-btn').click(); await expect(page.locator('.menu.acct [data-m-clock]')).toBeVisible(); await expect(page.locator('.menu.acct [data-m-quick]')).toBeVisible(); await page.keyboard.press('Escape');
-    const cols = await page.evaluate(() => getComputedStyle(document.querySelector('.dash-kpis')).gridTemplateColumns.split(' ').length); expect(cols).toBe(3);
+    // the number cards: full rows — the dashboard's five go 3 + 2, and the two of the last line share its whole width
+    const rows = await page.evaluate(() => { const c = [...document.querySelectorAll('.dash-kpis > .card.kpi')].map((e) => e.getBoundingClientRect()); const tops = [...new Set(c.map((r) => Math.round(r.top)))]; const k = document.querySelector('.dash-kpis').getBoundingClientRect(); return tops.map((t) => { const row = c.filter((r) => Math.round(r.top) === t); return [row.length, Math.round(Math.max(...row.map((r) => r.right)) - Math.min(...row.map((r) => r.left))), Math.round(k.width)]; }); });
+    expect(rows.map((r) => r[0])).toEqual([3, 2]); for (const [, w, full] of rows) expect(Math.abs(w - full)).toBeLessThanOrEqual(2);
+    for (const pg of ['hr', 'inventory', 'reports', 'tickets']) { await go(page, pg); await page.waitForTimeout(900);
+      const alone = await page.evaluate(() => { const main = [...document.querySelectorAll('main')].find((m) => m.getBoundingClientRect().height > 0); return [...main.querySelectorAll('*')].filter((g) => g.querySelector(':scope > .card.kpi') && g.getBoundingClientRect().width > 0).map((g) => { const k = g.getBoundingClientRect(); const c = [...g.querySelectorAll(':scope > .card.kpi')].map((e) => e.getBoundingClientRect()); const last = Math.max(...c.map((r) => Math.round(r.top))); const row = c.filter((r) => Math.round(r.top) === last); return Math.round(k.width - (Math.max(...row.map((r) => r.right)) - Math.min(...row.map((r) => r.left)))); }); });
+      for (const gap of alone) expect(gap, pg + ': a last line of cards that does not reach the end').toBeLessThanOrEqual(2); }
+    // «ملفي»: its ten tiles take the same full rows (4 + 4 + 2)
+    await go(page, 'profile'); await page.waitForTimeout(900);
+    const tiles = await page.evaluate(() => [...document.querySelectorAll('#pg-profile .cards')].filter((g) => g.querySelector(':scope > .card.sum-tile') && g.getBoundingClientRect().width > 0).map((g) => { const k = g.getBoundingClientRect(); const c = [...g.querySelectorAll(':scope > .card.sum-tile')].map((e) => e.getBoundingClientRect()); const tops = [...new Set(c.map((r) => Math.round(r.top)))]; return tops.map((t) => { const row = c.filter((r) => Math.round(r.top) === t); return [row.length, Math.round(k.width - (Math.max(...row.map((r) => r.right)) - Math.min(...row.map((r) => r.left))))]; }); }).flat());
+    expect(tiles.length).toBeGreaterThan(0); for (const [n, gap] of tiles) { expect(n).toBeGreaterThanOrEqual(2); expect(gap).toBeLessThanOrEqual(2); }
+    await go(page, 'dashboard');
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
   });
 });
