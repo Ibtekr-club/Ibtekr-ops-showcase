@@ -19,14 +19,14 @@
 // vendors_brands_guard_delete (23503 naming brand_owners_vendor_id_fkey) and the cascade of the origin's brands). Not a product feature.
 // Spec files call installSupabaseMock(page) unless E2E_SUPABASE_LIVE=1: then installLiveConfig(page) points the app at the
 // staging project in E2E_SUPABASE_URL / E2E_SUPABASE_ANON_KEY (never at whatever app/config.js holds), or skips without them.
-import { buildStudio, matchWooBrand, sheetCsvUrl, wooBrandIds } from '../../mock/shared/woo-studio.js';
-import { parseWrite, parseStudio, parsePrompts, parseExtract, cleanWrite, cleanStudio, cleanPrompts, cleanExtract, shotPromptRows, aiSettings } from '../../mock/shared/ai-content.js';
-import { parseGenerate, parseEdit, parseCreate, imageSettings, creditsFor, usdOf, studioPathOk, studioGenPath, studioEditPath, toolPath, renameInState, flowShotPrompt, MODEL_IDS } from '../../mock/shared/ai-images.js';
-import { hrState, hrRoute } from './hr-mock.js'; // phase 10 (0046): the HR tables, RPCs, team-admin and the bucket hr-docs
-import { mktState, mktRoute } from './mkt-mock.js'; // phase 9.5.1 (0049): the marketing tables, RPCs, the bucket marketing and its AI actions
-import { settingsState, settingsRoute } from './settings-mock.js';
+import { buildStudio, matchWooBrand, sheetCsvUrl, wooBrandIds } from '../../mock/shared/woo-studio.js?v=ab4da0fdd5';
+import { parseWrite, parseStudio, parsePrompts, parseExtract, cleanWrite, cleanStudio, cleanPrompts, cleanExtract, shotPromptRows, aiSettings } from '../../mock/shared/ai-content.js?v=ab4da0fdd5';
+import { parseGenerate, parseEdit, parseCreate, imageSettings, creditsFor, usdOf, studioPathOk, studioGenPath, studioEditPath, toolPath, renameInState, flowShotPrompt, MODEL_IDS } from '../../mock/shared/ai-images.js?v=ab4da0fdd5';
+import { hrState, hrRoute } from './hr-mock.js?v=ab4da0fdd5'; // phase 10 (0046): the HR tables, RPCs, team-admin and the bucket hr-docs
+import { mktState, mktRoute } from './mkt-mock.js?v=ab4da0fdd5'; // phase 9.5.1 (0049): the marketing tables, RPCs, the bucket marketing and its AI actions
+import { settingsState, settingsRoute } from './settings-mock.js?v=ab4da0fdd5';
 // phase 11 (0056): the team RPCs, settings-admin / notify, company_docs, the buckets company-docs / settings, activity_log filters
-import { portalState, portalRoute } from './portal-mock.js'; // phase 13 T4 (0065): the maker portal's Edge Function on the mock's rows
+import { portalState, portalRoute } from './portal-mock.js?v=ab4da0fdd5'; // phase 13 T4 (0065): the maker portal's Edge Function on the mock's rows
 export const SUPABASE_URL = 'https://demo.ibtekr.invalid';
 // what the developer's «تحديثات ووردبريس» check answers when a spec gives no list of its own (the demo copy shows this)
 const WP_STATUS = { core: { version: '6.7.2', latest: '6.8.3', update: true, known: true }, woo: { version: '9.8.1' }, php: '8.2.20',
