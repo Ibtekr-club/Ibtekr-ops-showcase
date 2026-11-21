@@ -40,6 +40,12 @@ export function buildWeb(out) {
   out = resolve(out); build(out);
   rmSync(join(out, 'files.json'), { force: true }); // the Artifact demo's file list — the web demo is served as plain files
   cpSync(join(ROOT, 'tools', 'demo', 'web.js'), join(out, 'demo', 'web.js'));
+  // the English demo: the layer that writes the page in English, and the dictionary — every tools/demo/i18n/*.json ({ Arabic: English })
+  // and patterns.json ([[regex, replacement with $1…]]) as one script (loaded only when the visitor picks English)
+  cpSync(join(ROOT, 'tools', 'demo', 'i18n.js'), join(out, 'demo', 'i18n.js'));
+  const tdir = join(ROOT, 'tools', 'demo', 'i18n'); const d = {}; let p = [];
+  if (existsSync(tdir)) for (const f of readdirSync(tdir).sort()) { if (!f.endsWith('.json')) continue; const j = JSON.parse(readFileSync(join(tdir, f), 'utf8')); if (f === 'patterns.json') p = j; else for (const [k, v] of Object.entries(j)) { const key = k.trim(); if (key && typeof v === 'string' && v.trim()) d[key] = v.trim(); } }
+  writeFileSync(join(out, 'demo', 'en.js'), 'window.IB_EN=' + JSON.stringify({ d, p }) + ';\n');
   const og = join(ROOT, 'tools', 'demo', 'og-image.png'); if (existsSync(og)) cpSync(og, join(out, 'og-image.png'));
   const vid = join(ROOT, 'docs', 'media', 'demo-walkthrough.mp4'); if (existsSync(vid)) cpSync(vid, join(out, 'demo-walkthrough.mp4')); // the README's video link
   const body = readFileSync(join(out, 'index.html'), 'utf8').replace(/^<title>[^<]*<\/title>\n/, '');

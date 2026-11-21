@@ -196,3 +196,29 @@ export function webSeed(mock, mode) {
   if (mode === 'single') singleStore(mock); else marketplace(mock);
   money(mock);
 }
+
+/** The English demo (web.js picked «English»): the made-up data's free texts — people's names, addresses, notes, messages, the
+ *  campaigns' ideas and captions — are written in English too, so a form's fields and a search read like the page around them.
+ *  Values the system works with (statuses, roles, categories, account names, templates with their variables) stay as they are:
+ *  the page shows those in English as it writes them (i18n.js). `tr` is that layer's translator. */
+const EN_KEYS = /^(customer_name|customer_address|customer_city|customer_note|address|city|note|notes|comment|text|title|description|caption|idea|summary|sub|why|impact|keyword|early_reason|resolution_note|beneficiary|customer|actor_name|assignee_member_name|resolved_by_name|created_by_name|bank_name)$/;
+const EN_NAME_IN = /^(profiles|cs\.customers|hr\.payroll_lines|mkt\.campaigns|cs\.campaigns|cs\.segments|orderItems|products)$/;
+const EN_SKIP = /^(roles|st|statusMap|activityRows|shotPrompts|skuColors|settings|ticketEvents|hr\.leave_types|hr\.bonus_rules|cs\.rules|cs\.templates|cs\.quick|cs\.channels|wooStates|wooCategories)$/;
+export function englishData(mock, tr) {
+  if (!mock || typeof tr !== 'function') return;
+  const AR = /[\u0600-\u06FF]/; const seen = new WeakSet();
+  const walk = (v, table, depth) => {
+    if (!v || typeof v !== 'object' || seen.has(v) || depth > 10 || v instanceof Map || v instanceof Set) return; seen.add(v);
+    if (Array.isArray(v)) { v.forEach((x, i) => { if (typeof x === 'string') return; walk(x, table, depth + 1); }); return; }
+    for (const [k, x] of Object.entries(v)) {
+      if (typeof x === 'string') { if (AR.test(x) && (EN_KEYS.test(k) || (k === 'name' && EN_NAME_IN.test(table)))) v[k] = tr(x); continue; }
+      walk(x, table, depth + 1);
+    }
+  };
+  for (const [k, v] of Object.entries(mock)) {
+    if (typeof v === 'function' || EN_SKIP.test(k)) continue;
+    if (Array.isArray(v)) { walk(v, k, 0); continue; }
+    if (v && typeof v === 'object' && ['cs', 'hr', 'mkt', 'acc', 'inv'].includes(k)) { for (const [k2, v2] of Object.entries(v)) { if (!EN_SKIP.test(k + '.' + k2)) walk(v2, k + '.' + k2, 0); } }
+  }
+}
+
