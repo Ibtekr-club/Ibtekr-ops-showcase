@@ -18,60 +18,60 @@
 <meta name="twitter:title" content="Ibtekr Ops — Live demo">
 <meta name="twitter:description" content="An operations system for a handmade marketplace: orders synced from WooCommerce / Dokan, makers and commissions, an AI product studio, customer service and WhatsApp — in Arabic or English, on sample data.">
 <meta name="twitter:image" content="https://demo.ibtekr.club/og-image.png">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;900&display=swap"><link rel="stylesheet" href="css/base.css?v=c59b54c2e7"><link rel="stylesheet" href="css/app.css?v=c59b54c2e7"><link rel="stylesheet" href="css/products.css?v=c59b54c2e7"><link rel="stylesheet" href="css/studio.css?v=c59b54c2e7"><link rel="stylesheet" href="css/flow.css?v=c59b54c2e7"><link rel="stylesheet" href="css/marketing.css?v=c59b54c2e7"><link rel="stylesheet" href="css/cs.css?v=c59b54c2e7"><link rel="stylesheet" href="css/settings.css?v=c59b54c2e7"><link rel="stylesheet" href="css/mobile.css?v=c59b54c2e7">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;900&display=swap"><link rel="stylesheet" href="css/base.css?v=d0e88c42dd"><link rel="stylesheet" href="css/app.css?v=d0e88c42dd"><link rel="stylesheet" href="css/products.css?v=d0e88c42dd"><link rel="stylesheet" href="css/studio.css?v=d0e88c42dd"><link rel="stylesheet" href="css/flow.css?v=d0e88c42dd"><link rel="stylesheet" href="css/marketing.css?v=d0e88c42dd"><link rel="stylesheet" href="css/cs.css?v=d0e88c42dd"><link rel="stylesheet" href="css/settings.css?v=d0e88c42dd"><link rel="stylesheet" href="css/mobile.css?v=d0e88c42dd">
 </head>
 <body>
 
 <div id="root" dir="rtl" lang="ar"></div>
 <!-- the first-paint cover (the owner 15 Nov — «preloader»): the logo as a worm, its green head first, round its own track; taken off by js/pages/loader.js when the sign-in screen or the app shows. The same shapes as IBLoader.mark() -->
 <div id="ib-boot" class="ib-boot" role="status" aria-label="بنحمّل نظام إبتكر…"><svg class="ib-worm" viewBox="0 0 32 32" width="88" height="88" aria-hidden="true" focusable="false"><rect class="w-tile" width="32" height="32" rx="6"></rect><clipPath id="ibw0"><path d="M7 7H25V25H9.81C8.26 25 7 23.74 7 22.19Z"></path></clipPath><g clip-path="url(#ibw0)"><path class="w-body" d="M9.375 11.75V9.375H22.625V22.625H9.375V9.375H22.625V22.625H9.375V11.75"></path><path class="w-head" d="M9.375 11.75V9.375H22.625V22.625H9.375V9.375H22.625V22.625H9.375V11.75"></path></g></svg></div>
-<script src="js/pages/loader.js?v=c59b54c2e7"></script><!-- IBLoader: the worm mark for every loading (the cover above, the running pill, a page's «بنحمّل…») -->
-<script src="js/pages/crash-guard.js?v=c59b54c2e7"></script><!-- the blank-page guard: «اعمل رفريش» when nothing of the app is painted any more (the owner 17 Nov) -->
-<script src="demo/web.js?v=c59b54c2e7"></script><script src="demo/shim.js?v=c59b54c2e7"></script><script type="module" src="demo/boot.js?v=c59b54c2e7"></script>
-<script src="config.js?v=c59b54c2e7"></script><script src="js/vendor/supabase.js?v=c59b54c2e7"></script>
-<script src="js/pages/page-scroll.js?v=c59b54c2e7"></script><script src="js/pages/mobile.js?v=c59b54c2e7"></script><!-- the page's scroller (the scroll bar on the left) and «اطلع لأول الصفحة» (the owner 15 Nov) -->
-<script src="js/adapter/supabase-client.js?v=c59b54c2e7"></script><script src="js/adapter/busy.js?v=c59b54c2e7"></script><script src="js/adapter/auth.js?v=c59b54c2e7"></script><script src="js/adapter/directory.js?v=c59b54c2e7"></script><script src="js/adapter/presence.js?v=c59b54c2e7"></script><script src="js/adapter/activity.js?v=c59b54c2e7"></script><script src="js/adapter/prefs.js?v=c59b54c2e7"></script><script src="js/adapter/alerts.js?v=c59b54c2e7"></script><script src="js/adapter/orders.js?v=c59b54c2e7"></script><script src="js/adapter/vendors.js?v=c59b54c2e7"></script><script src="js/adapter/accounts.js?v=c59b54c2e7"></script><script src="js/adapter/cs.js?v=c59b54c2e7"></script><script src="js/adapter/inventory.js?v=c59b54c2e7"></script><script src="js/adapter/tickets.js?v=c59b54c2e7"></script><script src="js/adapter/hr.js?v=c59b54c2e7"></script><script src="js/adapter/products.js?v=c59b54c2e7"></script><script src="js/adapter/studio.js?v=c59b54c2e7"></script><script src="js/adapter/ai.js?v=c59b54c2e7"></script><script src="js/adapter/images.js?v=c59b54c2e7"></script><script src="js/adapter/marketing.js?v=c59b54c2e7"></script><script src="js/adapter/settings.js?v=c59b54c2e7"></script><script src="js/adapter/live.js?v=c59b54c2e7"></script>
+<script src="js/pages/loader.js?v=d0e88c42dd"></script><!-- IBLoader: the worm mark for every loading (the cover above, the running pill, a page's «بنحمّل…») -->
+<script src="js/pages/crash-guard.js?v=d0e88c42dd"></script><!-- the blank-page guard: «اعمل رفريش» when nothing of the app is painted any more (the owner 17 Nov) -->
+<script src="demo/web.js?v=d0e88c42dd"></script><script src="demo/shim.js?v=d0e88c42dd"></script><script type="module" src="demo/boot.js?v=d0e88c42dd"></script>
+<script src="config.js?v=d0e88c42dd"></script><script src="js/vendor/supabase.js?v=d0e88c42dd"></script>
+<script src="js/pages/page-scroll.js?v=d0e88c42dd"></script><script src="js/pages/mobile.js?v=d0e88c42dd"></script><!-- the page's scroller (the scroll bar on the left) and «اطلع لأول الصفحة» (the owner 15 Nov) -->
+<script src="js/adapter/supabase-client.js?v=d0e88c42dd"></script><script src="js/adapter/busy.js?v=d0e88c42dd"></script><script src="js/adapter/auth.js?v=d0e88c42dd"></script><script src="js/adapter/directory.js?v=d0e88c42dd"></script><script src="js/adapter/presence.js?v=d0e88c42dd"></script><script src="js/adapter/activity.js?v=d0e88c42dd"></script><script src="js/adapter/prefs.js?v=d0e88c42dd"></script><script src="js/adapter/alerts.js?v=d0e88c42dd"></script><script src="js/adapter/orders.js?v=d0e88c42dd"></script><script src="js/adapter/vendors.js?v=d0e88c42dd"></script><script src="js/adapter/accounts.js?v=d0e88c42dd"></script><script src="js/adapter/cs.js?v=d0e88c42dd"></script><script src="js/adapter/inventory.js?v=d0e88c42dd"></script><script src="js/adapter/tickets.js?v=d0e88c42dd"></script><script src="js/adapter/hr.js?v=d0e88c42dd"></script><script src="js/adapter/products.js?v=d0e88c42dd"></script><script src="js/adapter/studio.js?v=d0e88c42dd"></script><script src="js/adapter/ai.js?v=d0e88c42dd"></script><script src="js/adapter/images.js?v=d0e88c42dd"></script><script src="js/adapter/marketing.js?v=d0e88c42dd"></script><script src="js/adapter/settings.js?v=d0e88c42dd"></script><script src="js/adapter/live.js?v=d0e88c42dd"></script>
 <!-- blocks, in prototype order -->
-<script src="js/blocks/01-dataio.js?v=c59b54c2e7"></script>
-<script src="js/blocks/02-accounts-domain.js?v=c59b54c2e7"></script>
-<script src="js/blocks/03-seed-accounts.js?v=c59b54c2e7"></script>
-<script src="js/blocks/04-reports-domain.js?v=c59b54c2e7"></script>
-<script src="js/blocks/05-tickets-domain.js?v=c59b54c2e7"></script>
-<script src="js/blocks/06-vendors-domain.js?v=c59b54c2e7"></script>
-<script src="js/blocks/07-seed-transport.js?v=c59b54c2e7"></script>
-<script src="js/blocks/08-transport-domain.js?v=c59b54c2e7"></script>
-<script src="js/blocks/09-details-domain.js?v=c59b54c2e7"></script>
-<script src="js/blocks/10-ui-kit.js?v=c59b54c2e7"></script>
-<script src="js/blocks/11-seed-product-images.js?v=c59b54c2e7"></script>
-<script src="js/blocks/12-ops-domain.js?v=c59b54c2e7"></script>
-<script src="js/blocks/13-logo.js?v=c59b54c2e7"></script>
-<script src="js/blocks/14-kit.js?v=c59b54c2e7"></script>
-<script src="js/blocks/15-page-hr.js?v=c59b54c2e7"></script>
-<script src="js/blocks/16-page-inventory.js?v=c59b54c2e7"></script>
-<script src="js/blocks/17-page-settings.js?v=c59b54c2e7"></script>
-<script src="js/blocks/18-page-profile.js?v=c59b54c2e7"></script>
-<script src="js/blocks/19-cs-domain.js?v=c59b54c2e7"></script>
-<script src="js/blocks/20-page-cs.js?v=c59b54c2e7"></script>
-<script src="js/blocks/21-shell.js?v=c59b54c2e7"></script>
-<script src="js/blocks/22-orders-ops.js?v=c59b54c2e7"></script>
-<script src="js/blocks/23-notif-roles-domain.js?v=c59b54c2e7"></script>
-<script src="js/blocks/24-dash-domain.js?v=c59b54c2e7"></script>
-<script src="js/blocks/25-page-dashboard.js?v=c59b54c2e7"></script>
-<script src="js/blocks/26-data-actions.js?v=c59b54c2e7"></script>
-<script src="js/blocks/27-commands-domain.js?v=c59b54c2e7"></script>
+<script src="js/blocks/01-dataio.js?v=d0e88c42dd"></script>
+<script src="js/blocks/02-accounts-domain.js?v=d0e88c42dd"></script>
+<script src="js/blocks/03-seed-accounts.js?v=d0e88c42dd"></script>
+<script src="js/blocks/04-reports-domain.js?v=d0e88c42dd"></script>
+<script src="js/blocks/05-tickets-domain.js?v=d0e88c42dd"></script>
+<script src="js/blocks/06-vendors-domain.js?v=d0e88c42dd"></script>
+<script src="js/blocks/07-seed-transport.js?v=d0e88c42dd"></script>
+<script src="js/blocks/08-transport-domain.js?v=d0e88c42dd"></script>
+<script src="js/blocks/09-details-domain.js?v=d0e88c42dd"></script>
+<script src="js/blocks/10-ui-kit.js?v=d0e88c42dd"></script>
+<script src="js/blocks/11-seed-product-images.js?v=d0e88c42dd"></script>
+<script src="js/blocks/12-ops-domain.js?v=d0e88c42dd"></script>
+<script src="js/blocks/13-logo.js?v=d0e88c42dd"></script>
+<script src="js/blocks/14-kit.js?v=d0e88c42dd"></script>
+<script src="js/blocks/15-page-hr.js?v=d0e88c42dd"></script>
+<script src="js/blocks/16-page-inventory.js?v=d0e88c42dd"></script>
+<script src="js/blocks/17-page-settings.js?v=d0e88c42dd"></script>
+<script src="js/blocks/18-page-profile.js?v=d0e88c42dd"></script>
+<script src="js/blocks/19-cs-domain.js?v=d0e88c42dd"></script>
+<script src="js/blocks/20-page-cs.js?v=d0e88c42dd"></script>
+<script src="js/blocks/21-shell.js?v=d0e88c42dd"></script>
+<script src="js/blocks/22-orders-ops.js?v=d0e88c42dd"></script>
+<script src="js/blocks/23-notif-roles-domain.js?v=d0e88c42dd"></script>
+<script src="js/blocks/24-dash-domain.js?v=d0e88c42dd"></script>
+<script src="js/blocks/25-page-dashboard.js?v=d0e88c42dd"></script>
+<script src="js/blocks/26-data-actions.js?v=d0e88c42dd"></script>
+<script src="js/blocks/27-commands-domain.js?v=d0e88c42dd"></script>
 <!-- phase 5: the products page (not a block of the split prototype) registers before block 28 boots and makes its <main> -->
-<script src="js/pages/share.js?v=c59b54c2e7"></script><!-- IBShare: one share popup — Excel / PDF by WhatsApp / e-mail / download (the owner 15 Nov, comments decision 10) -->
-<script src="js/pages/ai-ask.js?v=c59b54c2e7"></script><!-- IBAIAsk: the instructions popup before any AI write (the owner 15 Nov) -->
-<script src="js/pages/chat-ask.js?v=c59b54c2e7"></script><!-- IBChatAsk: every assistant's choices (buttons) and data (popup) in the chat (the owner 18 Nov) -->
-<script src="js/pages/chat-files.js?v=c59b54c2e7"></script><!-- IBChatFiles: files and voice typing in the assistants' chat (the owner 17 Nov) -->
-<script src="js/pages/studio-chat.js?v=c59b54c2e7"></script><!-- IBStudioChat: the stock assistant's upload as questions in the chat (agents-brain decision 20) -->
-<script src="js/pages/products-domain.js?v=c59b54c2e7"></script><script src="js/pages/fake-discount.js?v=c59b54c2e7"></script><script src="js/pages/bosta.js?v=c59b54c2e7"></script>
-<script src="js/pages/products-studio.js?v=c59b54c2e7"></script>
-<script src="js/pages/flow-domain.js?v=c59b54c2e7"></script><script src="js/pages/products-flow.js?v=c59b54c2e7"></script>
-<script src="js/pages/products-content.js?v=c59b54c2e7"></script><script src="js/pages/products-images.js?v=c59b54c2e7"></script>
-<script src="js/pages/products.js?v=c59b54c2e7"></script>
-<script src="js/pages/marketing-domain.js?v=c59b54c2e7"></script><script src="js/pages/marketing.js?v=c59b54c2e7"></script>
-<script src="js/blocks/28-app.js?v=c59b54c2e7"></script>
-<script src="js/blocks/29-orders-app.js?v=c59b54c2e7"></script>
+<script src="js/pages/share.js?v=d0e88c42dd"></script><!-- IBShare: one share popup — Excel / PDF by WhatsApp / e-mail / download (the owner 15 Nov, comments decision 10) -->
+<script src="js/pages/ai-ask.js?v=d0e88c42dd"></script><!-- IBAIAsk: the instructions popup before any AI write (the owner 15 Nov) -->
+<script src="js/pages/chat-ask.js?v=d0e88c42dd"></script><!-- IBChatAsk: every assistant's choices (buttons) and data (popup) in the chat (the owner 18 Nov) -->
+<script src="js/pages/chat-files.js?v=d0e88c42dd"></script><!-- IBChatFiles: files and voice typing in the assistants' chat (the owner 17 Nov) -->
+<script src="js/pages/studio-chat.js?v=d0e88c42dd"></script><!-- IBStudioChat: the stock assistant's upload as questions in the chat (agents-brain decision 20) -->
+<script src="js/pages/products-domain.js?v=d0e88c42dd"></script><script src="js/pages/fake-discount.js?v=d0e88c42dd"></script><script src="js/pages/bosta.js?v=d0e88c42dd"></script>
+<script src="js/pages/products-studio.js?v=d0e88c42dd"></script>
+<script src="js/pages/flow-domain.js?v=d0e88c42dd"></script><script src="js/pages/products-flow.js?v=d0e88c42dd"></script>
+<script src="js/pages/products-content.js?v=d0e88c42dd"></script><script src="js/pages/products-images.js?v=d0e88c42dd"></script>
+<script src="js/pages/products.js?v=d0e88c42dd"></script>
+<script src="js/pages/marketing-domain.js?v=d0e88c42dd"></script><script src="js/pages/marketing.js?v=d0e88c42dd"></script>
+<script src="js/blocks/28-app.js?v=d0e88c42dd"></script>
+<script src="js/blocks/29-orders-app.js?v=d0e88c42dd"></script>
 </body>
 </html>
