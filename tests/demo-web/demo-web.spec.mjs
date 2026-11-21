@@ -311,7 +311,10 @@ test.describe('a phone', () => {
     const hd = await page.evaluate(() => ['.topbar .search', '.topbar .notif-btn', '.topbar .ai-btn', '.topbar .user-btn'].map((q) => { const r = document.querySelector(q).getBoundingClientRect(); return [Math.round(r.right), Math.round(r.width), Math.round(r.height)]; }));
     expect(hd[0][0]).toBeGreaterThan(hd[1][0]); expect(hd[1][0]).toBeGreaterThan(hd[2][0]); expect(hd[2][0]).toBeGreaterThan(hd[3][0]);
     for (const c of hd.slice(1)) { expect(c[1]).toBe(44); expect(c[2]).toBe(44); }
-    expect(await page.evaluate(() => Math.round(document.querySelector('.topbar .user-btn .avatar').getBoundingClientRect().width))).toBe(40);
+    // (22 Nov) the circles are 36 to look at — 44 to the finger — and the search has the same room over it as under it
+    const look = await page.evaluate(() => { const bar = document.getElementById('demo-bar').getBoundingClientRect(); const tb = document.querySelector('.topbar'); const t = tb.getBoundingClientRect(); const s = tb.querySelector('.search').getBoundingClientRect(); const seen = (q) => { const e = tb.querySelector(q); return Math.round(e.getBoundingClientRect().width - 2 * parseFloat(getComputedStyle(e).borderLeftWidth)); };
+      return { over: Math.round(s.top - bar.bottom), under: Math.round(t.bottom - parseFloat(getComputedStyle(tb).borderBottomWidth) - s.bottom), bell: seen('.notif-btn'), ai: seen('.ai-btn'), me: Math.round(tb.querySelector('.user-btn .avatar').getBoundingClientRect().width), tabs: Math.round(t.height) }; });
+    expect(look.over).toBe(8); expect(look.under).toBe(8); expect(look.bell).toBe(36); expect(look.ai).toBe(36); expect(look.me).toBe(36);
     // nothing moves behind an open popup: with the bell's sheet open a finger dragged on the page behind scrolls nothing,
     // and a tap there closes the sheet without pressing what is under it (the search does not take the focus)
     const cdp = await page.context().newCDPSession(page);
