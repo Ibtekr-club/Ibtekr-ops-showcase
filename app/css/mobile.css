@@ -312,7 +312,8 @@
    main action 48 · action 44 · small 36 (with a 44 tap area) · field 48 — the same 8px corner everywhere */
 @media (max-width:1023px){
   .btn{height:44px;min-height:44px;padding:0 var(--m-s4);border-radius:var(--m-r-ctl);font-size:14px;font-weight:600;gap:var(--m-s2)}
-  .btn-default{background:var(--color-bg-tint);border-color:var(--m-line);color:var(--color-text-primary)}
+  /* the default button keeps its beige (the owner's decision 46: a button on a green header is the beige default) — only its outline is quieter */
+  .btn-default{border-color:var(--m-line)}
   .btn-brand,.btn-primary{border-color:transparent}
   .modal-f>.btn,.drawer-f>.btn,.sec-b>.btn.btn-brand,.sec-b>.btn.btn-primary{height:48px;min-height:48px;font-size:15px}
   .btn.sm{position:relative;height:36px;min-height:36px;padding:0 var(--m-s3);font-size:13px}
@@ -430,4 +431,11 @@
   .topbar .menu.clock-pop{padding:16px;gap:12px;min-width:280px}
   .topbar .menu.clock-pop .btn{position:static!important;width:100%!important;height:48px!important;min-height:48px!important;padding:0 16px!important;opacity:1;clip-path:none;pointer-events:auto;overflow:visible;border-radius:var(--m-r-ctl)!important;font-size:15px!important;font-weight:600;gap:8px;background-clip:border-box}
   .topbar .menu.clock-pop .btn svg{width:18px;height:18px}
+}
+
+/* ---------- 29. A section's tools (phone): «بحث · فلتر · ترتيب · الأعمدة» on one sliding line — the columns' button no longer drops to a line of its own ---------- */
+@media (max-width:767px){
+  .sec-h:has([data-cols],.tq-btn) .acts{flex-wrap:nowrap;max-width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none;gap:var(--m-s2);padding-block:2px}
+  .sec-h:has([data-cols],.tq-btn) .acts::-webkit-scrollbar{display:none}
+  .sec-h:has([data-cols],.tq-btn) .acts>*{flex:0 0 auto}
 }

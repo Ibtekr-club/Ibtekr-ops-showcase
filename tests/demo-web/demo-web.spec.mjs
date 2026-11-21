@@ -259,11 +259,14 @@ test.describe('a phone', () => {
 
 test.describe('a tablet, upright', () => {
   test.use({ viewport: { width: 820, height: 1180 }, isMobile: true, hasTouch: true });
-  test('the side rail names every page in full; the number cards go three across; the language switch is in the banner', async ({ page }) => {
+  test('the side rail names every page in full; the number cards go three across; the language and the model are drop-downs in the banner', async ({ page }) => {
     await page.goto('/'); await page.locator('[data-demo-mode="marketplace"]').click(); await inApp(page);
     const cut = await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav-item')].filter((b) => b.scrollWidth > b.clientWidth + 1).map((b) => b.textContent.trim()));
     expect(cut).toEqual([]);
-    await expect(page.locator('#demo-bar .dm-lang')).toBeVisible(); await expect(page.locator('.sidebar .dm-lang')).toBeHidden();
+    // the language and the model: a drop-down each in the banner (the pills are a desktop's)
+    await expect(page.locator('#demo-bar [data-demo-dd="lang"]')).toBeVisible(); await expect(page.locator('#demo-bar [data-demo-dd="mode"]')).toBeVisible(); await expect(page.locator('.sidebar .dm-lang')).toBeHidden();
+    // the bar: «إجراءات سريعة» and «ابدأ الدوام» are in the account's menu here too
+    await page.locator('.topbar .user-btn').click(); await expect(page.locator('.menu.acct [data-m-clock]')).toBeVisible(); await expect(page.locator('.menu.acct [data-m-quick]')).toBeVisible(); await page.keyboard.press('Escape');
     const cols = await page.evaluate(() => getComputedStyle(document.querySelector('.dash-kpis')).gridTemplateColumns.split(' ').length); expect(cols).toBe(3);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
   });
