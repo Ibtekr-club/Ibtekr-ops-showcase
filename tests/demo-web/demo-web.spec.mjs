@@ -169,7 +169,7 @@ test.describe('a phone', () => {
     for (const pg of PAGES) {
       await go(page, pg); await page.waitForTimeout(1200);
       const m = await page.evaluate(() => {
-        const out = { over: document.documentElement.scrollWidth - innerWidth, tiny: [], field: [] };
+        const out = { over: Math.max(document.documentElement.scrollWidth - innerWidth, document.body.scrollWidth - document.body.clientWidth), tiny: [], field: [] }; // the demo's scroller is <body>
         const tw = document.createTreeWalker(document.querySelector('#root'), NodeFilter.SHOW_TEXT); let n;
         while ((n = tw.nextNode())) { const el = n.parentElement; if (!n.nodeValue.trim() || !el || el.closest('.notif-badge, [hidden], script, style')) continue; const r = el.getBoundingClientRect(); if (r.width < 1 || r.height < 1) continue; const f = parseFloat(getComputedStyle(el).fontSize); if (f > 0 && f < 12) out.tiny.push(String(el.className).slice(0, 30) + ':' + f); }
         document.querySelectorAll('#root input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]), #root textarea').forEach((el) => { if (el.getBoundingClientRect().width > 0 && parseFloat(getComputedStyle(el).fontSize) < 16) out.field.push(el.className || el.name || el.type); });
@@ -179,6 +179,17 @@ test.describe('a phone', () => {
       expect(m.tiny, pg + ' has text under 12px').toEqual([]);
       expect(m.field, pg + ' has a field under 16px').toEqual([]);
     }
+    // the phone's own design: the number cards on one sliding line (two and the edge of a third), a page's actions on one line,
+    // buttons of a hand's size with one corner, settings' home as a list of rows
+    await go(page, 'dashboard'); await page.waitForTimeout(800);
+    const d = await page.evaluate(() => { const k = document.querySelector('.dash-kpis'); const cards = [...k.querySelectorAll(':scope > .card.kpi')].map((c) => c.getBoundingClientRect()); const acts = [...document.querySelectorAll('#pg-dashboard .page-head .actions > *')].filter((e) => e.getBoundingClientRect().width > 0).map((e) => Math.round(e.getBoundingClientRect().top));
+      const btn = getComputedStyle(document.querySelector('#pg-dashboard .page-head .actions .btn')); return { lines: new Set(cards.map((r) => Math.round(r.top))).size, n: cards.length, first: Math.round(cards[0].width), third: cards[2] ? Math.round(cards[2].left) : null, scrolls: k.scrollWidth > k.clientWidth, actLines: Math.max(...acts) - Math.min(...acts), h: parseFloat(btn.height), r: btn.borderTopLeftRadius }; });
+    expect(d.n).toBeGreaterThanOrEqual(4); expect(d.lines).toBe(1); expect(d.scrolls).toBe(true); expect(d.first).toBeGreaterThan(140); expect(d.first).toBeLessThan(190);
+    expect(d.actLines).toBeLessThanOrEqual(6); expect(d.h).toBeGreaterThanOrEqual(40); expect(d.r).toBe('8px');
+    await go(page, 'settings'); await page.waitForTimeout(800);
+    const st = await page.evaluate(() => { const c = [...document.querySelectorAll('#pg-settings .set-card')].filter((e) => e.getBoundingClientRect().height > 0); const r = c[0].getBoundingClientRect(); const b = c[0].querySelector('.btn'); const a = getComputedStyle(b, '::after'); return { n: c.length, h: Math.round(r.height), w: Math.round(r.width), tapW: parseFloat(a.width), tapH: parseFloat(a.height) }; });
+    expect(st.n).toBeGreaterThanOrEqual(4); expect(st.h).toBeLessThanOrEqual(110); expect(st.tapW).toBeGreaterThan(300); expect(st.tapH).toBeGreaterThanOrEqual(60); // the whole row opens its page
+    await page.locator('#pg-settings .set-card .btn').first().click(); await expect(page.locator('#pg-settings .set-back, #pg-settings .set-page').first()).toBeVisible(); await go(page, 'settings');
     // the page's main action floats over the bottom bar, inside the thumb's reach
     await go(page, 'inventory'); const fab = page.locator('#pg-inventory .page-head .actions > .btn.btn-brand'); await expect(fab).toBeVisible();
     const fr = await fab.boundingBox(); expect(fr.y).toBeGreaterThan(844 / 2); expect(fr.y + fr.height).toBeLessThanOrEqual(844 - 64); expect(fr.height).toBeGreaterThanOrEqual(44);
