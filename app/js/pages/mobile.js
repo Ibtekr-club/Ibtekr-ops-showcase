@@ -341,6 +341,22 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fabWatch); else fabWatch();
 
+  /* · A calendar's days under a finger (the owner 22 Nov, an iPhone — «التاتش في الكاليندر مش مظبوط»): while a period's end is
+     being picked the calendar draws the period up to the day the mouse is over — and it draws itself again to do so. A
+     finger has no «over»: its tap arrives as «the mouse came over this day» and then the click, the first redraws the
+     calendar under the finger, and Safari — seeing the page change on the «over» — keeps the click back; the end of a
+     period needed two presses. So for the second or so after a touch, a day is not told the mouse came over it: the tap is
+     the click, as on every other button. A mouse still gets the preview. */
+  var touchedAt = 0;
+  document.addEventListener('touchstart', function () { touchedAt = Date.now(); }, { capture: true, passive: true });
+  document.addEventListener('touchend', function () { touchedAt = Date.now(); }, { capture: true, passive: true });
+  ['mouseenter', 'mouseover'].forEach(function (type) {
+    document.addEventListener(type, function (e) {
+      if (Date.now() - touchedAt > 1500) return; var t = e.target;
+      if (t && t.nodeType === 1 && t.classList && t.classList.contains('day') && t.closest && t.closest('.cal-grid')) e.stopImmediatePropagation();
+    }, true);
+  });
+
   /* The assistant takes the focus as it opens — with a keyboard on the desk that is a help, on a touch screen it throws the
      keyboard over the chat before the member has read it. So there the focus is given back; a tap in the box types as always. */
   var touch = window.matchMedia ? window.matchMedia('(pointer:coarse)') : null;
