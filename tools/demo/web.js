@@ -36,9 +36,19 @@ window.IB_DEMO = true;
     '#demo-bar .dm-sw button[aria-pressed=true]{background:#fff7ef;color:#005642}',
     '#demo-bar .dm-rs{border:1px solid #fff7ef88;border-radius:999px}',
     '@media (max-width:560px){#demo-bar .dm-lb{display:none}#demo-bar button{padding:5px 9px}}',
-    // a phone: everything fits on one line and every control takes a 44px tap — the banner is 44 high, the pills 32, each button's tap area the banner's height
-    '@media (max-width:767px){html.ib-demo{--dm-h:44px}#demo-bar{gap:8px;padding:0 max(10px,env(safe-area-inset-right,0px)) 0 max(10px,env(safe-area-inset-left,0px))}#demo-bar b{font-size:0}#demo-bar b::after{content:"Demo";font-size:13px}#demo-bar button{position:relative;padding:6px 10px;min-width:36px;text-align:center}#demo-bar button::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}#demo-bar .dm-sw{overflow:visible}#demo-bar .dm-sw button:first-child{border-radius:999px 0 0 999px}#demo-bar .dm-sw button:last-child{border-radius:0 999px 999px 0}#demo-bar .dm-lang [data-short]{font-size:0}#demo-bar .dm-lang [data-short]::after{position:static;content:attr(data-short);font-size:12px}#demo-toast{bottom:calc(64px + env(safe-area-inset-bottom,0px) + 14px)}}',
-    '@media (max-width:384px){#demo-bar b{display:none}}',
+    // a phone or a tablet (the owner 21 Nov): no «Demo» word, and the language and the model are each a drop-down — three quiet
+    // controls on one line: language ▾ · model ▾ ········ Reset. The pills stay for a desktop.
+    '#demo-bar .dm-dd{display:none;position:relative}',
+    '#demo-bar .dm-dd>button{display:inline-flex;align-items:center;gap:6px;border:1px solid #fff7ef55;border-radius:999px;padding:5px 10px 5px 12px}',
+    '#demo-bar .dm-dd>button::after{content:"";width:6px;height:6px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-2px) rotate(45deg);opacity:.85}',
+    '#demo-bar .dm-dd>button[aria-expanded=true]{background:#fff7ef;color:#005642}',
+    '#demo-bar .dm-menu{position:absolute;top:calc(100% + 8px);left:0;min-width:max(100%,168px);display:flex;flex-direction:column;gap:2px;padding:6px;background:#fff7ef;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.28);z-index:2}',
+    '#demo-bar .dm-menu[hidden]{display:none}',
+    '#demo-bar .dm-menu button{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:0 12px;border-radius:10px;color:#1d2a26;font-size:14px;font-weight:600}',
+    '#demo-bar .dm-menu button[aria-checked=true]{background:#005642;color:#fff7ef}',
+    '#demo-bar .dm-menu button[aria-checked=true]::after{content:"";width:6px;height:11px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translate(-2px,-2px)}',
+    '@media (max-width:1023px){#demo-bar>b,#demo-bar .dm-lb,#demo-bar>.dm-sw,#demo-bar>.dm-lang{display:none!important}#demo-bar .dm-dd{display:block}#demo-bar{gap:8px;padding:0 max(12px,env(safe-area-inset-right,0px)) 0 max(12px,env(safe-area-inset-left,0px))}#demo-bar button{position:relative}#demo-bar>button::after,#demo-bar .dm-dd>button::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}#demo-bar .dm-dd>button::before{transform:none;border:0;width:auto;height:auto;opacity:1}}',
+    '@media (max-width:767px){html.ib-demo{--dm-h:44px}#demo-bar button{padding:6px 12px}#demo-toast{bottom:calc(64px + env(safe-area-inset-bottom,0px) + 14px)}}',
     '#demo-entry{position:fixed;inset:0;z-index:100001;overflow:auto;background:#f6f1e7;color:#1d2a26;font:15px Cairo,system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px 16px}',
     '#demo-entry .wrap{max-width:860px;width:100%;text-align:center}',
     '#demo-entry h1{font-size:28px;margin:0 0 6px;color:#005642}#demo-entry p.sub{margin:0 0 24px;color:#4b5a55}',
@@ -60,7 +70,7 @@ window.IB_DEMO = true;
     '#demo-bar .dm-lang{display:none}',
     // under 1024 the switch is in the banner (the side bar is a narrow rail there, or not on screen at all)
     '@media (max-width:1023px){.sidebar .dm-lang{display:none}}',
-    '@media (max-width:1023px){#demo-bar .dm-lang{display:flex}}',
+    
   ].join('\n');
   document.head.appendChild(css);
 
@@ -74,6 +84,19 @@ window.IB_DEMO = true;
   function langSwitch() {
     var mk = function (l, label, short) { var b = el('button', { type: 'button', 'data-i18n-off': '', 'data-demo-lang': l, 'data-short': short, 'aria-pressed': String(l === lang), text: label }); b.addEventListener('click', function () { setLang(l); }); return b; };
     return el('div', { class: 'dm-lang', 'data-i18n-off': '' }, [el('div', { class: 'dm-sw', role: 'group', 'aria-label': 'Language' }, [mk('ar', 'عربي', 'ع'), mk('en', 'English', 'EN')])]);
+  }
+  // a drop-down in the banner (phone and tablet): the current choice on a pill, the choices in a small menu under it
+  function dropdown(name, label, cur, opts, pick) {
+    var btn = el('button', { type: 'button', 'data-i18n-off': '', 'data-demo-dd': name, 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': label, text: (opts.filter(function (o) { return o[0] === cur; })[0] || opts[0])[1] });
+    var menu = el('div', { class: 'dm-menu', role: 'menu', hidden: '', 'data-i18n-off': '' }, opts.map(function (o) {
+      var it = el('button', { type: 'button', role: 'menuitemradio', 'data-i18n-off': '', 'data-demo-dd-opt': o[0], 'aria-checked': String(o[0] === cur), text: o[1] });
+      it.addEventListener('click', function () { shut(); if (o[0] !== cur) pick(o[0]); }); return it;
+    }));
+    var shut = function () { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
+    btn.addEventListener('click', function (e) { e.stopPropagation(); var open = menu.hidden; document.querySelectorAll('#demo-bar .dm-menu').forEach(function (m) { m.hidden = true; }); document.querySelectorAll('#demo-bar [data-demo-dd]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); }); if (open) { menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); } });
+    document.addEventListener('click', function (e) { if (!menu.hidden && !menu.contains(e.target)) shut(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') shut(); });
+    return el('div', { class: 'dm-dd', 'data-i18n-off': '' }, [btn, menu]);
   }
   // the side bar is drawn again whenever the menu changes: the switch is put back at its end
   function keepLang() {
@@ -107,7 +130,10 @@ window.IB_DEMO = true;
     }));
     var rs = el('button', { type: 'button', class: 'dm-rs', 'data-demo-reset': '', text: 'Reset' });
     rs.addEventListener('click', reset);
-    document.body.appendChild(el('div', { id: 'demo-bar', role: 'region', 'aria-label': 'Demo' }, [el('b', { text: 'Demo mode' }), el('span', { class: 'dm-lb', text: '— sample data' }), el('span', { class: 'dm-sp' }), langSwitch(), sw, rs]));
+    document.body.appendChild(el('div', { id: 'demo-bar', role: 'region', 'aria-label': 'Demo' }, [el('b', { text: 'Demo mode' }), el('span', { class: 'dm-lb', text: '— sample data' }),
+      dropdown('lang', 'Language', lang, [['ar', 'عربي'], ['en', 'English']], setLang),
+      dropdown('mode', 'Business model', mode, Object.keys(MODES).map(function (m) { return [m, MODES[m]]; }), choose),
+      el('span', { class: 'dm-sp' }), langSwitch(), sw, rs]));
     document.documentElement.classList.add('ib-demo'); keepLang();
   }
 

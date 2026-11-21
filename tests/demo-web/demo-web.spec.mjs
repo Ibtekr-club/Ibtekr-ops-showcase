@@ -157,14 +157,27 @@ test.describe('a phone', () => {
   test('one-line banner, no page scrolls sideways, text of 12px at least, the main action by the thumb, menus from the bottom, a conversation on the whole screen', async ({ page }) => {
     test.setTimeout(240000);
     await page.goto('/'); await page.locator('[data-demo-mode="marketplace"]').click(); await inApp(page);
-    // the banner: every control on screen, on one line
-    const bar = await page.evaluate(() => [...document.querySelectorAll('#demo-bar button')].map((b) => { const r = b.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), Math.round(r.top)]; }));
-    expect(bar.length).toBe(5); for (const [l, r] of bar) { expect(l).toBeGreaterThanOrEqual(0); expect(r).toBeLessThanOrEqual(390); }
-    const tops = bar.map((x) => x[2]); expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(4); // one line (a pill's border is a pixel or two)
-    // the top bar: the search is a field, and each control takes a 44px tap
-    const top = await page.evaluate(() => ['.topbar .ai-btn', '.topbar .qa-anchor .btn', '.topbar .notif-btn', '.topbar .user-btn'].map((s) => { const r = document.querySelector(s).getBoundingClientRect(); return [r.width, r.height]; }));
+    // the banner: no «Demo» word, the language and the model each a drop-down, Reset — all on screen, on one line
+    await expect(page.locator('#demo-bar > b')).toBeHidden(); await expect(page.locator('#demo-bar [data-demo-switch]').first()).toBeHidden();
+    const bar = await page.evaluate(() => [...document.querySelectorAll('#demo-bar [data-demo-dd], #demo-bar [data-demo-reset]')].map((b) => { const r = b.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), Math.round(r.top)]; }));
+    expect(bar.length).toBe(3); for (const [l, r] of bar) { expect(l).toBeGreaterThanOrEqual(0); expect(r).toBeLessThanOrEqual(390); }
+    const tops = bar.map((x) => x[2]); expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(4);
+    await page.locator('[data-demo-dd="mode"]').click(); await expect(page.locator('[data-demo-dd-opt="single"]')).toBeVisible(); await expect(page.locator('[data-demo-dd-opt="marketplace"]')).toHaveAttribute('aria-checked', 'true');
+    await page.keyboard.press('Escape'); await expect(page.locator('[data-demo-dd-opt="single"]')).toBeHidden();
+    await page.locator('[data-demo-dd="lang"]').click(); await expect(page.locator('[data-demo-dd-opt="en"]')).toBeVisible(); await page.keyboard.press('Escape');
+    // the header: search · assistant · bell · account — «إجراءات سريعة» and «ابدأ الدوام» are rows of the account's menu
+    const top = await page.evaluate(() => ['.topbar .ai-btn', '.topbar .notif-btn', '.topbar .user-btn'].map((s) => { const r = document.querySelector(s).getBoundingClientRect(); return [r.width, r.height]; }));
     for (const [w, h] of top) { expect(w).toBeGreaterThanOrEqual(44); expect(h).toBeGreaterThanOrEqual(44); }
-    expect(await page.evaluate(() => document.querySelector('.topbar .search').getBoundingClientRect().width)).toBeGreaterThan(100);
+    expect(await page.evaluate(() => document.querySelector('.topbar .search').getBoundingClientRect().width)).toBeGreaterThan(150);
+    expect(await page.evaluate(() => ['.topbar .qa-anchor > .btn', '.topbar .clock-widget > .btn'].map((s) => { const e = document.querySelector(s); return e ? Math.round(e.getBoundingClientRect().width) : 0; }))).toEqual([1, 1]);
+    await page.locator('.topbar .user-btn').click(); await expect(page.locator('.menu.acct [data-m-clock]')).toContainText('ابدأ الدوام'); await expect(page.locator('.menu.acct [data-m-quick]')).toContainText('إجراءات سريعة');
+    await expect(page.locator('.menu.acct .opt')).toHaveCount(8); // the two that moved + the six it had
+    await page.locator('.menu.acct [data-m-quick]').click(); await expect(page.locator('.topbar .qa-anchor .menu')).toBeVisible(); await page.keyboard.press('Escape');
+    await page.locator('.topbar .user-btn').click(); await page.locator('.menu.acct [data-m-clock]').click(); // the same «ابدأ الدوام»: the shift starts
+    await expect(page.locator('.topbar .clock-widget .clock')).toHaveCount(1); await page.locator('.topbar .user-btn').click(); await expect(page.locator('.menu.acct [data-m-clock]')).toContainText('على الدوام');
+    await page.locator('.menu.acct [data-m-clock]').click(); const end = page.locator('.menu.clock-pop .btn'); await expect(end).toBeVisible(); // its details, with «إنهاء الدوام» a real button
+    const eb = await end.boundingBox(); expect(eb.width).toBeGreaterThan(200); expect(eb.height).toBeGreaterThanOrEqual(44); await expect(end).toContainText('إنهاء الدوام');
+    await page.keyboard.press('Escape');
     // every page: nothing wider than the screen, nothing written under 12px (the bell's count aside), a typed field at 16px
     for (const pg of PAGES) {
       await go(page, pg); await page.waitForTimeout(1200);

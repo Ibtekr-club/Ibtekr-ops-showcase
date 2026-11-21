@@ -53,7 +53,7 @@
   .topbar .search input{flex:1 1 auto;width:auto;min-width:0;padding:0;font-size:16px;text-overflow:ellipsis}
   .topbar .search:focus-within{position:absolute;inset:2px 8px;width:auto;height:44px;z-index:6;padding:0 14px;border-radius:999px;background:var(--color-bg-base);border-color:var(--color-border-focus);box-shadow:var(--shadow-popover)}
   /* the controls: 44 to tap, 40 to look at, the same round shape */
-  .topbar .ai-btn,.topbar .qa-anchor .btn,.topbar .notif-btn,.topbar .clock-widget .btn,.topbar .user-btn{width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;background-clip:content-box;border:2px solid transparent;justify-content:center}
+  .topbar .ai-btn,.topbar .notif-btn,.topbar .user-btn{width:44px;min-width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;background-clip:content-box;border:2px solid transparent;justify-content:center}
   .topbar .qa-anchor .btn{background-color:transparent;box-shadow:none}
   .topbar .qa-anchor .btn svg,.topbar .ai-btn svg,.topbar .notif-btn svg,.topbar .clock-widget .btn svg{width:20px;height:20px}
   .topbar .user-btn .avatar{width:32px;height:32px}
@@ -393,3 +393,41 @@
 
 /* ---------- 27. Charts (phone): one under the other — two side by side left 170px each ---------- */
 @media (max-width:767px){.charts{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- 28. The header (phone and tablet, the owner 21 Nov): search · assistant · bell · account ----------
+   «إجراءات سريعة» and «ابدأ الدوام» are rows of the account's menu there (js/pages/mobile.js adds them; each presses the
+   button the shell drew). The two buttons stay in the bar as anchors for their popups, out of sight. */
+@media (max-width:1023px){
+  .topbar .qa-anchor>.btn,.topbar .clock-widget>.btn,.topbar .clock-widget>.pop-anchor>.clock{position:absolute!important;width:1px!important;min-width:0!important;height:1px!important;min-height:0!important;padding:0!important;margin:0;border:0!important;opacity:0;overflow:hidden;pointer-events:none;clip-path:inset(50%)}
+  .topbar .qa-anchor,.topbar .clock-widget,.topbar .clock-widget>.pop-anchor{width:0;min-width:0;flex:0 0 0;margin:0;padding:0}
+  .topbar{gap:8px}
+  /* the rows that moved into the account's menu */
+  .menu.acct .m-moved{font-weight:600}
+  .menu.acct .m-moved svg{flex:none;width:18px;height:18px;color:var(--color-brand-default)}
+  .menu.acct .m-clock:not([disabled]){color:var(--color-brand-default)}
+  .menu.acct .m-dot{flex:none;width:10px;height:10px;border-radius:50%;background:var(--color-success-base);box-shadow:0 0 0 4px var(--color-success-bg)}
+  .menu.acct .m-sep{height:1px;margin:6px 4px;background:var(--color-border-subtle)}
+}
+/* tablet: the bar has room — a search field that fills it, then three round controls of one size */
+@media (min-width:768px) and (max-width:1023px){
+  .topbar{height:56px;padding:0 20px;gap:10px}
+  .topbar>.gq-wrap{flex:1 1 auto;min-width:0;margin-inline-end:6px}
+  .topbar .search{width:100%;max-width:560px;height:42px;border-radius:999px;padding:0 16px}
+  .topbar .search input{font-size:15px}
+  .topbar .ai-btn,.topbar .notif-btn,.topbar .user-btn{width:44px;min-width:44px;height:44px;padding:0;border-radius:50%;justify-content:center}
+  .topbar .ai-btn span{display:none}
+  .topbar .ai-btn svg,.topbar .notif-btn svg{width:20px;height:20px}
+  .topbar .user-btn .avatar{width:34px;height:34px}
+  .content>.tabs{top:56px}
+  .mx-wrap .mx-head{top:56px}
+  .menu.acct{min-width:260px}
+  .menu.acct .opt{min-height:44px}
+}
+@media (max-width:767px){.topbar{gap:4px}.topbar>.gq-wrap{margin-inline-end:6px}}
+
+/* «إنهاء الدوام» inside the shift's popup is a real button (an old phone rule for the bar's clock shrank it to an empty 44px square) */
+@media (max-width:1023px){
+  .topbar .menu.clock-pop{padding:16px;gap:12px;min-width:280px}
+  .topbar .menu.clock-pop .btn{position:static!important;width:100%!important;height:48px!important;min-height:48px!important;padding:0 16px!important;opacity:1;clip-path:none;pointer-events:auto;overflow:visible;border-radius:var(--m-r-ctl)!important;font-size:15px!important;font-weight:600;gap:8px;background-clip:border-box}
+  .topbar .menu.clock-pop .btn svg{width:18px;height:18px}
+}
