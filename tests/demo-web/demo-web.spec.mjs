@@ -15,6 +15,39 @@ test('the entry screen offers the two business models; nothing else opens before
   expect(await page.evaluate(() => window.IB_DEMO)).toBe(true);
 });
 
+// the owner 21 Nov — «الصفحة دي دايما بتظهر ضاربة … عايزها تبقى انفوجرافيك … و تلات اسكرينات اونبوردينج»: three screens that say what
+// the system is, then the choice. On a phone the size of an iPhone's page between Safari's bars nothing is cut off its top,
+// nothing runs off its side, and the way on is always in sight.
+test('the entry: three screens of onboarding, then the choice — whole on a phone, on a tablet and on a desk', async ({ browser }) => {
+  for (const [w, h, touch] of [[390, 664, true], [820, 1100, true], [1280, 800, false]]) {
+    const ctx = await browser.newContext({ viewport: { width: w, height: h }, isMobile: touch, hasTouch: touch }); const page = await ctx.newPage();
+    await page.goto('/'); await expect(page.locator('#demo-entry')).toBeVisible();
+    const slides = page.locator('#demo-entry .de-slide'); await expect(slides).toHaveCount(4);
+    const whole = async (i) => page.evaluate((i) => { const e = document.getElementById('demo-entry'); const s = e.querySelectorAll('.de-slide')[i]; const r = s.getBoundingClientRect(); const top = e.querySelector('.de-top').getBoundingClientRect(); const foot = e.querySelector('.de-foot').getBoundingClientRect();
+      const kids = [...s.querySelectorAll('.de-art, .de-txt, .de-pick, .de-lang')].map((k) => k.getBoundingClientRect());
+      return { left: Math.round(r.left), width: Math.round(r.width), head: Math.round(top.top), footBottom: Math.round(foot.bottom), first: Math.round(Math.min(...kids.map((k) => k.top)) - top.bottom), off: kids.filter((k) => k.left < -1 || k.right > innerWidth + 1).length, sideways: document.documentElement.scrollWidth - innerWidth, down: s.scrollHeight - s.clientHeight }; }, i);
+    for (let i = 0; i < 4; i++) {
+      await expect(page.locator('#demo-entry .de-dots button').nth(i)).toHaveAttribute('aria-current', 'true');
+      await expect.poll(async () => (await whole(i)).left, { message: `${w}: screen ${i + 1} sits in the page` }).toBe(0); await page.waitForTimeout(600);
+      const v = await whole(i); expect(v.width).toBe(w); expect(v.head).toBeGreaterThanOrEqual(0); expect(v.footBottom).toBeLessThanOrEqual(h);
+      expect(v.first, `${w}: screen ${i + 1} starts under the head, not above it`).toBeGreaterThanOrEqual(0); expect(v.off).toBe(0); expect(v.sideways).toBeLessThanOrEqual(0);
+      if (i < 3) { expect(v.down, `${w}: screen ${i + 1} needs no scrolling`).toBeLessThanOrEqual(16); await expect(page.locator('[data-demo-next]')).toBeVisible(); await page.locator('[data-demo-next]').click(); }
+    }
+    // the last screen: the two models, each with its way in on one line; no «Next», no «Skip»
+    await expect(page.locator('[data-demo-next]')).toBeHidden(); await expect(page.locator('[data-demo-skip]')).toBeHidden();
+    for (const m of ['marketplace', 'single']) { await expect(page.locator(`[data-demo-mode="${m}"]`)).toBeVisible(); expect(await page.locator(`[data-demo-mode="${m}"] .de-go`).evaluate((g) => Math.round(g.getBoundingClientRect().height))).toBeLessThanOrEqual(48); }
+    // «Back» and the dots go back; «Skip» goes straight to the choice
+    await page.locator('[data-demo-back]').click(); await expect(page.locator('#demo-entry .de-dots button').nth(2)).toHaveAttribute('aria-current', 'true');
+    await page.locator('#demo-entry .de-dots button').first().click(); await expect(page.locator('#demo-entry .de-dots button').first()).toHaveAttribute('aria-current', 'true'); await expect(page.locator('[data-demo-back]')).toBeHidden();
+    await page.locator('[data-demo-skip]').click(); await expect(page.locator('#demo-entry .de-dots button').nth(3)).toHaveAttribute('aria-current', 'true');
+    // the language picked here is the one the demo opens in
+    await expect(page.locator('[data-demo-entry-lang="ar"]')).toHaveAttribute('aria-pressed', 'true');
+    if (w === 390) { await page.locator('[data-demo-entry-lang="en"]').click(); await expect(page.locator('[data-demo-entry-lang="en"]')).toHaveAttribute('aria-pressed', 'true');
+      await page.locator('[data-demo-mode="marketplace"]').click(); await page.waitForSelector('#demo-bar'); await expect(page.locator('html')).toHaveAttribute('dir', 'ltr'); }
+    await ctx.close();
+  }
+});
+
 test('marketplace: dashboard, orders (a status change kept after a reload), products, customer service, makers; the outside-world toast; Reset', async ({ page }) => {
   await page.goto('/');
   await page.locator('[data-demo-mode="marketplace"]').click();
