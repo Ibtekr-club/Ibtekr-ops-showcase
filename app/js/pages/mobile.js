@@ -44,7 +44,7 @@
     '#cdlg .dtabs{overflow-x:auto;scrollbar-width:none}#cdlg .dtabs::-webkit-scrollbar{display:none}#cdlg .dtabs .tab{flex:1 0 auto;white-space:nowrap;padding-inline:12px;font-size:14px}',
     '#cdlg{border-radius:16px!important}#cdlg .cf .btn{min-height:48px;font-size:15px;font-weight:600;border-radius:10px}',
     /* the filter: a screen of its own — its title on top, «تطبيق الفلتر» always at the bottom, everything between scrolls */
-    '.fb{position:fixed!important;top:var(--dm-h,0px)!important;left:0!important;right:0!important;bottom:0!important;width:auto!important;max-width:none!important;max-height:none!important;height:auto;border:0;border-radius:0;box-shadow:none;padding:0 16px;gap:16px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;animation:m-up .22s cubic-bezier(.2,.8,.2,1)}',
+    '.fb{position:fixed!important;top:var(--dm-h,0px)!important;left:0!important;right:0!important;bottom:0!important;width:auto!important;max-width:none!important;max-height:none!important;height:auto;border:0;border-radius:0;box-shadow:none;padding:0 16px;gap:16px;overflow-y:auto;overscroll-behavior:contain;animation:m-up .22s cubic-bezier(.2,.8,.2,1)}',
     '.fb h3{position:sticky;top:0;z-index:3;flex:none;margin:0 -16px;padding:0 16px;min-height:56px;font-size:18px;line-height:28px;font-weight:700;background:var(--bg-base);border-bottom:1px solid var(--bd-sub)}',
     '.fb h3 svg{width:20px;height:20px}',
     /* «اوصف إزاي تفلتر»: one field with its button inside */
@@ -78,7 +78,7 @@
     /* ---- the chips of the filters in force (phone, tablet, any touch screen): one line that slides under the finger — picking
        five filters no longer pushes the orders five lines down. «مسح الفلاتر» stays in sight at the line's end. ---- */
     '@media (max-width:1023px),(pointer:coarse){',
-    '.afc-row{flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-snap-type:x proximity;margin-inline:-12px;padding-inline:12px;scroll-padding-inline:12px}',
+    '.afc-row{flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none;scroll-snap-type:x proximity;margin-inline:-12px;padding-inline:12px;scroll-padding-inline:12px}',
     '.afc-row::-webkit-scrollbar{display:none}',
     /* a keyboard up (--m-kb-* are set only then, below): the dialog fits the part of the screen still in sight; and a
        scroll inside a popup never runs on into the page */
@@ -195,11 +195,59 @@
   function pinned(el) { var p = getComputedStyle(el).position; return p === 'fixed' || p === 'absolute'; }
   // the kit's popover: the popup is the last child of its [data-popover-root] anchor, beside the trigger that opened it
   function kitPopups() {
-    var out = []; var list = document.querySelectorAll('[data-popover-root] [aria-expanded="true"]');
-    for (var i = 0; i < list.length; i++) { var a = list[i].closest('[data-popover-root]'); var el = a && a.lastElementChild;
+    var out = []; var list = document.querySelectorAll('[data-popover-root] [aria-expanded="true"]'); var i;
+    for (i = 0; i < list.length; i++) { var a = list[i].closest('[data-popover-root]'); var el = a && a.lastElementChild;
       if (el && el !== list[i] && !el.contains(list[i]) && shown(el) && pinned(el) && out.indexOf(el) < 0) out.push(el); }
+    var moved = document.querySelectorAll('[data-m-portal]>*'); // … and the ones lifted out of a sliding box (below)
+    for (i = 0; i < moved.length; i++) if (shown(moved[i]) && out.indexOf(moved[i]) < 0) out.push(moved[i]);
     return out;
   }
+  /* · A popup is never left inside a box that scrolls (the owner 21 Nov, an iPhone — «بوب اب اختيار التاريخ بايظ خالص في
+     الموبايل»): the kit hangs a popup beside the button that opened it and pins it to the screen. Safari on a phone pins it
+     to the nearest box that scrolls instead — the head's sliding row of actions, a table, a popup's body — and cuts it at
+     that box's edge: the period's calendar showed as one strip of days inside the toolbar. So on a touch screen a popup
+     opened inside such a box is lifted, as it opens, to just outside the outermost one — still in its page, in a holder
+     with the anchor's own classes, so its look and the kit's «a press outside closes it» hold — and the holder goes when
+     the popup does. The kit never looks for a popup through its anchor, only through the element itself. */
+  // the outermost box that scrolls or cuts, up to the page (<main>) or the popup's backdrop — never past them, so a popup
+  // keeps its page's look. A box that only cuts («overflow:hidden») counts once one that scrolls was met: lifting out of the
+  // scrolling body of a popup must not leave the list inside the popup's own clipped frame.
+  function outerScroller(el) {
+    var top = null; var scrolls = false;
+    for (var a = el.parentElement; a && a !== document.body && a !== document.documentElement; a = a.parentElement) {
+      if (a.tagName === 'MAIN' || (a.classList && a.classList.contains('scrim'))) break;
+      var cs = getComputedStyle(a); var o = cs.overflowX + ' ' + cs.overflowY;
+      if (/(auto|scroll)/.test(o)) { top = a; scrolls = true; } else if (scrolls && /(hidden|clip)/.test(o)) top = a; }
+    return scrolls ? top : null;
+  }
+  function lift(el) {
+    var anchor = el.parentElement; if (!anchor || !anchor.hasAttribute('data-popover-root') || anchor.hasAttribute('data-m-portal')) return;
+    if (el.hasAttribute('aria-haspopup') || el.hasAttribute('aria-expanded') || !pinned(el)) return; // the button itself, or something drawn in the row
+    var box = outerScroller(el); if (!box || !box.parentElement) return;
+    var had = document.activeElement && el.contains(document.activeElement) ? document.activeElement : null;
+    var holder = document.createElement('div'); holder.className = anchor.className; holder.setAttribute('data-popover-root', ''); holder.setAttribute('data-m-portal', ''); holder.style.display = 'contents';
+    box.parentElement.appendChild(holder); holder.appendChild(el);
+    if (had && had.isConnected) { try { had.focus({ preventScroll: true }); } catch (e) { had.focus(); } }
+    window.dispatchEvent(new Event('resize')); // the kit places it again where it now is
+  }
+  // the period picker's ready periods are one sliding line on a phone (css §19): the one in force is brought into sight
+  var chipWas = null;
+  function chipInView() {
+    var line = document.querySelector('.dp.range .presets'); if (!line) { chipWas = null; return; }
+    var on = line.querySelector('.radio[aria-checked="true"]'); if (!on || on === chipWas || line.scrollWidth <= line.clientWidth + 1) return;
+    chipWas = on; var l = line.getBoundingClientRect(); var r = on.getBoundingClientRect(); line.scrollLeft += (r.left + r.width / 2) - (l.left + l.width / 2);
+  }
+  var fingers = window.matchMedia ? window.matchMedia('(pointer:coarse)') : null;
+  function liftWatch() {
+    new MutationObserver(function (list) {
+      if (!fingers || !fingers.matches) return;
+      for (var i = 0; i < list.length; i++) { var m = list[i]; var j;
+        for (j = 0; j < m.addedNodes.length; j++) { var n = m.addedNodes[j]; if (n.nodeType === 1 && n.parentElement && n.parentElement.hasAttribute('data-popover-root')) lift(n); }
+        if (m.removedNodes.length && m.target.nodeType === 1 && m.target.hasAttribute('data-m-portal') && !m.target.firstElementChild) m.target.remove(); }
+      chipInView();
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', liftWatch); else liftWatch();
   function ordersPopups() { var h = document.getElementById('orders'); var r = h && h.shadowRoot; var out = []; if (!r) return out;
     var list = r.querySelectorAll(ORDERS_POPS); for (var i = 0; i < list.length; i++) if (shown(list[i])) out.push(list[i]); return out; }
   function openPopups() {

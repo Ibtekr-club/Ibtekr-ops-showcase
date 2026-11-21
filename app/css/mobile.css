@@ -83,7 +83,7 @@
 
 /* ---------- 6. Tabs (phone and upright tablet): one line that scrolls, its ends fading out ---------- */
 @media (max-width:1023px){
-  .tabs{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scroll-padding-inline:24px;-webkit-overflow-scrolling:touch;
+  .tabs{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scroll-padding-inline:24px;
     -webkit-mask-image:linear-gradient(to right,transparent 0,#000 20px,#000 calc(100% - 20px),transparent 100%);mask-image:linear-gradient(to right,transparent 0,#000 20px,#000 calc(100% - 20px),transparent 100%)}
   .tabs>.tab{flex:none;scroll-snap-align:center}
   .tab{padding:10px 14px;font-size:14px}
@@ -253,7 +253,7 @@
 /* ---------- 18. The chips of the filters in force (phone, tablet, any touch screen): one line that slides under the finger ----------
    Picking five filters no longer pushes the table five lines down. «مسح الكل» stays in sight at the line's end. */
 @media (max-width:1023px),(pointer:coarse){
-  .af-row{flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-snap-type:x proximity;scroll-padding-inline:12px}
+  .af-row{flex-wrap:nowrap;gap:8px;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none;scroll-snap-type:x proximity;scroll-padding-inline:12px}
   .af-row::-webkit-scrollbar{display:none}
   .af-row>*{flex:none}
   .af-chip{max-width:min(78vw,340px);scroll-snap-align:start}
@@ -263,22 +263,49 @@
 
 /* ================= Popups, reviewed one by one (phone and tablet) ================= */
 
-/* ---------- 19. The period picker (phone): the whole month in sight, the buttons always at the bottom ----------
-   It was already a sheet from the bottom, but the month sat in a short scrolling window (a week was cut) and the comparison's
-   two dates ran off the screen. Now the sheet itself scrolls, the days are 44px, and each pair of dates shares a line. */
+/* ---------- 19. The period picker on a phone: made for a thumb (the owner 21 Nov) ----------
+   «بوب اب اختيار التاريخ بايظ خالص في الموبايل ممكن تعيد تصميمه بشكل يناسب مستخدم الموبايل». A sheet from the bottom, read from
+   the top as one does it: its name; the ready periods as chips on one sliding line (they were a list in a box); «من» and
+   «إلى» side by side; one month with both arrows (it was two months one under the other — the second keeps only its «الشهر
+   التالي» arrow, put on the first one's line); then the comparison; and «إلغاء» / «تحديث» always at the bottom. Nothing is
+   taken away: every period, both dates, the comparison and its dates are all there — the same controls, laid out again
+   (the three wrappers are «display:contents», so their parts can be put in this order). */
 @media (max-width:767px){
-  .dp.range{max-height:calc(100vh - var(--dm-h,0px) - 12px)!important;max-height:calc(100dvh - var(--dm-h,0px) - 12px)!important;overflow-y:auto!important;overscroll-behavior:contain;border-radius:20px 20px 0 0;box-shadow:0 -8px 32px rgba(46,42,27,.24),0 0 0 100vmax rgba(46,42,27,.38)}
-  .dp.range .dp-body{flex:none;overflow:visible;min-height:auto}
-  .dp.range .cals{padding-inline:12px}
-  .dp.range .day{height:44px;font-size:15px}
-  .dp.range .rp-mode{position:sticky;top:0;z-index:2;background:var(--color-bg-elevated);padding:12px 12px 8px}
-  .dp.range .rp-mode>*{min-height:40px}
-  .dp.range .pcmp-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;padding:12px 16px}
+  .dp.range{display:flex!important;flex-flow:row wrap;align-items:center;align-content:flex-start;padding:0;max-height:calc(100vh - var(--dm-h,0px) - 12px)!important;max-height:calc(100dvh - var(--dm-h,0px) - 12px)!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior:contain;border-radius:20px 20px 0 0;box-shadow:0 -8px 32px rgba(46,42,27,.24),0 0 0 100vmax rgba(46,42,27,.38)}
+  .dp.range::before{content:attr(aria-label);order:0;flex:0 0 100%;box-sizing:border-box;padding:20px var(--m-s4) 4px;font-size:17px;line-height:24px;font-weight:700;color:var(--color-text-primary);background:linear-gradient(var(--color-border-default),var(--color-border-default)) center 8px/40px 4px no-repeat}
+  .dp.range .dp-body,.dp.range .cals-wrap,.dp.range .range-row{display:contents}
+  /* the ready periods */
+  .dp.range .presets{order:1;flex:0 0 100%;box-sizing:border-box;width:auto;display:flex;flex-direction:row;align-items:center;gap:var(--m-s2);padding:6px var(--m-s4) 10px;border:0;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none}
+  .dp.range .presets::-webkit-scrollbar{display:none}
+  .dp.range .presets .radio{flex:0 0 auto;width:auto;height:38px;padding:0 14px;gap:0;border:1px solid var(--m-line);border-radius:999px;background:var(--color-bg-container);font-size:14px;font-weight:500;white-space:nowrap;color:var(--color-text-primary)}
+  .dp.range .presets .radio i{display:none}
+  .dp.range .presets .radio[aria-checked=true]{background:var(--color-brand-default);border-color:var(--color-brand-default);color:var(--color-text-on-brand);font-weight:700}
+  .dp.range .range-row>:first-child{display:none} /* the same periods as a list — the chips above are it */
+  /* from — to */
+  .dp.range .range-row>.input{order:2;flex:1 1 0;box-sizing:border-box;width:auto!important;min-width:0;height:46px;margin:0 0 var(--m-s2);border-radius:12px}
+  .dp.range .range-row>.input:nth-child(2){margin-inline:var(--m-s4) var(--m-s1)}
+  .dp.range .range-row>.input:nth-child(4){margin-inline:var(--m-s1) var(--m-s4)}
+  /* which of the two periods the month below is picking */
+  .dp.range .rp-mode{order:3;flex:0 0 100%;box-sizing:border-box;position:static;justify-content:center;gap:var(--m-s2);padding:2px var(--m-s4) 6px;background:none}
+  .dp.range .rp-mode>*{min-height:36px;border-radius:999px}
+  /* one month, both arrows */
+  .dp.range .cals{order:4;flex:0 0 100%;box-sizing:border-box;position:relative;display:block;padding:0 12px 4px}
+  .dp.range .cals>.cal{width:100%!important;max-width:none}
+  .dp.range .cals .cal-h{height:44px;align-items:center;font-size:16px;font-weight:700}
+  .dp.range .cals .cal-h .icon-btn{width:44px;height:44px;border-radius:50%}
+  .dp.range .cals>.cal+.cal,.dp.range .cals>.cal+.cal>.cal-h{display:contents!important}
+  .dp.range .cals>.cal+.cal>.cal-grid,.dp.range .cals>.cal+.cal>.cal-h>span{display:none}
+  .dp.range .cals>.cal+.cal>.cal-h>.icon-btn{position:absolute;top:0;inset-inline-end:12px}
+  .dp.range .day{height:40px;font-size:15px}
+  /* the comparison */
+  .dp.range .range-row>.check{order:5;flex:0 0 100%;box-sizing:border-box;width:auto!important;min-height:44px;margin:0;padding:0 var(--m-s4);border-top:1px solid var(--color-border-subtle)}
+  .dp.range .pcmp-fields{order:6;flex:0 0 100%;box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;padding:10px var(--m-s4) 12px}
   .dp.range .pcmp-fields>.pcmp-lab,.dp.range .pcmp-fields>.help,.dp.range .pcmp-fields>p{grid-column:1/-1}
   .dp.range .pcmp-fields>label{display:flex;flex-direction:column;align-items:stretch;gap:4px;min-width:0}
   .dp.range .pcmp-fields .input{width:100%;min-width:0;height:44px;box-sizing:border-box}
-  .dp.range .dp-foot{position:sticky;bottom:0;z-index:2;box-shadow:0 -6px 16px rgba(46,42,27,.08)}
-  .dp.range .dp-foot .btn{min-height:48px;font-size:15px;font-weight:600;border-radius:10px}
+  .dp.range .dp-foot{order:7;flex:0 0 100%;box-sizing:border-box;position:sticky;bottom:0;z-index:2;gap:6px var(--m-s2);padding:10px var(--m-s4) calc(12px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 16px rgba(46,42,27,.08)}
+  .dp.range .dp-foot .tz{font-size:12px;line-height:16px;text-align:center}
+  .dp.range .dp-foot .btn{min-height:48px;font-size:15px;font-weight:700;border-radius:12px}
 }
 
 /* ---------- 20. A form's date (one day): days a finger can hit ---------- */
@@ -348,7 +375,7 @@
    «تخصيص اللوحة», «الملفات», the period, the sort… used to stack in two or three full-width rows before the page began. */
 @media (max-width:767px){
   .page-head .actions,#main .page-head .actions,.page-head.row .actions,.dash-head .actions,.content>.toolbar,.panel>.toolbar,main>.toolbar{
-    display:flex;flex-wrap:nowrap;align-items:center;gap:var(--m-s2);width:auto;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+    display:flex;flex-wrap:nowrap;align-items:center;gap:var(--m-s2);width:auto;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none;
     margin:-4px calc(var(--m-gutter) * -1);padding:4px var(--m-gutter)}
   .page-head .actions::-webkit-scrollbar,.dash-head .actions::-webkit-scrollbar,.content>.toolbar::-webkit-scrollbar,.panel>.toolbar::-webkit-scrollbar,main>.toolbar::-webkit-scrollbar{display:none}
   .page-head .actions>*,#main .page-head .actions>*,#main .page-head .actions>.pop-anchor,.dash-head .actions>*,.content>.toolbar>*,.panel>.toolbar>*,main>.toolbar>*{flex:0 0 auto!important;width:auto!important;min-width:0;max-width:none;order:0}
@@ -362,7 +389,7 @@
    Two cards and the edge of the third on screen — the edge says there is more; a swipe brings the rest. */
 @media (max-width:767px){
   :is(.dash-kpis,.cards,.kpis,.kpi-grid,div,section):has(>.card.kpi){
-    display:flex;flex-wrap:nowrap;align-items:stretch;gap:var(--m-s3);overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-snap-type:x mandatory;
+    display:flex;flex-wrap:nowrap;align-items:stretch;gap:var(--m-s3);overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none;scroll-snap-type:x mandatory;
     margin-inline:calc(var(--m-gutter) * -1);padding:4px var(--m-gutter) 8px;scroll-padding-inline:var(--m-gutter)}
   :is(.dash-kpis,.cards,.kpis,.kpi-grid,div,section):has(>.card.kpi)::-webkit-scrollbar{display:none}
   :is(.dash-kpis,.cards,.kpis,.kpi-grid,div,section):has(>.card.kpi)>*{flex:0 0 calc((100% - var(--m-s3) - 28px) / 2);min-width:0;max-width:none;scroll-snap-align:start;grid-column:auto}
@@ -480,11 +507,11 @@
   .ai-panel .ai-head{flex:none;min-height:56px;padding-block:6px;padding-inline:var(--m-s4) 6px;border-bottom:0;cursor:default;touch-action:auto}
   .ai-panel .ai-head h2{font-size:17px;line-height:24px;font-weight:700}
   .ai-panel .ai-head .icon-btn{width:44px;height:44px;border-radius:50%;background:var(--color-bg-container);background-clip:content-box;border:2px solid transparent;color:var(--color-text-primary)}
-  .ai-panel .ai-list{padding:var(--m-s2) var(--m-s4) var(--m-s4);gap:var(--m-s5);-webkit-overflow-scrolling:touch}
+  .ai-panel .ai-list{padding:var(--m-s2) var(--m-s4) var(--m-s4);gap:var(--m-s5)}
   .ai-panel .ai-msg{font-size:16px;line-height:26px}
   .ai-panel .ai-msg.ai{max-width:100%;padding:0;background:none;border-radius:0}
   .ai-panel .ai-msg.user{max-width:82%;padding:10px 16px;border-radius:22px}
-  .ai-panel .ai-chips{flex:none;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:var(--m-s2) var(--m-s4);gap:var(--m-s2);border-top:0}
+  .ai-panel .ai-chips{flex:none;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:var(--m-s2) var(--m-s4);gap:var(--m-s2);border-top:0}
   .ai-panel .ai-chips::-webkit-scrollbar{display:none}
   .ai-panel .ai-chips .btn{flex:0 0 auto;height:38px!important;min-height:38px!important;padding-inline:14px;border-radius:999px;font-size:14px;font-weight:500}
   .ai-panel .ai-form{flex:none;width:calc(100% - 24px);max-width:736px;margin-block:var(--m-s1) 0;padding:6px;padding-inline-start:var(--m-s4);gap:var(--m-s2);border:1px solid var(--color-border-subtle);border-radius:28px;background:var(--color-bg-container)}
