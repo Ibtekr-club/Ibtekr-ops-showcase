@@ -196,6 +196,19 @@ test.describe('a phone', () => {
     await page.locator('#orders >> .ibtn[data-more]').first().click(); const mp = page.locator('#orders >> #mpop'); await expect(mp).toBeVisible(); await page.waitForTimeout(400); // the sheet slides up
     const mr = await mp.boundingBox(); expect(mr.x).toBe(0); expect(mr.width).toBe(390); expect(Math.round(mr.y + mr.height)).toBe(844);
     await page.keyboard.press('Escape'); await page.mouse.click(10, 200);
+    // the filter: a screen of its own — no keyboard thrown up by itself, no field under 16px (an iPhone zooms the page in under
+    // that, and stays zoomed after the filter closes), nothing wider than the screen, «تطبيق الفلتر» on screen
+    await page.locator('#orders >> #fbtn').click(); const fb = page.locator('#orders >> .fb'); await expect(fb).toBeVisible(); await page.waitForTimeout(400);
+    const fbr = await fb.boundingBox(); expect(fbr.x).toBe(0); expect(fbr.width).toBe(390); expect(Math.round(fbr.y + fbr.height)).toBe(844);
+    await page.locator('#orders >> [data-fbadd]').first().click();
+    const f = await page.evaluate(() => { const r = document.getElementById('orders').shadowRoot; const el = r.querySelector('.fb'); return {
+      focus: r.activeElement ? r.activeElement.id : '', small: [...el.querySelectorAll('input,select,textarea')].filter((e) => parseFloat(getComputedStyle(e).fontSize) < 16).length,
+      wide: [...el.querySelectorAll('*')].filter((e) => { const b = e.getBoundingClientRect(); return b.width > 0 && (b.right > 391 || b.left < -1); }).length, sw: el.scrollWidth - el.clientWidth }; });
+    expect(f.focus).not.toBe('fbai'); expect(f.small).toBe(0); expect(f.wide).toBe(0); expect(f.sw).toBeLessThanOrEqual(0);
+    const ap = await page.locator('#orders >> [data-fbapply]').boundingBox(); expect(ap.y + ap.height).toBeLessThanOrEqual(844); expect(ap.height).toBeGreaterThanOrEqual(48);
+    await page.locator('#orders >> #fbai').tap(); expect(await page.evaluate(() => document.getElementById('orders').shadowRoot.activeElement.id)).toBe('fbai'); // a tap on the field still types in it
+    await page.locator('#orders >> [data-fbcancel]').click(); await expect(fb).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
     // a conversation takes the whole screen, its reply box on screen
     await go(page, 'cs'); await page.locator('#pg-cs .tab', { hasText: 'الرسايل' }).click(); await page.locator('.cs-items .cv').first().click(); await page.waitForTimeout(300);
     const chat = await page.locator('.cs-inbox.show-chat .cs-chat').boundingBox(); expect(chat.x).toBe(0); expect(chat.width).toBe(390); expect(Math.round(chat.y + chat.height)).toBe(844);
