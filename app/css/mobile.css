@@ -635,3 +635,26 @@
   .dp.range .rp-mode .chip.on{background:var(--color-brand-default);border-color:var(--color-brand-default);color:var(--color-text-on-brand);font-weight:700}
   .dp.range .pcmp-fields .pcmp-lab i{border-radius:50%}
 }
+
+/* ---------- 38. «حسابات المبتكرين»: its controls in order (the owner 22 Nov — «شيل زرار ترتيب المبتكرين و رتب الزراير بشكل
+   احترافي و منظم») ----------
+   The tab opened on three controls of three widths on two ragged lines, then a switch hugging one side. On a phone and a
+   tablet the «ترتيب» list is not shown (the makers stay in the order it starts on — the highest balance first); what is left
+   sits on one line — «طلبات السحب» taking the room, «إضافة مبلغ» beside it at the same height — and on a phone the switch
+   «الرصيد دلوقتي / كشف بالفترة» runs the full width under it in two equal halves. */
+@media (max-width:1023px){
+  #vpanel>.toolbar:has([data-wd-filter])>.pop-anchor:has(>.sort-btn:not([data-wd-filter])){display:none}
+  #vpanel>.toolbar:has([data-wd-filter]){display:flex;flex-wrap:nowrap;align-items:center;gap:var(--m-s2)}
+  #vpanel>.toolbar:has([data-wd-filter])>.pop-anchor{flex:0 0 auto;min-width:0}
+  #vpanel>.toolbar:has([data-wd-filter]) .sort-btn,#vpanel>.toolbar:has([data-wd-filter]) .btn{height:44px;min-height:44px;border-radius:var(--m-r-ctl);font-size:14px}
+  #vpanel>.toolbar:has([data-wd-filter]) .sort-btn{border-color:var(--m-line);font-weight:600}
+}
+@media (max-width:767px){
+  #vpanel>.toolbar:has([data-wd-filter]){margin-bottom:var(--m-s3)}
+  #vpanel>.toolbar:has([data-wd-filter])>.grow{display:none}
+  #vpanel>.toolbar:has([data-wd-filter])>.pop-anchor:has(>[data-wd-filter]){flex:1 1 0}
+  #vpanel>.toolbar:has([data-wd-filter]) .sort-btn[data-wd-filter]{width:100%;justify-content:flex-start}
+  #vpanel>.toolbar:has([data-wd-filter]) .sort-btn[data-wd-filter]>span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start}
+  #vpanel>.toolbar:has([data-wd-filter])+.subtabs{display:flex;flex-wrap:nowrap;align-self:stretch;width:100%;box-sizing:border-box;border-radius:12px}
+  #vpanel>.toolbar:has([data-wd-filter])+.subtabs>.subtab{flex:1 1 0;justify-content:center;min-width:0;border-radius:9px}
+}

@@ -373,6 +373,12 @@ test.describe('a phone', () => {
     expect(kb.bottom).toBe(kb.top + 420); expect(kb.form).toBeLessThanOrEqual(kb.bottom); expect(kb.nav).toBe('none');
     await page.evaluate(() => { document.documentElement.classList.remove('m-kb'); window.dispatchEvent(new Event('resize')); });
     await page.tap('.ai-panel .ai-head .icon-btn'); await expect(page.locator('.ai-panel')).toBeHidden();
+    // «حسابات المبتكرين» (22 Nov — «شيل زرار ترتيب المبتكرين و رتب الزراير»): no «ترتيب» list; «طلبات السحب» and «إضافة مبلغ» on one
+    // line at one height; the switch under them across the page in two halves
+    await go(page, 'makers'); await page.locator('main:not([hidden]) .tab', { hasText: 'حسابات المبتكرين' }).click(); await page.waitForTimeout(900);
+    const mkBar = await page.evaluate(() => { const t = document.querySelector('#vpanel > .toolbar'); const shown = [...t.querySelectorAll('.sort-btn, .btn')].filter((b) => b.getClientRects().length).map((b) => { const r = b.getBoundingClientRect(); return [b.textContent.trim().slice(0, 12), Math.round(r.top), Math.round(r.height)]; }); const st = t.nextElementSibling; const tabs = [...st.children].map((c) => Math.round(c.getBoundingClientRect().width)); return { shown, sw: Math.round(st.getBoundingClientRect().width), tw: Math.round(t.getBoundingClientRect().width), tabs }; });
+    expect(mkBar.shown.length).toBe(2); expect(mkBar.shown.some((b) => /الرصيد:/.test(b[0]))).toBe(false); expect(mkBar.shown[0][1]).toBe(mkBar.shown[1][1]); expect(mkBar.shown[0][2]).toBe(44); expect(mkBar.shown[1][2]).toBe(44);
+    expect(mkBar.sw).toBe(mkBar.tw); expect(Math.abs(mkBar.tabs[0] - mkBar.tabs[1])).toBeLessThanOrEqual(1);
     // «ملفي»: the head is short — the name on one line beside the picture, the tags on one line
     await go(page, 'profile'); await page.waitForTimeout(900);
     const ph = await page.evaluate(() => { const h = document.querySelector('#pg-profile .prof-head'); const n = h.querySelector('h1').getBoundingClientRect(); const tg = [...h.querySelectorAll('.grow .tg')].map((t) => Math.round(t.getBoundingClientRect().top)); return { h: Math.round(h.getBoundingClientRect().height), name: Math.round(n.height), tagLines: new Set(tg).size }; });
