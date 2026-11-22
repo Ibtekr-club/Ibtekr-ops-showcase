@@ -13,9 +13,9 @@ export const METRICS = {
   orders_unconfirmed: M('manager', 'orders', 'count', 'gte', 3, 'alert', 'أوردرات مفتوحة مستنية تأكيد', 'Open orders waiting for confirmation', 'راجعها مع خدمة العملاء: أوردر من غير تأكيد مالوش عدّاد تأخير.', 'Go over them with customer service: an order without a confirmation has no delay count.'),
   tickets_urgent: M('manager', 'tickets', 'count', 'gte', 1, 'problem', 'طلبات عاجلة مفتوحة', 'Open urgent requests', 'شوف مين ماسكها ووزّع اللي واقف.', 'See who holds them and hand out what is stuck.'),
   tickets_overdue: M('manager', 'tickets', 'count', 'gte', 1, 'alert', 'طلبات عدّى ميعاد متابعتها', 'Requests past their follow-up date', 'افتحها وحدّد ميعاد جديد أو اقفل اللي خلص.', 'Open them and set a new date, or close what is done.'),
-  orders_late: M('stock', 'orders', 'count', 'gte', 1, 'problem', 'أوردرات متأخرة', 'Late orders', 'بلّغ المبتكرين وحدّث العملاء بالميعاد الجديد.', 'Tell the makers and update the customers with the new date.'),
+  orders_late: M('stock', 'orders', 'count', 'gte', 1, 'problem', 'أوردرات متأخرة', 'Late orders', 'راجع سبب التأخير وحدّث العملاء بالميعاد الجديد.', 'Find what holds them and update the customers with the new date.'),
   orders_risk: M('stock', 'orders', 'count', 'gte', 2, 'alert', 'أوردرات قابلة للتأخير', 'Orders at risk of delay', 'تابعها قبل ما مدة التصنيع تخلص.', 'Follow them up before the making time runs out.'),
-  returns_waiting: M('stock', 'inventory', 'count', 'gte', 1, 'alert', 'مرتجعات مستنية الفحص', 'Returns waiting for inspection', 'افحصها عشان ترجع متاحة للبيع أو ترجع للمبتكر.', 'Inspect them so they go back on sale or back to the maker.'),
+  returns_waiting: M('stock', 'inventory', 'count', 'gte', 1, 'alert', 'مرتجعات مستنية الفحص', 'Returns waiting for inspection', 'افحصها عشان ترجع متاحة للبيع.', 'Inspect them so they go back on sale.'),
   cs_waiting: M('cs', 'customers', 'count', 'gte', 3, 'alert', 'محادثات مستنية ردنا', 'Conversations waiting for our reply', 'وزّعها على المتاحين دلوقتي.', 'Hand them out to whoever is available now.'),
   cs_waiting_minutes: M('cs', 'customers', 'minutes', 'gte', 60, 'problem', 'أقدم محادثة مستنية ردنا', 'The oldest conversation waiting for our reply', 'رد عليها الأول — عدّت وقت الرد المتفق عليه.', 'Answer it first — it is past the agreed reply time.'),
   makers_late: M('makers', 'vendors', 'count', 'gte', 1, 'problem', 'مبتكرين عندهم منتجات متأخرة', 'Makers with late products', 'كلّمهم واطلب ميعاد تسليم واضح.', 'Call them and ask for a clear delivery date.'),
@@ -34,13 +34,16 @@ export const METRICS = {
 export const OPS = ['gte', 'lte']; export const KINDS = ['alert', 'problem', 'idea']; export const MAX_RULES = 12;
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
+/** A seller without makers (the single-seller mode) counts nothing about them: their metrics are not there at all. */
+const there = (k, o) => !(o && o.single && METRICS[k].data === 'vendors');
 /** The metrics an assistant can watch: its own, and — for one the admin added — those of the data it reads. */
-export function metricsFor(agent) {
-  const id = agent && agent.id; const own = Object.keys(METRICS).filter((k) => METRICS[k].agent === id); if (own.length) return own;
-  const sees = Array.isArray(agent && agent.sees) ? agent.sees : []; return Object.keys(METRICS).filter((k) => sees.includes(METRICS[k].data));
+export function metricsFor(agent, o) {
+  const id = agent && agent.id; const all = Object.keys(METRICS).filter((k) => there(k, o)); const own = all.filter((k) => METRICS[k].agent === id);
+  if (own.length || Object.keys(METRICS).some((k) => METRICS[k].agent === id)) return own;
+  const sees = Array.isArray(agent && agent.sees) ? agent.sees : []; return all.filter((k) => sees.includes(METRICS[k].data));
 }
 /** The rules an assistant ships with: one a metric of its own, on. */
-export function shippedRules(id) { return Object.keys(METRICS).filter((k) => METRICS[k].agent === id).map((k) => ({ id: k, metric: k, op: METRICS[k].op, value: METRICS[k].value, kind: METRICS[k].kind, on: true })); }
+export function shippedRules(id, o) { return Object.keys(METRICS).filter((k) => METRICS[k].agent === id && there(k, o)).map((k) => ({ id: k, metric: k, op: METRICS[k].op, value: METRICS[k].value, kind: METRICS[k].kind, on: true })); }
 /** One stored rule, cleaned (null = not a rule): a known metric among `allowed`, a whole limit 0–1,000,000. */
 export function cleanRule(x, allowed) {
   if (!isObj(x) || typeof x.metric !== 'string' || !METRICS[x.metric] || (allowed && !allowed.includes(x.metric))) return null;
@@ -49,10 +52,10 @@ export function cleanRule(x, allowed) {
   return { id, metric: x.metric, op: OPS.includes(x.op) ? x.op : METRICS[x.metric].op, value: v, kind: KINDS.includes(x.kind) ? x.kind : METRICS[x.metric].kind, on: x.on !== false };
 }
 /** The rules in force for an assistant: the admin's list once it was changed (cleaned, one an id), else the shipped. */
-export function rulesOf(aiRow, agent) {
+export function rulesOf(aiRow, agent, o) {
   const id = agent && agent.id; const r = isObj(aiRow) && isObj(aiRow.agents) && isObj(aiRow.agents[id]) ? aiRow.agents[id].rules : null;
-  if (!Array.isArray(r)) return { own: false, rules: shippedRules(id) };
-  const allowed = metricsFor(agent); const seen = new Set(); const out = [];
+  if (!Array.isArray(r)) return { own: false, rules: shippedRules(id, o) };
+  const allowed = metricsFor(agent, o); const seen = new Set(); const out = [];
   for (const x of r) { const c = cleanRule(x, allowed); if (c && !seen.has(c.id) && out.length < MAX_RULES) { seen.add(c.id); out.push(c); } }
   return { own: true, rules: out };
 }
@@ -66,10 +69,10 @@ export function sentence(rule, en) { const m = METRICS[rule.metric]; if (!m) ret
   return labelOf(rule.metric, en) + ' — ' + say(rule.value, m.unit, en) + (rule.op === 'lte' ? (en ? ' or less' : ' أو أقل') : (en ? ' or more' : ' أو أكتر')); }
 
 /** The notes of the rules that hold now. `agents` = [{ id, sees }] (the live ones), `facts` = { metric: number | null (not read) }.
- *  → { notes: [{ agent, kind, title, body, ref, value }], keep: [refs of rules whose metric was not read — their note stays as it is] } */
+ *  o.single = a seller without makers. → { notes: [{ agent, kind, title, body, ref, value }], keep: [refs of rules whose metric was not read — their note stays as it is] } */
 export function evaluate(aiRow, agents, facts, o = {}) {
   const en = !!o.en; const notes = []; const keep = [];
-  for (const a of agents || []) for (const r of rulesOf(aiRow, a).rules) {
+  for (const a of agents || []) for (const r of rulesOf(aiRow, a, o).rules) {
     if (!r.on) continue; const m = METRICS[r.metric]; const n = facts ? facts[r.metric] : undefined; const ref = 'rule:' + a.id + ':' + r.id;
     if (n === null || n === undefined) { keep.push(ref); continue; }
     if (!holds(r, n)) continue;

@@ -2,8 +2,8 @@
 // it counts the metrics from the tables (ruleFacts), runs the rules of the row «ai» (mock/shared/agent-rules.js) and writes
 // or clears the notes of «rule:…» in ai_agent_notes (runRules). On only when the install asks for it (opts.agentRules), so the
 // notes of every other test stay as seeded. The RPC ai_agent_rules_status (the admin) gives the settings card its numbers.
-import { DELAY_STOP, delayRules, isConfirmed, leadBy, lineDelayOf, lineElapsed, orderDelayOf, orderElapsed } from '../../mock/shared/delay.js?v=35e2629357';
-import { METRICS, evaluate, holds, labelOf, metricsFor, rulesOf, say, sentence } from '../../mock/shared/agent-rules.js?v=35e2629357';
+import { DELAY_STOP, delayRules, isConfirmed, leadBy, lineDelayOf, lineElapsed, orderDelayOf, orderElapsed } from '../../mock/shared/delay.js?v=fd2e0b57f6';
+import { METRICS, evaluate, holds, labelOf, metricsFor, rulesOf, say, sentence } from '../../mock/shared/agent-rules.js?v=fd2e0b57f6';
 
 const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit' });
 const cairoDay = (d) => fmt.format(d);
@@ -48,12 +48,14 @@ export function ruleFacts(mock, at = new Date()) {
 
 const liveAgents = (mock) => ((mock.mkt && mock.mkt.aiAgents) || []).filter((a) => !a.archived_at);
 const english = () => globalThis.IB_LANG === 'en';
+// the store of the row «store» (0127): a platform without Dokan, or the single-seller mode = no makers
+const singleOf = (mock) => { const st = dataOf(mock, 'store'); return st.mode === 'single' || st.dokan === false || (!!st.platform && st.platform !== 'woo'); };
 
 /** The check itself: the notes of the rules that hold are written (one a rule, the same row while it holds — unread again
  *  when its number moved), and the note of a rule that stopped holding, was switched off or deleted goes. */
 export function runRules(mock, at = new Date()) {
   const H = mock.mkt; if (!H || !H.rulesOn || !Array.isArray(H.agentNotes)) return null;
-  const { notes, keep } = evaluate(dataOf(mock, 'ai'), liveAgents(mock), ruleFacts(mock, at), { en: english() });
+  const { notes, keep } = evaluate(dataOf(mock, 'ai'), liveAgents(mock), ruleFacts(mock, at), { en: english(), single: singleOf(mock) });
   const want = new Map(notes.map((n) => [n.ref, n])); const now = at.toISOString();
   H.agentNotes = H.agentNotes.filter((n) => { if (!n.ref || !String(n.ref).startsWith('rule:') || want.has(n.ref) || keep.includes(n.ref)) return true;
     H.agentNoteReads = H.agentNoteReads.filter((r) => r.note_id !== n.id); return false; });
@@ -67,10 +69,10 @@ export function runRules(mock, at = new Date()) {
 /** ai_agent_rules_status (the admin): every assistant's rules in force with the number now and whether each holds, and the
  *  metrics it may watch — the names in the page's language. */
 export function rulesStatus(mock, at = new Date()) {
-  const en = english(); const facts = ruleFacts(mock, at); const ai = dataOf(mock, 'ai'); const agents = {};
+  const en = english(); const o = { single: singleOf(mock) }; const facts = ruleFacts(mock, at); const ai = dataOf(mock, 'ai'); const agents = {};
   const now = (k) => (facts[k] === undefined ? null : facts[k]); const nowText = (k) => (now(k) === null ? null : say(now(k), METRICS[k].unit, en));
-  for (const a of (mock.mkt.aiAgents || [])) { const r = rulesOf(ai, a);
-    agents[a.id] = { own: r.own, metrics: metricsFor(a).map((k) => ({ key: k, label: labelOf(k, en), unit: say(0, METRICS[k].unit, en).slice(1).trim(), op: METRICS[k].op, value: METRICS[k].value, kind: METRICS[k].kind, now: now(k), nowText: nowText(k) })),
+  for (const a of (mock.mkt.aiAgents || [])) { const r = rulesOf(ai, a, o);
+    agents[a.id] = { own: r.own, metrics: metricsFor(a, o).map((k) => ({ key: k, label: labelOf(k, en), unit: say(0, METRICS[k].unit, en).slice(1).trim(), op: METRICS[k].op, value: METRICS[k].value, kind: METRICS[k].kind, now: now(k), nowText: nowText(k) })),
       rules: r.rules.map((x) => ({ ...x, text: sentence(x, en), now: now(x.metric), nowText: nowText(x.metric), firing: x.on && holds(x, facts[x.metric]) })) }; }
   return { at: at.toISOString(), on: !!mock.mkt.rulesOn, agents };
 }

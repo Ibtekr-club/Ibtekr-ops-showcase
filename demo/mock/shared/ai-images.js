@@ -4,7 +4,7 @@
 // sizes, the models and their credits, the paths in the buckets, and the image settings of the settings row «ai» over the secrets.
 // Nothing here talks to a provider or a database.
 
-import { sizePrompt } from './magnific-bridge.js?v=35e2629357';
+import { sizePrompt } from './magnific-bridge.js?v=fd2e0b57f6';
 
 export const PROVIDER = 'magnific';
 // The models offered (plan decision 4, pinned in T2 on 31 Oct against docs.magnific.com): the id is ours, the provider's route is in

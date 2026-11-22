@@ -5,8 +5,8 @@
 // filters the page sends (eq / like / gte / lte, offset/limit or Range pages). settingsState(opts) seeds (opts.roles → the roles copy, opts.vault,
 // opts.companyDocs, opts.sessions); settingsRoute(c) answers a request of those paths or returns null. Every RPC / function call
 // lands in st.calls, every write in st.writes.
-import { CARDS, SECRET_NAMES, fieldsOf, nameOk, parseSecret, secretPublic } from '../../mock/shared/settings-link.js?v=35e2629357';
-import { SOURCES } from '../../mock/shared/notify.js?v=35e2629357';
+import { CARDS, SECRET_NAMES, fieldsOf, nameOk, parseSecret, secretPublic } from '../../mock/shared/settings-link.js?v=fd2e0b57f6';
+import { SOURCES } from '../../mock/shared/notify.js?v=fd2e0b57f6';
 
 const PERM_KEY = /^[a-z_]+\.[a-z_0-9]+$/;
 const ROLE_ID = /^[a-z][a-z0-9_]{1,30}$/;
