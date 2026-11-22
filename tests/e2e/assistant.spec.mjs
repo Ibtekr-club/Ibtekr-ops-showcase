@@ -579,7 +579,7 @@ test('read-outs from the system: a maker\'s account, a period\'s orders and expe
   await say(page, 'المنتج zzzznothing'); await expect(last.locator('.ai-text')).toHaveText(/^مالقيتش منتج بـ «zzzznothing»/);
   // a member of the team by a word of the name
   const me = await page.evaluate(() => window.IBHR.everyone()[0].name);
-  await say(page, 'الموظف ' + me); await expect(last.locator('.ai-text')).toHaveText(new RegExp('الدور .*، الحالة .*، رصيد الإجازات \\d+ يوم\\.$'));
+  await say(page, 'الموظف ' + me); await expect(last.locator('.ai-text')).toHaveText(/الدور .*، الحالة .*، رصيد الإجازات \d+ يوم.* طلبات موارد بشرية مستنية: \d+، طلبات فريق معاه: \d+\.$/);
   expect(await page.evaluate(() => location.hash), 'the page did not move').toBe(hash);
   expect(mock.aiCalls.filter((c) => c.action === 'assistant').length, 'no model was called').toBe(0);
 });

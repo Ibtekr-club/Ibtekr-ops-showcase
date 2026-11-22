@@ -99,8 +99,18 @@
     const m = hit[0]; const role = m.role || ''; const left = Math.max(0, (Number(m.leave) || 0) + (Number(m.carry) || 0) - (Number(m.used) || 0));
     const t12 = (x) => (window.IBKit && window.IBKit.t12 && x ? window.IBKit.t12(x) : x || '—'); const sh = Array.isArray(m.shift) ? m.shift : ['', ''];
     const st = m.status === 'active' || !m.status ? tx('نشط', 'active') : m.status === 'invited' ? tx('دعوة معلّقة', 'invite pending') : tx('موقوف', 'suspended');
-    return { text: m.name + (m.title ? ' — ' + m.title : '') + ': ' + tx('الدور ', 'role ') + (role || '—') + tx('، الحالة ', ', status ') + st + tx('، الدوام ', ', shift ') + t12(sh[0]) + ' – ' + t12(sh[1]) + tx('، رصيد الإجازات ' + left + ' يوم.', ', leave balance ' + plural(left, 'day', 'days') + '.'),
-      part: part(m.name, m.title || '', [[tx('الدور', 'Role'), role || '—'], [tx('الحالة', 'Status'), st], [tx('بداية الدوام', 'Shift start'), t12(sh[0])], [tx('نهاية الدوام', 'Shift end'), t12(sh[1])], [tx('رصيد الإجازات (يوم)', 'Leave balance (days)'), left]], []) };
+    // today, by the rule of «الموارد البشرية» (block 15 `status`), and what is open on the member: HR requests waiting, team requests held
+    const S = H.data || {}; const t = (S.today || {})[m.id]; const nowMin = H.nowMin ? H.nowMin() : 0; const dayMin = H.dayMinutes ? H.dayMinutes(m.uid) : 480;
+    const today = m.status === 'suspended' ? '' : !t ? tx('مسجلش حضور', 'not clocked in') : t.kind === 'leave' ? (t.leaveType || tx('إجازة', 'on leave')) : t.kind === 'holiday' ? tx('عطلة رسمية', 'public holiday') : t.kind === 'off' ? tx('راحة أسبوعية', 'weekly rest')
+      : t.kind === 'absent' ? tx('غائب', 'absent') : t.in == null ? tx('مسجلش حضور', 'not clocked in') : t.out != null ? tx('أنهى الدوام', 'shift ended') : t.remote ? tx('عن بُعد', 'remote') : nowMin - t.in >= dayMin ? tx('وقت إضافي', 'overtime') : tx('حاضر', 'present');
+    const hrOpen = (S.requests || []).filter((r) => r.member === m.id && ['جديد', 'قيد المراجعة'].includes(r.status));
+    const prio = (k) => { const P = window.IbtekrTickets && window.IbtekrTickets.PRIORITIES; const hit = P && P.find((x) => x[0] === k); return hit ? hit[1] : k || ''; };
+    const T = window.IBTickets; const held = T && T.all && !d.barred('tickets') ? T.all().filter((x) => x.assigneeMember && x.assigneeMember === m.uid && !['resolved', 'closed'].includes(x.status)) : [];
+    return { text: m.name + (m.title ? ' — ' + m.title : '') + ': ' + tx('الدور ', 'role ') + (role || '—') + tx('، الحالة ', ', status ') + st + tx('، الدوام ', ', shift ') + t12(sh[0]) + ' – ' + t12(sh[1]) + tx('، رصيد الإجازات ' + left + ' يوم', ', leave balance ' + plural(left, 'day', 'days'))
+        + (today ? tx('. النهارده: ', '. Today: ') + today : '') + tx('. طلبات موارد بشرية مستنية: ' + hrOpen.length + '، طلبات فريق معاه: ' + held.length + '.', '. HR requests waiting: ' + hrOpen.length + ', team requests held: ' + held.length + '.'),
+      part: part(m.name, m.title || '', [[tx('الدور', 'Role'), role || '—'], [tx('الحالة', 'Status'), st], [tx('بداية الدوام', 'Shift start'), t12(sh[0])], [tx('نهاية الدوام', 'Shift end'), t12(sh[1])], [tx('رصيد الإجازات (يوم)', 'Leave balance (days)'), left]].concat(today ? [[tx('النهارده', 'Today'), today]] : [], [[tx('طلبات موارد بشرية مستنية', 'HR requests waiting'), hrOpen.length], [tx('طلبات فريق معاه', 'Team requests held'), held.length]]),
+        [].concat(hrOpen.length ? [{ title: tx('طلبات الموارد البشرية المستنية', 'HR requests waiting'), headers: [tx('النوع', 'Type'), tx('من', 'From'), tx('إلى', 'To'), tx('الحالة', 'Status')], rows: hrOpen.slice(0, 20).map((r) => [r.type || '', r.from || '', r.to || '', r.status]) }] : [],
+          held.length ? [{ title: tx('طلبات الفريق اللي معاه', 'Team requests held'), headers: [tx('الرقم', 'No.'), tx('العنوان', 'Title'), tx('الأولوية', 'Priority')], rows: held.slice(0, 20).map((x) => [String(x.id), x.title || '', prio(x.priority)]) }] : [])) };
   }
 
   const RUN = { readMaker: maker, readPeriod: period, readProduct: product, readMember: member };

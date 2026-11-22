@@ -115,7 +115,7 @@ test('marketplace: dashboard, orders (a status change kept after a reload), prod
   await readOut('مبيعات الشهر ده', /^مبيعات .+: المبيعات المكتملة [\d,]+ ج\.م من \d+ أوردر، وتحت التنفيذ [\d,]+ ج\.م \(\d+\)، ومرتجع وملغي [\d,]+ ج\.م \(\d+\)\.$/);
   await readOut('مصروفات الشهر ده', /^مصروفات .+: المصروفات [\d,]+ ج\.م في \d+ حركة/);
   await readOut('المنتج lamp', /^Stained Glass Lamp \(IBTFA1007\): السعر [\d,]+ ج\.م.*، المخزون .+، الحالة منشور، المبتكر Fayrouz Glass/);
-  await readOut('الموظف منى', /^منى حسن — .+: الدور .+، الحالة نشط، الدوام .+، رصيد الإجازات \d+ يوم\.$/);
+  await readOut('الموظف منى', /^منى حسن — .+: الدور .+، الحالة نشط، الدوام .+، رصيد الإجازات \d+ يوم\. النهارده: .+\. طلبات موارد بشرية مستنية: \d+، طلبات فريق معاه: \d+\.$/);
   await page.fill('.ai-input', 'المنتج glass'); await page.locator('.ai-form').press('Enter'); await expect(lastAi.locator('[data-ai-pick] button')).toHaveCount(2); // two fit: the system asks which
   expect(await page.evaluate(() => location.hash), 'a read-out leaves the page where it was').toBe(before);
   await page.keyboard.press('Escape');
@@ -221,7 +221,7 @@ test('English: the language drop-down in the banner turns the demo to English, l
   expect(await arabicShown(page), 'the assistant › a list filtered by words').toEqual([]);
   // the read-outs in English: the sentence, the details popup — nothing left in Arabic
   // (the store is the single seller here: no maker's account to ask for — the sales carry no platform share)
-  for (const [q, want] of [['orders today', /^Orders .+: \d+ orders? totalling [\d,]+ EGP — \d+ completed, \d+ cancelled, \d+ need action\.$/], ['member Mona', /^Mona Hassan — .+: role .+, status active, shift .+, leave balance \d+ days?\.$/], ['sales this month', /^Sales .+: Completed sales [\d,]+ EGP from \d+ orders?, in progress [\d,]+ EGP \(\d+\), returned and cancelled [\d,]+ EGP \(\d+\)\.$/],
+  for (const [q, want] of [['orders today', /^Orders .+: \d+ orders? totalling [\d,]+ EGP — \d+ completed, \d+ cancelled, \d+ need action\.$/], ['member Mona', /^Mona Hassan — .+: role .+, status active, shift .+, leave balance \d+ days?\. Today: .+\. HR requests waiting: \d+, team requests held: \d+\.$/], ['sales this month', /^Sales .+: Completed sales [\d,]+ EGP from \d+ orders?, in progress [\d,]+ EGP \(\d+\), returned and cancelled [\d,]+ EGP \(\d+\)\.$/],
     ['product lamp', /^Arch Table Lamp \(DCR-LMP-01\): price [\d,]+ EGP, .*status Published/], ['summary this month', /^Summary .+: \d+ orders? totalling [\d,]+ EGP — .+ Completed sales .+ Expenses [\d,]+ EGP in \d+ entr/]]) {
     await page.fill('.ai-input', q); await page.locator('.ai-form').press('Enter'); await expect(aiLast.locator('.ai-text')).toHaveText(want, { timeout: 10000 }); }
   expect(await arabicShown(page), 'the assistant › the read-outs').toEqual([]);
