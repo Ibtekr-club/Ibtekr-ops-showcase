@@ -709,3 +709,10 @@
   .ag-brain .set-ic{display:none}
   .ag-brain{grid-template-columns:minmax(0,1fr)}
 }
+
+/* 41 — the assistants' own rules: on a phone the state drops under the sentence, the switch and the menu keep their places */
+@media (max-width: 767px) {
+  .ag-rule { flex-wrap: wrap; row-gap: 6px; }
+  .ag-rule-t { flex: 1 1 0; }
+  .ag-rule-s { order: 5; flex: 1 1 100%; padding-inline-start: 56px; }
+}

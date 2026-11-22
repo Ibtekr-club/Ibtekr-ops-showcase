@@ -15,6 +15,7 @@ import { MAX_OPEN_JOBS, cleanScenes, jobView, mixPlan, nextMix, parseVideo, vide
 import { creditsFor } from '../../mock/shared/ai-images.js';
 import { refName, refUrl } from '../../mock/shared/ref-link.js';
 import { cleanTrends, parseTrends } from '../../mock/shared/mkt-trends.js';
+import { rulesStatus, runRules } from './rules-mock.mjs';
 const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const cairo = (d = new Date()) => { const p = Object.fromEntries(fmt.formatToParts(d).map((x) => [x.type, x.value])); return { day: p.year + '-' + p.month + '-' + p.day, hm: p.hour + ':' + p.minute }; };
 export const mktToday = () => cairo().day;
@@ -130,7 +131,7 @@ export function mktState(opts = {}) {
     aiAgents: (opts.mktAiAgents || AI_BUILTINS).map((x, i) => ({ about: '', intro: '', instructions: '', suggestions: [], role: null, sees: [], builtin: false, sort: (i + 1) * 10, archived_at: null, ...x })),
     aiKb: (opts.mktAiKb || []).map((x, i) => ({ id: i + 1, text: '', agents: [], ...x })), aiKbDefaults: (opts.mktAiKbDefaults || []).map((x) => ({ text: '', agents: [], ...x })), noRegistry: !!opts.mktNoRegistry, nagent: 0,
     // 0124: the assistants' notes (opts.agentNotes — { agent, kind, title, body?, link? }); noNotes = 0124 not applied yet
-    agentNotes: (opts.agentNotes || []).map((x, i) => ({ id: i + 1, body: '', link: null, ref: null, created_at: now, ...x })), agentNoteReads: [], noNotes: !!opts.noAgentNotes,
+    agentNotes: (opts.agentNotes || []).map((x, i) => ({ id: i + 1, body: '', link: null, ref: null, created_at: now, ...x })), agentNoteReads: [], noNotes: !!opts.noAgentNotes, rulesOn: !!opts.agentRules, // agentRules = the assistants' own rules run (rules-mock.mjs)
     // 0109: the trends and the competitors as the database holds them (opts.mktTrends / mktCompetitors); noSections = the migration
     // is not applied yet (the two tables are not there); trendsFail = our code the next refresh answers with; trendsAnswer(req) =
     // the rows the model «found» (cleaned against trendsResults — the pages the search returned)
@@ -228,6 +229,8 @@ export function mktRoute(c) {
     if (name === 'ai_agents_list') return json(200, H.aiAgents.filter((a) => (isAdmin(u) ? true : !a.archived_at && hasPerm(u, a.perm) !== 'N')).slice().sort((a, b2) => a.sort - b2.sort)
       .map((a) => ({ id: a.id, name: a.name, icon: a.icon, perm: a.perm, sees: a.sees, role: a.role, about: a.about, intro: a.intro, instructions: isAdmin(u) ? a.instructions : '', suggestions: a.suggestions, builtin: a.builtin, sort: a.sort, archived: !!a.archived_at })));
     if (name === 'ai_agent_can') return json(200, agentCan(u, b.p_agent));
+    // the assistants' own rules (the admin's card): the numbers now and which rules hold — the check runs first, as the schedule would
+    if (name === 'ai_agent_rules_status') { if (!H.rulesOn) return refuse(404, 'PGRST202', 'Could not find the function public.' + name); if (!isAdmin(u)) return refuse(403, '42501', 'admin only'); runRules(mock); return json(200, rulesStatus(mock)); }
     if (name === 'ai_agent_save') {
       if (!isAdmin(u)) return refuse(403, '42501', 'admin only');
       const p = b.p || {}; if (Object.keys(p).some((k) => !['id', 'name', 'icon', 'perm', 'sees', 'role', 'about', 'intro', 'instructions', 'suggestions'].includes(k))) return bad('key');
@@ -468,6 +471,7 @@ export function mktRoute(c) {
   if (t === 'ai_agent_notes' || t === 'ai_agent_note_reads') { // 0124: select only, the server writes
     if (H.noNotes) return refuse(404, 'PGRST205', "Could not find the table 'public." + t + "' in the schema cache");
     if (method !== 'GET') return refuse(403, '42501', 'permission denied for table ' + t);
+    if (method === 'GET' && t === 'ai_agent_notes') runRules(mock); // the scheduled check's stand-in: the rules' notes are current whenever the bell reads
     const vis = t === 'ai_agent_notes' ? (r) => agentCan(u, r.agent) : (r) => r.member_id === u.id;
     let list = H[key].filter((r) => vis(r) && match(r));
     const ord = url.searchParams.get('order'); if (ord) { const [col, dir] = ord.split('.'); list = list.slice().sort((a, b2) => (a[col] < b2[col] ? -1 : a[col] > b2[col] ? 1 : 0) * (dir === 'desc' ? -1 : 1)); }

@@ -239,6 +239,7 @@ test('AI providers: a box per kind with only the linked companies; the switch of
   // the assistants' tab in English: a tab per assistant, «General manager» first, its rules, skills and sources in English
   await page.locator('#tab-agents').click(); await expect(page.locator('[data-ag-tab]')).toHaveCount(9, { timeout: 20000 }); await page.waitForTimeout(1500);
   await expect(page.locator('[data-ag-tab]').first()).toHaveAttribute('data-ag-tab', 'manager'); await expect(page.locator('[data-ag-srcs="manager"] .ag-src')).toHaveCount(4);
+  await expect(page.locator('[data-ag-rules-list="manager"] .ag-rule').first()).toContainText('Open orders waiting for confirmation — 3 or more'); await expect(page.locator('[data-ag-rules-list="manager"] .ag-rule').first()).toContainText('Holds — in the bell');
   expect(await arabicShown(page), 'settings › AI assistants › the general manager').toEqual([]);
   await page.locator('[data-ag-tab="accountant"]').click(); await expect(page.locator('[data-ag-srcs="accountant"]')).toBeVisible(); await page.waitForTimeout(1200);
   expect(await arabicShown(page), 'settings › AI assistants › the accountant').toEqual([]); await expect(page.locator('[data-ag-srcs="accountant"] .ag-src b').first()).toHaveText('Egyptian Tax Authority');
@@ -258,8 +259,21 @@ test('the assistants in the settings: a tab each with its card, outside AI, rule
     expect(await page.locator('[data-kb="rules"] [data-kb-item]').count(), id + ': the four of every assistant + its own three').toBe(7);
     expect(await page.locator('[data-kb="skills"] [data-kb-item]').count(), id + ': its three skills').toBe(3);
     expect(await page.locator(`[data-ag-srcs="${id}"] .ag-src`).count(), id + ': its sources').toBeGreaterThanOrEqual(3);
+    await expect(page.locator(`[data-ag-rules-list="${id}"] .ag-rule`).first()).toBeVisible(); expect(await page.locator(`[data-ag-rules-list="${id}"] .ag-rule`).count(), id + ': its own rules that run by themselves').toBeGreaterThanOrEqual(2);
   }
+  // the rules that run by themselves: the number each counts from the demo's own data, and the ones that hold are in the bell
+  await page.locator('[data-ag-tab="stock"]').click(); const late = page.locator('[data-ag-rule="orders_late"]');
+  await expect(late).toContainText('أوردرات متأخرة — 1 أو أكتر'); await expect(late.locator('[data-ag-rule-now]')).toHaveText('1'); await expect(late).toHaveAttribute('data-firing', 'yes');
+  await page.locator('.notif-btn').click(); const bell = page.getByRole('dialog', { name: 'الإشعارات' });
+  await bell.locator('.ntf-nav-item', { has: page.locator('.lbl', { hasText: /^المساعدين$/ }) }).click();
+  await expect(bell.locator('.ntf-item', { hasText: 'أوردرات متأخرة: 1' })).toHaveCount(1); await expect(bell.locator('.ntf-item', { hasText: 'درجة سرعة الموقع على الموبايل: 41 من 100' })).toHaveCount(1);
+  await page.keyboard.press('Escape'); await expect(bell).toHaveCount(0);
+  // switched off: its note leaves the bell (the list is the admin's own from now)
+  await late.locator('[data-ag-rule-sw]').click(); await expect(late).toHaveAttribute('data-on', 'false');
+  await expect.poll(() => page.evaluate(() => window.__ibDemo.mock.mkt.agentNotes.some((n) => n.ref === 'rule:stock:orders_late'))).toBe(false);
+  await late.locator('[data-ag-rule-sw]').click(); await expect(late).toHaveAttribute('data-firing', 'yes');
   // an assistant's own outside AI, from the linked companies' tabs
+  await page.locator('[data-ag-tab="hr"]').click(); await expect(page.locator('#ag-brain-hr')).toBeVisible();
   await expect(async () => { await page.keyboard.press('Escape'); await page.locator('#ag-brain-hr').click({ timeout: 1500 }); await expect(page.locator('.cm-menu [data-cm-tab]')).toHaveText(['Claude', 'ChatGPT'], { timeout: 1000 }); await page.locator('.cm-menu [data-cm="claude:claude-haiku-5-5"]').click({ timeout: 1500 }); }).toPass();
   await expect(page.locator('#ag-brain-hr')).toHaveText('Claude — Haiku 5.5');
   await go(page, 'ai'); await expect(page.locator('#pg-ai [role=tab]').first()).toContainText('المدير العام', { timeout: 20000 });

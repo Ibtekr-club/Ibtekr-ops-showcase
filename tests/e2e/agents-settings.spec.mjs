@@ -213,3 +213,56 @@ test('an assistant\'s outside brain — automatic, or a company and model from t
   await expect.poll(() => mock.activity.filter((r) => r.action === 'settings.ai.agent').map((r) => r.new_value)).toEqual(expect.arrayContaining(['cs · brain=openai:gpt-5.2-mini', 'cs · brain=auto', 'cs · sources=6', 'cs · sources=default']));
   expect(JSON.stringify(mock.activity.filter((r) => r.action === 'settings.ai.agent'))).not.toContain('example.com'); // no link in the log
 });
+
+// The owner 22 Nov («السيستم لوحدوا يقدر يبعت تنبيهات و ياخد قرارت … بناء علي القواعد … اللي مكاتبها لكل مساعد»): the rules that run by
+// themselves — a number of the system against a limit; while one holds its assistant's note sits in the bell's «المساعدين».
+test('«قواعد بتشتغل لوحدها» — an assistant\'s shipped rules with the number each counts now; the one that holds has its note in the bell; switch off · edit the limit · a new rule · delete · back to the default', async ({ page }) => {
+  mock.mkt.rulesOn = true; mock.mkt.siteChecks = [{ kind: 'pagespeed', checked_at: new Date().toISOString(), data: { score: 41 } }, { kind: 'wp_updates', checked_at: new Date().toISOString(), data: { updates: 0 } }];
+  await signIn(page);
+  await page.evaluate(() => { location.hash = 'settings-ai'; });
+  await page.locator('#pg-settings').getByRole('tab', { name: 'المساعدين' }).click();
+  await page.locator('[data-ag-tab="dev"]').click();
+  const card = page.locator('[data-ag-rules]'); const rule = (id) => card.locator('[data-ag-rule="' + id + '"]'); const rules = () => ((((mock.settings.find((x) => x.section === 'ai') || {}).data || {}).agents || {}).dev || {}).rules;
+  const notes = () => mock.mkt.agentNotes.filter((n) => String(n.ref || '').startsWith('rule:dev:')).map((n) => n.kind + ' · ' + n.title);
+  await expect(card).toHaveAttribute('data-ag-rules', 'default'); await expect(card.locator('.ag-rule')).toHaveCount(2);
+  await expect(rule('site_speed')).toContainText('درجة سرعة الموقع على الموبايل — 50 من 100 أو أقل'); await expect(rule('site_speed').locator('[data-ag-rule-now]')).toHaveText('41 من 100');
+  await expect(rule('site_speed')).toHaveAttribute('data-firing', 'yes'); await expect(rule('site_speed')).toContainText('متحققة — في الجرس');
+  await expect(rule('site_updates')).toHaveAttribute('data-firing', 'no'); await expect(rule('site_updates')).toContainText('تمام');
+  expect(notes()).toEqual(['problem · درجة سرعة الموقع على الموبايل: 41 من 100']);
+  // the bell: the note under «المساعدين», by the developer
+  await page.locator('.notif-btn').click(); const bell = page.getByRole('dialog', { name: 'الإشعارات' });
+  await bell.locator('.ntf-nav-item', { has: page.locator('.lbl', { hasText: /^المساعدين$/ }) }).click();
+  await expect(bell.locator('.ntf-item', { hasText: 'درجة سرعة الموقع على الموبايل: 41 من 100' })).toHaveCount(1); await page.keyboard.press('Escape'); await expect(bell).toHaveCount(0);
+  // switched off: saved as the admin's own list, no «unsaved» bar, and its note leaves the bell
+  await rule('site_speed').locator('[data-ag-rule-sw]').click();
+  await expect.poll(() => (rules() || []).map((r) => r.id + ':' + r.on)).toEqual(['site_speed:false', 'site_updates:true']);
+  await expect(rule('site_speed')).toHaveAttribute('data-on', 'false'); await expect(rule('site_speed')).toContainText('موقوفة'); await expect(card).toHaveAttribute('data-ag-rules', 'own');
+  await expect(page.locator('#pg-settings .save-bar')).toHaveCount(0); await expect.poll(notes).toEqual([]);
+  await rule('site_speed').locator('[data-ag-rule-sw]').click(); await expect(rule('site_speed')).toHaveAttribute('data-firing', 'yes'); await expect.poll(notes).toEqual(['problem · درجة سرعة الموقع على الموبايل: 41 من 100']);
+  // the limit edited under the number: the rule no longer holds
+  await rule('site_speed').getByRole('button', { name: 'إجراءات القاعدة' }).click(); await page.getByRole('menuitem', { name: 'تعديل' }).click();
+  const md = page.locator('.modal'); await expect(md).toContainText('دلوقتي: 41 من 100'); await md.locator('#value').fill('x'); await md.getByRole('button', { name: 'احفظ', exact: true }).click();
+  await expect(md).toContainText('رقم صحيح من 0 لـ 1,000,000'); await md.locator('#value').fill('40'); await md.getByRole('button', { name: 'احفظ', exact: true }).click();
+  await expect(rule('site_speed')).toContainText('40 من 100 أو أقل'); await expect(rule('site_speed')).toHaveAttribute('data-firing', 'no'); await expect.poll(notes).toEqual([]);
+  // a new rule on one of the developer's numbers — as a suggestion
+  await card.locator('[data-ag-rule-add]').click(); await expect(md).toContainText('قاعدة جديدة');
+  await md.locator('#value').fill('60'); await md.locator('#kind').click(); await page.getByRole('option', { name: 'اقتراح' }).click(); await md.getByRole('button', { name: 'ضيف', exact: true }).click();
+  await expect(card.locator('.ag-rule')).toHaveCount(3); await expect.poll(() => (rules() || []).length).toBe(3);
+  const added = rules()[2]; expect(added).toMatchObject({ metric: 'site_speed', op: 'lte', value: 60, kind: 'idea', on: true });
+  await expect(rule(added.id)).toHaveAttribute('data-firing', 'yes'); await expect.poll(notes).toEqual(['idea · درجة سرعة الموقع على الموبايل: 41 من 100']);
+  // deleted, then the shipped ones back
+  await rule(added.id).getByRole('button', { name: 'إجراءات القاعدة' }).click(); await page.getByRole('menuitem', { name: 'امسح' }).click(); await page.locator('.modal').getByRole('button', { name: 'امسح', exact: true }).click();
+  await expect(card.locator('.ag-rule')).toHaveCount(2); await expect.poll(notes).toEqual([]);
+  await card.locator('[data-ag-rule-reset]').click(); await page.locator('.modal').getByRole('button', { name: 'رجّع', exact: true }).click();
+  await expect(card).toHaveAttribute('data-ag-rules', 'default'); await expect.poll(() => rules()).toBeUndefined(); await expect(rule('site_speed')).toContainText('50 من 100 أو أقل');
+  // another assistant has its own rules; the log names the assistant and the count only
+  await page.locator('[data-ag-tab="cs"]').click(); await expect(card.locator('.ag-rule')).toHaveCount(2); await expect(card).toContainText('محادثات مستنية ردنا — 3 أو أكتر');
+  const logged = mock.activity.filter((a) => a.action === 'settings.ai.agent').map((a) => a.new_value); expect(logged).toContain('dev · rules=3'); expect(logged).toContain('dev · rules=default');
+});
+
+test('before the rules reach the server (no ai_agent_rules_status) the assistant\'s tab has no rules card and nothing breaks', async ({ page }) => {
+  await signIn(page);
+  await page.evaluate(() => { location.hash = 'settings-ai'; });
+  await page.locator('#pg-settings').getByRole('tab', { name: 'المساعدين' }).click(); await page.locator('[data-ag-tab="dev"]').click();
+  await expect(page.locator('[data-ag-sources]')).toBeVisible(); await expect(page.locator('[data-ag-rules]')).toHaveCount(0);
+});

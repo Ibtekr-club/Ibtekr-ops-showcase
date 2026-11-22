@@ -4,8 +4,9 @@
      IBAgentsSet.tabs({ agents, active, onPick, onAdd })   the assistants as one line of tabs
      IBAgentsSet.brainCard(agent, { live, read, redraw })  its outside brain: automatic (as the providers) or a company and model
      IBAgentsSet.sourcesCard(agent, { redraw })            its sources: the sites it leans on — add · edit · delete · back to the shipped
+     IBAgentsSet.rulesCard(agent, { redraw })              the rules that run by themselves: a number of the system against a limit → a note
      IBAgentsSet.sourcesOf(aiRow, id) / brainOf(aiRow, id) what the row «ai» holds (the shipped sources until the admin changes them)
-   Kept in the row «ai» under `agents: { <id>: { brain: { provider, model }, sources: [{ name, url, note }] } }` — the admin's row.
+   Kept in the row «ai» under `agents: { <id>: { brain: { provider, model }, sources: [{ name, url, note }], rules: [{ id, metric, op, value, kind, on }] } }` — the admin's row.
    A source is a reference: the system's own engine does not read a site; an outside brain the member agrees to searches these first. */
 (function () {
   'use strict';
@@ -125,5 +126,50 @@
     return card;
   }
 
-  window.IBAgentsSet = { tabs, brainCard, sourcesCard, sourcesOf, brainOf, shipped };
+  // ---- the rules that run by themselves (the owner 22 Nov — «السيستم لوحدوا يقدر يبعت تنبيهات … بناء علي القواعد … اللي مكاتبها لكل
+  // مساعد»): a number the system counts from its own data against a limit; while it holds, the assistant's note sits in the bell
+  // under «المساعدين». A rule never executes anything. The numbers and the metrics come from the server (ai_agent_rules_status).
+  const RS = { data: null, loading: false, stale: false, off: false };
+  const KIND = () => ({ alert: [tx('تنبيه', 'Alert'), 'orange'], problem: [tx('مشكلة', 'Problem'), 'error'], idea: [tx('اقتراح', 'Suggestion'), 'info'] });
+  function rulesCard(agent, o) {
+    const S0 = SET(); if (!S0 || !S0.agentRules || RS.off || !(S0.can && S0.can().admin)) return null;
+    if ((!RS.data || RS.stale) && !RS.loading) { RS.loading = true; RS.stale = false;
+      S0.agentRules().then((r) => { RS.loading = false; if (r && r.ok && r.data && r.data.agents) RS.data = r.data; else if (!RS.data) RS.off = true; if (typeof o.redraw === 'function') o.redraw(); }); }
+    const title = tx('قواعد بتشتغل لوحدها', 'Rules that run by themselves'); const subText = tx('رقم من بيانات السيستم قصاد حد — لما يتحقق المساعد يبعتلك تنبيه أو اقتراح في الجرس', 'A number from the system’s data against a limit — while it holds, the assistant sends you an alert or a suggestion in the bell');
+    if (!RS.data) { const c0 = K.Section(title, [U.InlineNote({ children: tx('بنحمّل القواعد…', 'Loading the rules…') })], null, { sub: subText, th: false, cols: false }); c0.setAttribute('data-ag-rules', 'loading'); return c0; }
+    const st = RS.data.agents[agent.id] || { own: false, metrics: [], rules: [] }; const list = st.rules; const KD = KIND(); const metric = (k) => st.metrics.find((m) => m.key === k);
+    const plain = (L) => L.map((r) => ({ id: r.id, metric: r.metric, op: r.op, value: r.value, kind: r.kind, on: r.on }));
+    const save = async (L, what, said) => { const ok = await saveAgent(agent.id, { rules: L }, what, null, said); if (ok) { RS.stale = true; if (window.IBAlerts && window.IBAlerts.load) window.IBAlerts.load(); if (typeof o.redraw === 'function') o.redraw(); } return ok; };
+    const form = (it) => { const m0 = it ? metric(it.metric) : (st.metrics.find((m) => !list.some((r) => r.metric === m.key)) || st.metrics[0]);
+      return K.form({ title: it ? tx('تعديل القاعدة', 'Edit the rule') : tx('قاعدة جديدة', 'New rule'), submitLabel: it ? tx('احفظ', 'Save') : tx('ضيف', 'Add'),
+        values: { metric: m0.key, op: it ? it.op : m0.op, value: String(it ? it.value : m0.value), kind: it ? it.kind : m0.kind },
+        fields: (f, e, set) => { const m = metric(f.metric) || m0;
+          return [K.field.select('metric', tx('السيستم يراقب', 'The system watches'), st.metrics.map((x) => ({ value: x.key, label: x.label })), f, e, set, { required: true, help: m.nowText === null ? tx('لسه ماتقراش', 'Not read yet') : tx('دلوقتي: ', 'Now: ') + m.nowText }),
+            h('div', { class: 'row cols2' }, K.field.select('op', tx('الشرط', 'The condition'), [{ value: 'gte', label: tx('يوصل للحد أو أكتر', 'Reaches the limit or more') }, { value: 'lte', label: tx('ينزل للحد أو أقل', 'Drops to the limit or less') }], f, e, set, { required: true }),
+              K.field.text('value', tx('الحد', 'The limit') + (m.unit ? ' (' + m.unit + ')' : ''), f, e, set, { required: true, inputmode: 'numeric' })),
+            K.field.select('kind', tx('المساعد يبعت', 'The assistant sends'), ['alert', 'problem', 'idea'].map((k) => ({ value: k, label: KD[k][0] })), f, e, set, { required: true })]; },
+        validate: (f) => { const v = String(f.value || '').trim(); if (!/^\d{1,7}$/.test(v) || Number(v) > 1000000) return { value: tx('رقم صحيح من 0 لـ 1,000,000', 'A whole number from 0 to 1,000,000') };
+          if (!it && list.length >= 12) return { metric: tx('لحد 12 قاعدة للمساعد', 'Up to 12 rules an assistant') }; return {}; },
+        submit: async (f, md) => { const v = { id: it ? it.id : 'r' + Date.now().toString(36), metric: f.metric, op: f.op === 'lte' ? 'lte' : 'gte', value: Number(String(f.value).trim()), kind: KD[f.kind] ? f.kind : 'alert', on: it ? it.on : true };
+          const L = plain(list); if (it) L[list.indexOf(it)] = v; else L.push(v); if (await save(L, 'rules=' + L.length, it ? tx('اتحفظت القاعدة', 'Rule saved') : tx('اتضافت القاعدة', 'Rule added'))) md.close(); } }); };
+    const toggle = (it) => { const L = plain(list); L[list.indexOf(it)].on = !it.on; return save(L, 'rule ' + (it.on ? 'off' : 'on'), it.on ? tx('القاعدة اتوقفت', 'The rule is off') : tx('القاعدة اشتغلت', 'The rule is on')); };
+    const state = (r) => (!r.on ? K.Tag('neutral', tx('موقوفة', 'Off')) : r.now === null ? K.Tag('neutral', tx('لسه ماتقراش', 'Not read yet')) : r.firing ? K.Tag(KD[r.kind][1], tx('متحققة — في الجرس', 'Holds — in the bell')) : K.Tag('success', tx('تمام', 'Fine')));
+    const items = list.map((r) => h('li', { class: 'ag-rule' + (r.on ? '' : ' off'), 'data-ag-rule': r.id, 'data-firing': r.firing ? 'yes' : 'no', 'data-on': String(!!r.on) },
+      h('button', { type: 'button', role: 'switch', class: 'sw', 'aria-checked': String(!!r.on), 'aria-label': r.text, 'data-ag-rule-sw': '', onClick: () => toggle(r) }, h('i')),
+      h('div', { class: 'ag-rule-t' }, h('b', null, r.text), h('small', null, tx('دلوقتي: ', 'Now: '), h('bdi', { 'data-ag-rule-now': '' }, r.nowText === null ? '—' : r.nowText), ' · ', tx('بيبعت ', 'Sends: '), KD[r.kind][0])),
+      h('span', { class: 'ag-rule-s' }, state(r)),
+      K.RowMenu([{ label: tx('تعديل', 'Edit'), icon: 'edit', run: () => form(r) },
+        { label: tx('امسح', 'Delete'), icon: 'trash', danger: true, run: () => K.confirm({ title: tx('تمسح القاعدة دي؟', 'Delete this rule?'), text: r.text, okType: 'danger', okLabel: tx('امسح', 'Delete'), onOk: () => save(plain(list.filter((x) => x !== r)), 'rules=' + (list.length - 1), tx('اتمسحت القاعدة', 'Rule deleted')) }) }], tx('إجراءات القاعدة', 'Rule actions'))));
+    const acts = [st.own ? Button({ size: 'sm', icon: 'refresh', label: tx('رجّع الافتراضي', 'Back to the default'), attrs: { 'data-ag-rule-reset': '' }, onClick: () => K.confirm({ title: tx('ترجّع قواعد «', 'Put the rules of “') + agent.name + tx('» الافتراضية؟', '” back to the default?'), text: tx('اللي ضفته أو عدّلته هنا هيتشال.', 'What you added or changed here goes.'), okLabel: tx('رجّع', 'Put back'), onOk: () => save(null, 'rules=default', tx('رجعت القواعد الافتراضية', 'The default rules are back')) }) }) : null,
+      st.metrics.length ? Button({ size: 'sm', type: 'primary', icon: 'plus', label: tx('قاعدة جديدة', 'New rule'), attrs: { 'data-ag-rule-add': '' }, onClick: () => form(null) }) : null].filter(Boolean);
+    const firing = list.filter((r) => r.firing).length;
+    const body = !st.metrics.length ? K.Empty(tx('مفيش أرقام للمساعد ده يراقبها لسه', 'No numbers for this assistant to watch yet'), tx('القواعد بتشتغل على البيانات اللي المساعد بيقراها.', 'Rules run on the data the assistant reads.'))
+      : list.length ? h('ul', { class: 'ag-rules', 'data-ag-rules-list': agent.id, 'data-set-instant': '' }, items) : K.Empty(tx('لسه مفيش قواعد', 'No rules yet'), tx('ضيف قاعدة عشان المساعد ينبّهك لوحده.', 'Add a rule so the assistant alerts you by itself.'));
+    const card = K.Section(title, [body, U.InlineNote({ children: tx('الأرقام من بيانات السيستم نفسها، والتنبيه بيفضل في الجرس تحت «المساعدين» طول ما القاعدة متحققة. القاعدة مابتنفّذش حاجة — القرار ليك.', 'The numbers come from the system’s own data, and the alert stays in the bell under “Assistants” while the rule holds. A rule executes nothing — the decision is yours.') })],
+      acts, { sub: subText + (list.length ? ' · ' + firing + tx(' متحققة دلوقتي', ' holding now') : ''), th: false, cols: false });
+    card.setAttribute('data-ag-rules', st.own ? 'own' : 'default'); card.setAttribute('data-set-instant', '');
+    return card;
+  }
+
+  window.IBAgentsSet = { tabs, brainCard, rulesCard, sourcesCard, sourcesOf, brainOf, shipped };
 })();

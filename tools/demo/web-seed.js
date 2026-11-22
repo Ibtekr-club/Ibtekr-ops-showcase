@@ -280,6 +280,7 @@ function assistants(mock) {
   const rows = KB.map(([key, kind, agents, sAr, sEn, tAr, tEn, xAr, xEn]) => ({ key, kind, agents: agents.slice(), section: sAr, title: tAr, text: xAr, en: { section: sEn, title: tEn, text: xEn } }));
   H.aiKbDefaults = rows.map((r) => Object.assign({}, r, { agents: r.agents.slice() }));
   H.aiKb = rows.map((r, i) => Object.assign({ id: i + 1 }, r, { agents: r.agents.slice() }));
+  H.rulesOn = true; // the assistants' own rules run on the demo's data (tests/e2e/rules-mock.mjs) — their notes fill the bell's «المساعدين»
 }
 
 /** The AI companies the demo opens linked — Claude and ChatGPT for the texts (so «المزوّدين» shows a second company's levels), Magnific
