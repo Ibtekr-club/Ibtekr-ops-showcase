@@ -63,7 +63,8 @@ costs are deducted, withdrawals are approved from here, and the numbers add up: 
 - **Team requests** between roles, with a chat per request
 - **Reports** across orders, makers, accounts, products, inventory and customer service, with period comparison
 - **Marketing**: campaigns built with AI, scheduled publishing to Facebook/Instagram, and ad numbers next to real orders
-- **AI assistants** per team (media buyer, designer, developer, operations, customer service, accountant, HR) that explain, prepare and ask — a person decides
+- **AI assistants** per team (general manager, media buyer, designer, developer, operations, customer service, accountant, HR) that explain, prepare and ask — a person decides
+- **The system answers first, with no model**: it opens pages, filters any list by words, reads out a maker's account, a product, a member or a period, opens its own forms filled in, and runs each assistant's rules by itself (a rule that holds is an alert — it never acts). An outside AI is asked only when the member agrees for that message, and it is given company data only for the kinds the member approves when the assistant asks
 - **HR**: flexible attendance, payroll, evaluations and leave
 - **Settings**: roles with three permission levels, editable lists and statuses, integrations, branding
 - **A makers' portal** for their own orders and balance
@@ -124,6 +125,8 @@ Three design decisions and why:
    (The English in the demo was added for visitors who do not read Arabic; the team works in Arabic.)
 2. **The system prepares, a person decides.** AI assistants draft replies, fill forms and suggest budget changes, but nothing is
    sent, published or paid without a click — and every write to the shop comes from a person, behind a global switch.
+   An outside model gets the member's message alone: company data goes only for the kinds a member approves, for that one request,
+   and phones, addresses, bank accounts, commission rates and salaries never leave.
 3. **Built on staging, switched to live in one step.** Everything was built and tested against a staging shop first, so the
    real store was never the test bench; moving to the live store was a single switch, and it is now running live.
 
