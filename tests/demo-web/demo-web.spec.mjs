@@ -52,7 +52,9 @@ test('marketplace: dashboard, orders (a status change kept after a reload), prod
   await page.goto('/');
   await page.locator('[data-demo-mode="marketplace"]').click();
   await inApp(page);
-  await expect(page.locator('#demo-bar')).toContainText('Demo mode');
+  // the owner 22 Nov: no «Demo mode» words — the language drop-down is at the bar's left end in their place
+  await expect(page.locator('#demo-bar')).not.toContainText('Demo mode'); await expect(page.locator('#demo-bar')).toContainText('Sample data');
+  expect(await page.evaluate(() => { const bar = document.querySelector('#demo-bar'); const dd = bar.querySelector('[data-demo-dd="lang"]'); return [bar.firstElementChild.contains(dd), Math.round(dd.getBoundingClientRect().left - bar.getBoundingClientRect().left) < 20, !!document.querySelector('.dm-lang')]; })).toEqual([true, true, false]);
   await expect(page.locator('[data-demo-switch="marketplace"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#root')).toContainText('لوحة التحكم');
   expect(await page.evaluate(() => window.IBSettings.single())).toBe(false);
@@ -147,21 +149,21 @@ const arabicShown = (page) => page.evaluate(() => {
     while ((n = tw.nextNode())) { if (n.nodeType === 1) { if (n.shadowRoot) walk(n.shadowRoot); continue; } const t = window.IBT.shown(n); if (t && AR.test(t) && vis(n.parentElement)) out.push(t.trim().slice(0, 80)); } };
   walk(document.body); return out;
 });
-test('English: the switch under «الإعدادات» turns the demo to English, left to right, on every page of both models; back to Arabic as it was', async ({ page }) => {
+test('English: the language drop-down in the banner turns the demo to English, left to right, on every page of both models; back to Arabic as it was', async ({ page }) => {
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
   await page.locator('[data-demo-mode="marketplace"]').click();
   await inApp(page);
   // Arabic first: the layer is not even loaded
   expect(await page.evaluate(() => [document.documentElement.dir, typeof window.IBT, typeof window.IB_EN])).toEqual(['rtl', 'undefined', 'undefined']);
-  const sw = page.locator('.sidebar .dm-lang');
-  await expect(sw).toBeVisible();
-  expect(await page.evaluate(() => { const sb = document.querySelector('.sidebar'); return sb.lastElementChild.classList.contains('dm-lang') && sb.lastElementChild.previousElementSibling.dataset.page; })).toBe('settings'); // under «الإعدادات»
-  await sw.locator('[data-demo-lang="en"]').click();
+  const dd = page.locator('#demo-bar [data-demo-dd="lang"]');
+  await expect(dd).toBeVisible(); await expect(dd).toHaveText('عربي');
+  await dd.click(); await expect(page.locator('#demo-bar [data-demo-dd-opt="ar"]')).toHaveAttribute('aria-checked', 'true');
+  await page.locator('#demo-bar [data-demo-dd-opt="en"]').click();
   await inApp(page);
   expect(await page.evaluate(() => [document.documentElement.dir, document.documentElement.lang])).toEqual(['ltr', 'en']);
   await expect(page.locator('.sidebar .nav-item[data-page="orders"]')).toHaveText('Orders');
-  await expect(page.locator('.sidebar .dm-lang [data-demo-lang="en"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#demo-bar [data-demo-dd="lang"]')).toHaveText('English');
   for (const mode of ['marketplace', 'single']) {
     if (mode === 'single') { await page.locator('[data-demo-switch="single"]').click(); await inApp(page); await expect(page.locator('.sidebar .nav-item[data-page="orders"]')).toHaveText('Orders'); }
     const pages = await page.$$eval('.sidebar .nav-item[data-page]', (ns) => ns.filter((n) => !n.hidden).map((n) => n.dataset.page));
@@ -176,7 +178,7 @@ test('English: the switch under «الإعدادات» turns the demo to English
   expect(await st.evaluate((el) => /[\u0621-\u064A]/.test(el.value))).toBe(true);
   expect(errors).toEqual([]);
   // back to Arabic
-  await page.locator('.sidebar .dm-lang [data-demo-lang="ar"]').click();
+  await page.locator('#demo-bar [data-demo-dd="lang"]').click(); await page.locator('#demo-bar [data-demo-dd-opt="ar"]').click();
   await inApp(page);
   expect(await page.evaluate(() => [document.documentElement.dir, typeof window.IBT])).toEqual(['rtl', 'undefined']);
   await expect(page.locator('.sidebar .nav-item[data-page="orders"]')).toHaveText('الأوردرات');
@@ -186,6 +188,37 @@ test('English: the switch under «الإعدادات» turns the demo to English
 // The phone and tablet pass (21 Nov): look and touch only — the same pages, laid out for a thumb.
 // the owner 22 Nov — «تعيد تصميم الدروب داون للبروفايل في الديسكتوب بشكل احترافي»: the member's picture beside the name and the e-mail,
 // every row in sight with no scroll bar, each icon on a tile, «تسجيل الخروج» set apart at the end — and the rows still work
+// The owner 22 Nov («ممكن تطبق ده الديمو و الاساسي»): the providers tab as the original has it — only the linked companies in the
+// lists (the demo opens with Claude and ChatGPT linked, Gemini not), the automatic switch and the levels under the text company,
+// the model select when it is off, the card of the commands and the month's spend — in Arabic and in English
+test('AI providers: only the linked companies, the automatic switch with the company\'s levels, the model under the company when it is off; in English too', async ({ page }) => {
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/'); await page.locator('[data-demo-mode="marketplace"]').click(); await inApp(page);
+  await go(page, 'settings-ai');
+  const text = page.locator('[data-prov="text"]');
+  await expect(text).toHaveAttribute('data-prov-live', 'claude openai', { timeout: 20000 });
+  await page.locator('#prov-text').click();
+  await expect(page.getByRole('option')).toHaveText(['Claude (Anthropic)', 'ChatGPT (OpenAI)']); await page.keyboard.press('Escape'); // Gemini is not linked: not offered
+  const pk = text.locator('[data-air-pick]');
+  await expect(pk).toHaveAttribute('data-air-pick', 'auto');
+  await expect(pk.locator('[data-air-level]')).toHaveText(['ضعيف Claude Haiku 5.5', 'متوسط Claude Sonnet 5.5', 'قوي Claude Opus 5.5']);
+  const card = page.locator('[data-ai-routing]');
+  await expect(card.locator('[data-air-cmd]')).toHaveCount(14); await expect(card.locator('[data-air-sized="true"]')).toHaveCount(2);
+  await expect(page.locator('[data-air-spend] table').first().locator('tbody tr')).toHaveCount(3); // the month's made-up runs: three models
+  // off: the model under the company; on again
+  await page.locator('#air-auto').click();
+  await expect(pk).toHaveAttribute('data-air-pick', 'single'); await expect(page.locator('#air-one')).toBeVisible(); await expect(page.locator('#air-write')).toBeDisabled();
+  await page.locator('#air-auto').click();
+  await expect(pk).toHaveAttribute('data-air-pick', 'auto');
+  // English: the same tab with no Arabic left, the levels in English words
+  await page.locator('#demo-bar [data-demo-dd="lang"]').click(); await page.locator('#demo-bar [data-demo-dd-opt="en"]').click();
+  await inApp(page); await go(page, 'settings-ai');
+  await expect(page.locator('[data-prov="text"] [data-air-pick]')).toBeVisible({ timeout: 20000 }); await page.waitForTimeout(1500);
+  expect(await page.evaluate(() => [...document.querySelectorAll('[data-air-level] b')].map((b) => b.firstChild.nodeValue))).toEqual(['Light', 'Medium', 'Strong']);
+  expect(await arabicShown(page), 'settings › AI providers').toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 test('desktop: the account menu — the picture, the name and the e-mail, every row in sight, the way out set apart', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 }); await page.goto('/'); await page.locator('[data-demo-mode="marketplace"]').click(); await page.waitForSelector('#demo-bar'); await expect(page.locator('.topbar .user-btn')).toBeVisible({ timeout: 30000 });
   await page.locator('.topbar .user-btn').click(); const menu = page.locator('.menu.acct'); await expect(menu).toBeVisible();
@@ -409,7 +442,7 @@ test.describe('a tablet, upright', () => {
     const cut = await page.evaluate(() => [...document.querySelectorAll('.sidebar .nav-item')].filter((b) => b.scrollWidth > b.clientWidth + 1).map((b) => b.textContent.trim()));
     expect(cut).toEqual([]);
     // the language and the model: a drop-down each in the banner (the pills are a desktop's)
-    await expect(page.locator('#demo-bar [data-demo-dd="lang"]')).toBeVisible(); await expect(page.locator('#demo-bar [data-demo-dd="mode"]')).toBeVisible(); await expect(page.locator('.sidebar .dm-lang')).toBeHidden();
+    await expect(page.locator('#demo-bar [data-demo-dd="lang"]')).toBeVisible(); await expect(page.locator('#demo-bar [data-demo-dd="mode"]')).toBeVisible(); await expect(page.locator('.dm-lang')).toHaveCount(0);
     // the bar: «إجراءات سريعة» and «ابدأ الدوام» are in the account's menu here too
     await page.locator('.topbar .user-btn').click(); await expect(page.locator('.menu.acct [data-m-clock]')).toBeVisible(); await expect(page.locator('.menu.acct [data-m-quick]')).toBeVisible(); await page.keyboard.press('Escape');
     // the number cards: full rows — the dashboard's five go 3 + 2, and the two of the last line share its whole width

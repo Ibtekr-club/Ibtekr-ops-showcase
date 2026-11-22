@@ -37,8 +37,12 @@ window.IB_DEMO = true;
     '#demo-bar .dm-rs{border:1px solid #fff7ef88;border-radius:999px}',
     '@media (max-width:560px){#demo-bar .dm-lb{display:none}#demo-bar button{padding:5px 9px}}',
     // a phone or a tablet (the owner 21 Nov): no «Demo» word, and the language and the model are each a drop-down — three quiet
-    // controls on one line: language ▾ · model ▾ ········ Reset. The pills stay for a desktop.
+    // controls on one line: language ▾ · model ▾ ········ Reset. The model's pills stay for a desktop.
+    // The owner 22 Nov («تحول زرار اللغة في الديمو لدروب داون و تحطوا في الهيدر اليند شمال مكان كلمة ديمو مود و شيل الكلمة»): the language is
+    // a drop-down at the bar's left end on every width, in the place of the words «Demo mode» — the switch under «الإعدادات» is gone.
     '#demo-bar .dm-dd{display:none;position:relative}',
+    '#demo-bar .dm-dd[data-dd=lang]{display:block}',
+    '#demo-bar .dm-lb{opacity:.85;font-weight:500;white-space:nowrap}',
     '#demo-bar .dm-dd>button{display:inline-flex;align-items:center;gap:6px;border:1px solid #fff7ef55;border-radius:999px;padding:5px 10px 5px 12px}',
     '#demo-bar .dm-dd>button::after{content:"";width:6px;height:6px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-2px) rotate(45deg);opacity:.85}',
     '#demo-bar .dm-dd>button[aria-expanded=true]{background:#fff7ef;color:#005642}',
@@ -47,7 +51,7 @@ window.IB_DEMO = true;
     '#demo-bar .dm-menu button{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:0 12px;border-radius:10px;color:#1d2a26;font-size:14px;font-weight:600}',
     '#demo-bar .dm-menu button[aria-checked=true]{background:#005642;color:#fff7ef}',
     '#demo-bar .dm-menu button[aria-checked=true]::after{content:"";width:6px;height:11px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg) translate(-2px,-2px)}',
-    '@media (max-width:1023px){#demo-bar>b,#demo-bar .dm-lb,#demo-bar>.dm-sw,#demo-bar>.dm-lang{display:none!important}#demo-bar .dm-dd{display:block}#demo-bar{gap:8px;padding:0 max(12px,env(safe-area-inset-right,0px)) 0 max(12px,env(safe-area-inset-left,0px))}#demo-bar button{position:relative}#demo-bar>button::after,#demo-bar .dm-dd>button::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}#demo-bar .dm-dd>button::before{transform:none;border:0;width:auto;height:auto;opacity:1}}',
+    '@media (max-width:1023px){#demo-bar .dm-lb,#demo-bar>.dm-sw{display:none!important}#demo-bar .dm-dd{display:block}#demo-bar{gap:8px;padding:0 max(12px,env(safe-area-inset-right,0px)) 0 max(12px,env(safe-area-inset-left,0px))}#demo-bar button{position:relative}#demo-bar>button::after,#demo-bar .dm-dd>button::before{content:"";position:absolute;left:0;right:0;top:-8px;bottom:-8px}#demo-bar .dm-dd>button::before{transform:none;border:0;width:auto;height:auto;opacity:1}}',
     '@media (max-width:767px){html.ib-demo{--dm-h:44px}#demo-bar button{padding:6px 12px}#demo-toast{bottom:calc(64px + env(safe-area-inset-bottom,0px) + 14px)}}',
     /* the entry: three screens that say what the system is, then the choice of a business model. A column of the screen's
        own height (dvh — an iPhone's bars), a track that slides sideways one screen at a time, each screen scrolling down by
@@ -124,9 +128,6 @@ window.IB_DEMO = true;
     '@media (min-width:900px){#demo-entry .de-in.two{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);align-items:center;gap:56px;text-align:start}#demo-entry .de-in.two .de-txt{justify-items:start;order:-1}#demo-entry .de-in.two .de-art{max-width:440px;justify-self:center}#demo-entry h2{font-size:40px}#demo-entry .de-p{font-size:17px}#demo-entry .de-top{padding-inline:40px;padding-top:20px}#demo-entry .de-foot{padding-inline:40px;padding-bottom:24px}#demo-entry .de-slide{padding-inline:40px}}',
     '@media (max-width:899px){#demo-entry .de-in.pick{gap:12px}#demo-entry .de-in.pick .de-txt{gap:4px}#demo-entry .de-in.pick .de-p{display:none}#demo-entry .de-in.pick h2{font-size:24px}#demo-entry .de-model{padding:12px 14px;gap:8px 12px;border-radius:18px}#demo-entry .de-go{min-height:44px}#demo-entry .de-pick{gap:10px}#demo-entry .de-pts span{font-size:11.5px;padding:1px 9px}#demo-entry .de-slide{padding-top:4px;padding-bottom:8px}}',
     '@media (max-height:700px) and (max-width:899px){#demo-entry h2{font-size:23px}#demo-entry .de-in{gap:14px}#demo-entry .de-art{padding:12px;border-radius:20px}#demo-entry .de-mod span{width:32px;height:32px}#demo-entry .de-p{font-size:14px}#demo-entry .de-node{padding:7px 10px}#demo-entry .de-two .de-node{padding:8px}}',
-    '#demo-bar .dm-lang{display:none}',
-    // under 1024 the switch is in the banner (the side bar is a narrow rail there, or not on screen at all)
-    '@media (max-width:1023px){.sidebar .dm-lang{display:none}}',
     
   ].join('\n');
   document.head.appendChild(css);
@@ -138,11 +139,8 @@ window.IB_DEMO = true;
   function choose(m) { set(KEY_MODE, m); set(KEY_LOG, null); location.reload(); }
   function reset() { set(KEY_LOG, null); location.reload(); }
   function setLang(l) { if (l === lang) return; set(KEY_LANG, l === 'en' ? 'en' : null); location.reload(); }
-  function langSwitch() {
-    var mk = function (l, label, short) { var b = el('button', { type: 'button', 'data-i18n-off': '', 'data-demo-lang': l, 'data-short': short, 'aria-pressed': String(l === lang), text: label }); b.addEventListener('click', function () { setLang(l); }); return b; };
-    return el('div', { class: 'dm-lang', 'data-i18n-off': '' }, [el('div', { class: 'dm-sw', role: 'group', 'aria-label': 'Language' }, [mk('ar', 'عربي', 'ع'), mk('en', 'English', 'EN')])]);
-  }
-  // a drop-down in the banner (phone and tablet): the current choice on a pill, the choices in a small menu under it
+  // a drop-down in the banner (the language on every width, the model on a phone and a tablet): the current choice on a pill, the
+  // choices in a small menu under it
   function dropdown(name, label, cur, opts, pick) {
     var btn = el('button', { type: 'button', 'data-i18n-off': '', 'data-demo-dd': name, 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': label, text: (opts.filter(function (o) { return o[0] === cur; })[0] || opts[0])[1] });
     var menu = el('div', { class: 'dm-menu', role: 'menu', hidden: '', 'data-i18n-off': '' }, opts.map(function (o) {
@@ -153,14 +151,8 @@ window.IB_DEMO = true;
     btn.addEventListener('click', function (e) { e.stopPropagation(); var open = menu.hidden; document.querySelectorAll('#demo-bar .dm-menu').forEach(function (m) { m.hidden = true; }); document.querySelectorAll('#demo-bar [data-demo-dd]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); }); if (open) { menu.hidden = false; btn.setAttribute('aria-expanded', 'true'); } });
     document.addEventListener('click', function (e) { if (!menu.hidden && !menu.contains(e.target)) shut(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') shut(); });
-    return el('div', { class: 'dm-dd', 'data-i18n-off': '' }, [btn, menu]);
+    return el('div', { class: 'dm-dd', 'data-dd': name, 'data-i18n-off': '' }, [btn, menu]);
   }
-  // the side bar is drawn again whenever the menu changes: the switch is put back at its end
-  function keepLang() {
-    var put = function () { var sb = document.querySelector('.sidebar'); if (sb && (!sb.lastElementChild || !sb.lastElementChild.classList.contains('dm-lang'))) { var old = sb.querySelector('.dm-lang'); if (old) old.remove(); sb.appendChild(langSwitch()); } };
-    put(); new MutationObserver(put).observe(document.body, { childList: true, subtree: true });
-  }
-
   // --- the entry (the owner 21 Nov — «انفوجرافيك … و تلات اسكرينات اونبوردينج … يشجع المستخدم يخش يشوف الديمو»): three screens that
   // say what the system is — the whole business in one place, an order's way from checkout to payout, a working app on sample
   // data — and then the choice of a business model. They slide under a finger (scroll-snap), with «Next» / «Back» / the dots /
@@ -273,11 +265,12 @@ window.IB_DEMO = true;
     }));
     var rs = el('button', { type: 'button', class: 'dm-rs', 'data-demo-reset': '', text: 'Reset' });
     rs.addEventListener('click', reset);
-    document.body.appendChild(el('div', { id: 'demo-bar', role: 'region', 'aria-label': 'Demo' }, [el('b', { text: 'Demo mode' }), el('span', { class: 'dm-lb', text: '— sample data' }),
+    document.body.appendChild(el('div', { id: 'demo-bar', role: 'region', 'aria-label': 'Demo' }, [
       dropdown('lang', 'Language', lang, [['ar', 'عربي'], ['en', 'English']], setLang),
       dropdown('mode', 'Business model', mode, Object.keys(MODES).map(function (m) { return [m, MODES[m]]; }), choose),
-      el('span', { class: 'dm-sp' }), langSwitch(), sw, rs]));
-    document.documentElement.classList.add('ib-demo'); keepLang();
+      el('span', { class: 'dm-lb', text: 'Sample data' }),
+      el('span', { class: 'dm-sp' }), sw, rs]));
+    document.documentElement.classList.add('ib-demo');
   }
 
   // --- «this would have gone out»: courier (Bosta), Meta (Messenger / Instagram / WhatsApp / publishing / ads) and e-mail
