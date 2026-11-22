@@ -34,7 +34,7 @@
   // the newest rows of one action (the settings' «آخر اللي اتبعت» for an outside AI — kinds only); [] on a failed read
   async function byAction(action, limit = 20) {
     const c = client(); if (!c || !signedIn()) return [];
-    try { const { data, error } = await c.from('activity_log').select('id, at, action, new_value, actor:profiles(name)').in('action', [String(action)]).order('at', { ascending: false }).limit(limit); return error ? [] : (data || []).map(toRow); } catch (e) { return []; }
+    try { const { data, error } = await c.from('activity_log').select('id, at, action, new_value, actor:profiles(name)').in('action', (Array.isArray(action) ? action : [action]).map(String)).order('at', { ascending: false }).limit(limit); return error ? [] : (data || []).map(toRow); } catch (e) { return []; }
   }
   async function recent(limit = 5) { return (await read(limit)) || []; }
   async function refresh() {
