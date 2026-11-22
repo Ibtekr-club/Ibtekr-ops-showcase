@@ -77,9 +77,10 @@ test('what the system does not take waits for the member: a button per linked co
   await send(page, 'حلل ليه الأوردرات بتتأخر'); await pg(page).locator('[data-mk-consent] [data-mk-brain="openai"]').click(); await pg(page).locator('[data-mk-share-ok]').click();
   await expect(lastAns(page)).toContainText('التأخير سببه مبتكر واحد.'); await expect(lastAns(page).locator('[data-mk-src]')).toHaveText('الرد من ChatGPT');
   await expect(lastAns(page).locator('[data-mk-shared]')).toHaveText('اتبعتله: رسالتك + الأوردرات · المبتكرين'); expect(asks().at(-1).share).toEqual(['orders', 'vendors']);
+  expect(asks().at(-1).history, 'the system’s own lines in this chat are not passed on').toBe(0);
   // words alone: no data card
   await send(page, 'اكتبلي كابشن لمنتج جديد'); await pg(page).locator('[data-mk-consent] [data-mk-brain="claude"]').click();
-  await expect(lastAns(page)).toContainText('كابشن: معمولة بالإيد.'); await expect(lastAns(page).locator('[data-mk-src]')).toHaveText('الرد من Claude'); await expect(lastAns(page).locator('[data-mk-shared]')).toHaveText('اتبعتله: رسالتك بس — من غير بيانات من السيستم');
+  await expect(lastAns(page)).toContainText('كابشن: معمولة بالإيد.'); await expect(lastAns(page).locator('[data-mk-src]')).toHaveText('الرد من Claude'); expect(asks().at(-1).history, 'nor another company’s answer').toBe(0); await expect(lastAns(page).locator('[data-mk-shared]')).toHaveText('اتبعتله: رسالتك بس — من غير بيانات من السيستم');
   await expect.poll(() => mock.activity.filter((a) => a.action === 'mkt.agent.share').map((a) => a.new_value)).toEqual(['stock · openai · orders, vendors']);
 });
 

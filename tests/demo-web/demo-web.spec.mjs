@@ -307,7 +307,7 @@ test('the assistants in the settings: a tab each with its card, outside AI, rule
   // an assistant's chat answers from the system first: the general manager says where every assistant stands and hands a number to
   // its assistant; that one answers it from the demo's own data; a «why» waits for the company, which asks for the data kinds
   const ai = page.locator('#pg-ai'); const ans = ai.locator('.mk-msg.ai[data-mk-turn]').last(); const sendAi = async (t) => { await ai.locator('#mk-ask').fill(t); await ai.locator('[data-mk-ask]').click(); };
-  await ai.getByRole('tab', { name: /المدير العام/ }).click(); await expect(ai.locator('#mk-ask')).toHaveAttribute('placeholder', /المدير العام/); await sendAi('ملخص الوضع النهارده');
+  await ai.getByRole('tab', { name: /المدير العام/ }).click(); await expect(ai.locator('#mk-ask')).toHaveAttribute('placeholder', /مدير العام/); await sendAi('ملخص الوضع النهارده');
   await expect(ans.locator('[data-mk-src]')).toHaveText('من السيستم', { timeout: 10000 }); await expect(ans).toContainText('الوضع دلوقتي عند كل مساعد:'); await expect(ans).toContainText('⚠ التشغيل الذكي: أوردرات متأخرة (1)');
   await sendAi('كام أوردر متأخر؟'); await expect(ans).toContainText('ده تخصص «التشغيل الذكي»', { timeout: 10000 }); await ans.locator('[data-mk-handoff-go]').click();
   await expect(ai.locator('#mk-ask')).toHaveValue('كام أوردر متأخر؟'); await ai.locator('[data-mk-ask]').click();

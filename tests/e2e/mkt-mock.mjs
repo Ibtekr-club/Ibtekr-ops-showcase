@@ -609,7 +609,11 @@ function mktAi(c, b) {
     else { const reg = H.aiAgents.find((a) => a.id === p.req.agent && !a.archived_at); if (!reg) return json(404, { error: 'not_found' }); if (!agentCan(u, reg.id)) return json(401, { error: 'unauthorized' }); }
     let chat = null;
     if (p.req.chatId) { chat = H.agentChats.find((x) => x.id === p.req.chatId) || null; if (!chat || chat.member_id !== u.id || chat.deleted_at || chat.agent !== p.req.agent) return json(404, { error: 'not_found' }); }
-    const hist = chat ? H.agentMsgs.filter((m) => m.chat_id === chat.id) : [];
+    // the owner 22 Nov: with the member's consent on the message (b.share) the outside company gets that message — of the chat's
+    // history only what it already has: its own earlier answers and the questions they answered; never the system's answers
+    // (their numbers) nor another company's
+    const all = chat ? H.agentMsgs.filter((m) => m.chat_id === chat.id) : [];
+    const hist = !Array.isArray(b.share) ? all : all.filter((m, i) => (m.role === 'assistant' && m.source && m.source === b.provider) || (m.role === 'user' && all[i + 1] && all[i + 1].role === 'assistant' && all[i + 1].source && all[i + 1].source === b.provider));
     H.calls[H.calls.length - 1].agent = p.req.agent; H.calls[H.calls.length - 1].files = (p.req.files || []).map((f) => f.kind + ':' + f.name); H.calls[H.calls.length - 1].question = p.req.question; H.calls[H.calls.length - 1].history = hist.length; H.calls[H.calls.length - 1].chat = chat ? chat.id : null;
     if (H.agentFail) return H.agentFail === 'refused' ? json(200, { result: 'refused', model: 'mock' }) : json(H.agentFail === 'ai_cap' ? 402 : H.agentFail === 'busy' ? 429 : H.agentFail === 'not_configured' ? 503 : 502, { error: H.agentFail });
     const cfg = H.agents[p.req.agent] || {};
