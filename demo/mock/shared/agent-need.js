@@ -5,11 +5,11 @@
 //   data     — the system's own data (one maker's account, orders, customers, requests …) with the member's own client, any assistant
 //              (the owner 18 Nov: «لما بسأل المحاسب علي حساب حد يجبلي لينك للمبتكرين» — the answer comes in the chat, not a page link);
 // the server reads them (read only) and the assistant answers again with them as data. Pure: the calls are in ai-content.
-import { GRAPH } from './cs-channel.js?v=2046d4f32a';
-import { searchResults } from './mkt-trends.js?v=2046d4f32a';
-import { purchasesOf } from './mkt-ads.js?v=2046d4f32a';
-import { FALLBACK } from './ai-content.js?v=2046d4f32a';
-import { DATA_KINDS } from './ai-assistant.js?v=2046d4f32a';
+import { GRAPH } from './cs-channel.js?v=22482ab8bb';
+import { searchResults } from './mkt-trends.js?v=22482ab8bb';
+import { purchasesOf } from './mkt-ads.js?v=22482ab8bb';
+import { FALLBACK } from './ai-content.js?v=22482ab8bb';
+import { DATA_KINDS } from './ai-assistant.js?v=22482ab8bb';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const STR = () => ({ type: 'string' });

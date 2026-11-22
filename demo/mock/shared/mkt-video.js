@@ -2,7 +2,7 @@
 // as the Magnific MCP catalog lists them (read live 7 Nov), the scenes (their durations from the piece's length, fitted to the model),
 // the English prompts of a clip and of a chained multi-shot call, the voice-over and music calls, the mix plan, the stored files'
 // names and the shapes of the requests. Shared by ai-images / ai-content (Deno) and the node tests. Nothing here talks to the network.
-import { line, notesText, paras } from './ai-content.js?v=2046d4f32a';
+import { line, notesText, paras } from './ai-content.js?v=22482ab8bb';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

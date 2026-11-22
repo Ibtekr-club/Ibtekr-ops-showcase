@@ -2290,20 +2290,36 @@
     if (part === 'api') return !!(x.link && x.link.ready); if (part === 'bridge') return !!(x.bridge && x.bridge.linked);
     return x.status === 'متصل';
   }
+  // the owner 22 Nov («جملة إختيار مزودين الذكاء الاصطناعي تلقائيا و جمبيها راديو باتون … لو شلت الاختيار التلقائي … يكتب اسم الشركة و
+  // الموديلز»): the card's switch (IBAIRouting.autoSwitch). On: every field takes a company only. Off: every field takes its company
+  // and model from the linked companies' tabs (IBAIRouting.modelField).
   function providersSec() {
     if (!LINKS.at) loadLinks();
+    const AIR = window.IBAIRouting && window.IBAIRouting.modelField ? window.IBAIRouting : null;
     const ai = SETT().section('ai') || {}; const P = ai.providers && typeof ai.providers === 'object' ? JSON.parse(JSON.stringify(ai.providers)) : {};
+    const auto = !AIR || AIR.routingOf(ai).mode === 'auto';
     const get = (k) => (P[k] && typeof P[k] === 'object' ? P[k] : (P[k] = {}));
     const save = async () => { const r = await SETT().save('ai', { providers: P }); if (!r.ok) return fail(r, 'حفظ المزوّدين'); LOGV('settings.ai.providers', Object.keys(P).map((k) => k + '=' + (P[k].default || 'default')).join(' · ')); K.toast('اتحفظ المزوّد', 'success'); R(); };
     const sel = (id, label, value, options, on, help) => U.Select({ id, label, help, options: options.map(([v, l]) => ({ value: v, label: l })), value: value || options[0][0], onChange: (v) => { on(v); save(); } });
+    // the owner 22 Nov («تبص علي التصميم بحيث يتنظم بشكل احترافي لصفحة المزودين و تقسيمتها»): a box per kind of content — its icon, what
+    // it is for and how many of its companies are linked — with the section's own choice beside its tools' overrides
     const blocks = Object.keys(PROV).map((k) => { const d = PROV[k]; const cur = get(k); const eff = d.options.some(([v]) => v === cur.default) ? cur.default : d.options[0][0];
       const live = (v) => !!LINKS.at && provLive(k, v);
       const offer = (keep) => d.options.filter(([v]) => live(v) || v === keep).map(([v, l]) => [v, live(v) || !LINKS.at ? l : l + ' — مش مربوط']); // before the links are read: the chosen one alone, unmarked
-      const main = sel('prov-' + k, d.label + ' — المزوّد الافتراضي', eff, offer(eff), (v) => { cur.default = v; }, LINKS.at && !live(eff) ? 'المزوّد ده مش مربوط — اربطه من «الربط بالمنصات» أو اختار مزوّد مربوط.' : null);
-      const picker = k === 'text' && window.IBAIRouting && window.IBAIRouting.picker ? window.IBAIRouting.picker({ redraw: R, provider: eff }) : null; // decisions 8–10: the automatic switch, the model under the company
-      return h('div', { class: 'prov-block', 'data-prov': k, 'data-prov-live': d.options.filter(([v]) => live(v)).map(([v]) => v).join(' ') }, K.two(h('div', { class: 'prov-main' }, main, picker), d.tools.length ? h('div', { class: 'prov-tools' }, d.tools.map(([t, tl]) => { const tv = (cur.tools || {})[t] || ''; return sel('prov-' + k + '-' + t, tl, tv, [['', 'الافتراضي للقسم']].concat(offer(tv)), (v) => { cur.tools = cur.tools || {}; if (v) cur.tools[t] = v; else delete cur.tools[t]; }); })) : h('div', null))); });
-    return K.Section('مزوّدي الذكاء الاصطناعي', [U.InlineNote({ children: 'بيظهر هنا المزوّد المربوط والشغّال بس — المفاتيح من «الربط بالمنصات › الذكاء الاصطناعي». Magnific بالكريدت، والباقي بالدولار على سقف المحتوى الشهري.' }), ...blocks], null, { sub: 'افتراضي لكل قسم + تبديل لكل أداة (قرار صاحب المشروع، 7 نوفمبر)' });
+      const field = (t, label) => AIR.modelField({ id: 'prov-' + k + (t ? '-' + t : ''), label, title: t ? [d.label, ' › ', label] : [d.label], section: k, tool: t, live: (v) => provLive(k, v), read: !!LINKS.at, redraw: R });
+      const main = auto ? sel('prov-' + k, 'المزوّد', eff, offer(eff), (v) => { cur.default = v; }, LINKS.at && !live(eff) ? 'المزوّد ده مش مربوط — اربطه من «الربط بالمنصات» أو اختار مزوّد مربوط.' : null)
+        : field(null, 'المزوّد والموديل');
+      const tools = d.tools.map(([t, tl]) => { if (!auto) return field(t, tl); const tv = (cur.tools || {})[t] || ''; return sel('prov-' + k + '-' + t, tl, tv, [['', 'الافتراضي للقسم']].concat(offer(tv)), (v) => { cur.tools = cur.tools || {}; if (v) cur.tools[t] = v; else delete cur.tools[t]; }); });
+      const linked = d.options.filter(([v]) => live(v)); const [ic, what] = PROV_KIND[k];
+      const tag = LINKS.at ? (linked.length ? K.Tag('success', ['المربوط: ', String(linked.length)]) : K.Tag('orange', 'مفيش مزوّد مربوط')) : null;
+      return h('div', { class: 'prov-block prov-kind', 'data-prov': k, 'data-prov-size': d.tools.length ? 'wide' : 'half', 'data-prov-live': linked.map(([v]) => v).join(' ') },
+        h('div', { class: 'prov-kind-h' }, h('span', { class: 'set-ic' }, Icon(ic)), h('div', { class: 'prov-kind-t' }, h('h3', { class: 't-h6' }, d.label), h('p', { class: 't-small sub' }, what)), tag),
+        h('div', { class: 'prov-fields' + (d.tools.length ? '' : ' solo') },
+          h('div', { class: 'prov-main' }, d.tools.length ? h('div', { class: 'prov-cap t-small' }, 'للقسم كله') : null, main),
+          d.tools.length ? h('div', { class: 'prov-side' }, h('div', { class: 'prov-cap t-small' }, 'تبديل لكل أداة (اختياري)'), h('div', { class: 'prov-tools' }, tools)) : null)); });
+    return K.Section('مزوّدي الذكاء الاصطناعي', [AIR ? AIR.autoSwitch({ redraw: R }) : null, U.InlineNote({ children: 'بيظهر هنا المزوّد المربوط والشغّال بس — المفاتيح من «الربط بالمنصات › الذكاء الاصطناعي». Magnific بالكريدت، والباقي بالدولار على سقف المحتوى الشهري.' }), h('div', { class: 'prov-grid' }, blocks)], null, { sub: 'شركة لكل نوع محتوى، وتبديل لكل أداة لو محتاج' });
   }
+  const PROV_KIND = { text: ['edit', 'الكتابة والشات وتحليل الأرقام'], image: ['image', 'صور المنتجات والكامبينات'], voice: ['mic', 'الفويس أوفر في الفيديو'], video: ['play', 'مقاطع الفيديو بالذكاء الاصطناعي'] };
   function aiSec() { return aiSecV6(); } // ش42: the providers are a tab of their own
 
   // ---------- the lists (decision 8; phase 12 T3 decision 10; owner batch 14 Nov decisions 4 and 8) ----------

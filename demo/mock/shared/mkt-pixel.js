@@ -3,7 +3,7 @@
 // there, which one, twice?) and the purchases against our orders → a list of issues, each with how to fix it. Nothing is written on Meta
 // or on WordPress; the fix is the member's (the steps, the chat, «تقديم طلب» to the developer). Pure: the calls are in mkt-ads.
 
-import { GRAPH } from './cs-channel.js?v=2046d4f32a';
+import { GRAPH } from './cs-channel.js?v=22482ab8bb';
 
 const enc = encodeURIComponent;
 export const PIXEL_EVENTS = ['PageView', 'ViewContent', 'AddToCart', 'InitiateCheckout', 'Purchase'];

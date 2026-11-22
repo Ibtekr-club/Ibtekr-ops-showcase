@@ -311,9 +311,6 @@
   height:var(--ctl-sm);min-height:var(--ctl-sm);padding:0 10px;font-size:13px;gap:6px
 }
 /* phase 11 additions */
-.prov-block { padding: 8px 0; border-bottom: 1px solid var(--color-border-subtle); }
-.prov-block:last-child { border-bottom: 0; }
-.prov-tools { display: grid; gap: 8px; }
 .act-bar { flex-wrap: wrap; gap: 8px; }
 .act-bar .select, .act-bar .date-field { min-width: 160px; }
 .act-tbl code { font-size: 12px; }
@@ -532,9 +529,36 @@ button.dx-stat{cursor:pointer}button.dx-stat:hover{background:var(--color-bg-hov
 .air-spend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .air-spend h3 { margin: 0 0 6px; }
 /* the owner 22 Nov (model-routing decisions 8–10): under the text company — the automatic switch, the company's levels, the model */
-.prov-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.air-pick { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: var(--color-bg-container); }
-.air-levels { display: flex; flex-wrap: wrap; gap: 8px; }
-.air-level { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--color-border-subtle); background: var(--color-bg-layout, transparent); font-size: 13px; }
-.air-level b { color: var(--color-brand-default); }
+/* the providers card: the mode on top, then a box per kind of content — the section's own choice beside its tools' overrides */
+.prov-auto { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: var(--color-brand-subtle-bg); }
+.prov-auto[data-prov-auto=off] { background: var(--color-bg-container); }
+.prov-auto .sw-row { flex: 1; min-width: 0; padding: 0; border: 0; }
+.prov-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.prov-kind { grid-column: 1 / -1; min-width: 0; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: var(--color-bg-container); }
+.prov-kind[data-prov-size=half] { grid-column: auto; }
+.prov-kind-h { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--color-border-subtle); }
+.prov-kind-t { flex: 1; min-width: 0; }
+.prov-kind-t h3, .prov-kind-t p { margin: 0; }
+.prov-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); gap: 16px; padding: 16px; }
+.prov-fields.solo { grid-template-columns: minmax(0, 1fr); }
+.prov-main, .prov-side { min-width: 0; }
+.prov-side { border-inline-start: 1px solid var(--color-border-subtle); padding-inline-start: 16px; }
+.prov-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.prov-cap { margin-bottom: 8px; font-weight: 600; color: var(--color-text-secondary); }
+}
+/* the company-and-model list (the automatic choice off): a tab per linked company, its models under the open one — one choice */
+.menu.cm-menu { width: 320px; max-width: calc(100vw - 32px); max-height: min(70vh, 440px); padding: 0 0 4px; }
+.cm-menu .cm-title { display: none; }
+.cm-menu .cm-inherit { width: auto; margin: 4px 4px 0; justify-content: space-between; }
+.cm-menu .cm-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 12px 12px 10px; position: sticky; top: 0; z-index: 1; background: var(--color-bg-elevated); border-bottom: 1px solid var(--color-border-subtle); scrollbar-width: thin; }
+.cm-menu .cm-tab { flex: 0 0 auto; white-space: nowrap; cursor: pointer; font: inherit; font-weight: 500; color: var(--color-text-primary); }
+.cm-menu .cm-tab:hover { border-color: var(--color-brand-default); }
+.cm-menu .cm-tab[aria-selected=true] { background: var(--color-brand-default); border-color: var(--color-brand-default); color: var(--color-text-on-brand); }
+.cm-menu .cm-off { font-weight: 400; opacity: .85; }
+.cm-menu .cm-sec { padding: 4px; }
+.cm-menu .cm-sec[hidden] { display: none; }
+.cm-menu .cm-opt { height: auto; min-height: 44px; padding-block: 6px; justify-content: space-between; }
+.cm-menu .cm-n { display: flex; flex-direction: column; min-width: 0; line-height: 1.4; }
+.cm-menu .cm-s { font-size: 12px; font-weight: 400; color: var(--color-text-secondary); }
+.cm-menu .opt > svg { flex: none; }
 @media (max-width: 767px) { .air-tiers, .air-rows, .air-spend { grid-template-columns: minmax(0, 1fr); } }
