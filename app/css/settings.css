@@ -545,22 +545,32 @@ button.dx-stat{cursor:pointer}button.dx-stat:hover{background:var(--color-bg-hov
 .prov-side { border-inline-start: 1px solid var(--color-border-subtle); padding-inline-start: 16px; }
 .prov-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .prov-cap { margin-bottom: 8px; font-weight: 600; color: var(--color-text-secondary); }
-}
-/* the company-and-model list (the automatic choice off): a tab per linked company, its models under the open one — one choice */
-.menu.cm-menu { width: 320px; max-width: calc(100vw - 32px); max-height: min(70vh, 440px); padding: 0 0 4px; }
+/* the company-and-model list: «تلقائي» on top, the companies as one segmented line, each model a row — name · level · price —
+   and what the figures are under them (the owner 22 Nov — «خلي الدروب داون في الدسكتوب شكلها منظم و احترافي») */
+.menu.cm-menu { width: 400px; max-width: calc(100vw - 32px); max-height: min(72vh, 480px); padding: 8px; border-radius: 12px; }
 .cm-menu .cm-title { display: none; }
-.cm-menu .cm-inherit { width: auto; margin: 4px 4px 0; justify-content: space-between; }
-.cm-menu .cm-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 12px 12px 10px; position: sticky; top: 0; z-index: 1; background: var(--color-bg-elevated); border-bottom: 1px solid var(--color-border-subtle); scrollbar-width: thin; }
-.cm-menu .cm-tab { flex: 0 0 auto; white-space: nowrap; cursor: pointer; font: inherit; font-weight: 500; color: var(--color-text-primary); }
-.cm-menu .cm-tab:hover { border-color: var(--color-brand-default); }
-.cm-menu .cm-tab[aria-selected=true] { background: var(--color-brand-default); border-color: var(--color-brand-default); color: var(--color-text-on-brand); }
-.cm-menu .cm-off { font-weight: 400; opacity: .85; }
-.cm-menu .cm-sec { padding: 4px; }
-.cm-menu .cm-sec[hidden] { display: none; }
-.cm-menu .cm-opt { height: auto; min-height: 44px; padding-block: 6px; justify-content: space-between; }
-.cm-menu .cm-n { display: flex; flex-direction: column; min-width: 0; line-height: 1.4; }
+.cm-menu .cm-cap { padding: 10px 6px 6px; font-size: 12px; font-weight: 600; color: var(--color-text-secondary); }
+.cm-menu .opt { height: auto; min-height: 44px; padding: 8px 10px; border-radius: 8px; gap: 10px; border: 1px solid transparent; outline-offset: -2px; }
+.cm-menu .opt[aria-selected=true] { background: var(--color-brand-subtle-bg); border-color: transparent; box-shadow: none; color: var(--color-text-primary); font-weight: 400; }
+.cm-menu .opt[aria-selected=true] .cm-n > bdi, .cm-menu .opt[aria-selected=true] .cm-n > b { color: var(--color-brand-default); font-weight: 700; }
+.cm-menu .cm-inherit { margin-bottom: 4px; padding-bottom: 10px; }
+.cm-menu .cm-inherit + .cm-cap { border-top: 1px solid var(--color-border-subtle); margin-top: 4px; padding-top: 12px; }
+.cm-menu .cm-ic { flex: none; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: var(--color-brand-default); color: var(--color-bg-container); }
+.cm-menu .cm-n { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; line-height: 1.4; }
+.cm-menu .cm-n > bdi, .cm-menu .cm-n > b { max-width: 100%; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cm-menu .cm-s { font-size: 12px; font-weight: 400; color: var(--color-text-secondary); }
-.cm-menu .opt > svg { flex: none; }
+.cm-menu .cm-tag { flex: none; min-width: 58px; text-align: center; padding: 0 8px; border-radius: 999px; font-size: 12px; line-height: 22px; white-space: nowrap; background: var(--color-bg-layout, transparent); border: 1px solid var(--color-border-subtle); color: var(--color-text-secondary); }
+.cm-menu .cm-price { flex: none; min-width: 92px; text-align: end; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--color-text-secondary); white-space: nowrap; }
+.cm-menu .cm-ck { flex: none; width: 16px; display: grid; place-items: center; color: var(--color-brand-default); }
+.cm-menu .cm-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; padding: 4px; border-radius: 10px; border: 1px solid var(--color-border-subtle); background: var(--color-bg-container); overflow-x: auto; scrollbar-width: thin; }
+.cm-menu .cm-tab { min-height: 34px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; font: inherit; font-weight: 600; color: var(--color-text-secondary); white-space: nowrap; cursor: pointer; }
+.cm-menu .cm-tab:hover { color: var(--color-brand-default); }
+.cm-menu .cm-tab[aria-selected=true] { background: var(--color-brand-default); color: var(--color-text-on-brand); }
+.cm-menu .cm-off { font-weight: 400; opacity: .85; }
+.cm-menu .cm-sec { display: flex; flex-direction: column; gap: 2px; }
+.cm-menu .cm-sec[hidden] { display: none; }
+.cm-menu .cm-foot { margin-top: 6px; padding: 8px 6px 2px; border-top: 1px solid var(--color-border-subtle); font-size: 12px; color: var(--color-text-secondary); }
+.cm-menu .opt svg { flex: none; }
 @media (max-width: 767px) { .air-tiers, .air-rows, .air-spend { grid-template-columns: minmax(0, 1fr); } }
 /* the assistants' settings: a tab per assistant, then its own cards (the owner 22 Nov) */
 .ag-tabs-row { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }

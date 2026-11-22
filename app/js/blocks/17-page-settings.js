@@ -109,10 +109,10 @@
     const area = (id, label, key, i) => U.Textarea({ id: 'ai-' + id, label, rows: 3, value: i == null ? A[key] : A[key][i], onInput: (v) => { if (i == null) A[key] = v; else A[key][i] = v; } });
     const sel = (id, label, key, opts) => U.Select({ id: 'ai-' + id, label, options: opts.map((x) => ({ value: x, label: x })), value: A[key], onChange: (v) => { A[key] = v; R(); } });
     const words = (id, label, key) => U.FieldShell({ id: 'ai-' + id, label }, h('div', { class: 'chips' }, A[key].map((w) => h('button', { type: 'button', class: 'chip', 'aria-pressed': 'true', 'aria-label': 'شيل ' + w, onClick: () => { A[key] = A[key].filter((x) => x !== w); R(); } }, w + ' ✕')), Button({ size: 'sm', label: '+ ضيف', onClick: () => K.form({ title: 'ضيف لـ «' + label + '»', values: { w: '' }, fields: (f, e, set) => [K.field.text('w', 'الكلمة', f, e, set, { required: true })], validate: (f) => K.req(f, ['w']), submit: (f) => { A[key] = A[key].concat(f.w); R(); } }) })));
-    const aiTabs = K.MainTabs({ items: [{ id: 'prov', label: 'المزوّدين' }, { id: 'img', label: 'الصور' }, { id: 'vid', label: 'الفيديو' }, { id: 'txt', label: 'المحتوى' }, { id: 'agents', label: 'المساعدين' }], active: st.aiTab, onChange: (id) => { st.aiTab = id; R(); }, label: 'نوع التعليمات' });
+    const aiTabs = K.MainTabs({ items: [{ id: 'prov', label: 'مصادر الذكاء' }, { id: 'img', label: 'الصور' }, { id: 'vid', label: 'الفيديو' }, { id: 'txt', label: 'المحتوى' }, { id: 'agents', label: 'المساعدين' }], active: st.aiTab, onChange: (id) => { st.aiTab = id; R(); }, label: 'نوع التعليمات' });
     // ش42 (the owner 17 Nov — «ممكن تقسم اقسام الذكاء الاصطناعي لتابس بدل ما هما تحت بعض في نفس الصفحة»): one tab at a time — the providers,
     // the images, the video, the content, the assistants
-    if (st.aiTab === 'prov') return [K.Section('تعليمات الذكاء الاصطناعي', [aiTabs], null, { sub: 'مين بيعمل إيه: مزوّد افتراضي لكل قسم وتبديل لكل أداة.' }), providersSec()]
+    if (st.aiTab === 'prov') return [K.Section('تعليمات الذكاء الاصطناعي', [aiTabs], null, { sub: 'مين بيعمل إيه: مصدر ذكاء افتراضي لكل قسم وتبديل لكل أداة.' }), providersSec()]
       .concat(window.IBAIRouting ? window.IBAIRouting.sections({ redraw: R }) : []); // which model runs which command (the original's model-routing plan, 22 Nov)
     if (st.aiTab === 'agents') return [K.Section('تعليمات الذكاء الاصطناعي', [aiTabs], null, { sub: 'المساعدين: تاب لكل مساعد — مخّه الخارجي وقواعده وسكيلزه ومصادره.' })].concat(agentsSec());
     const head = K.Section('تعليمات الذكاء الاصطناعي', [aiTabs], [Button({ type: 'text', label: 'رجّع للافتراضي', onClick: () => K.confirm({ title: 'ترجّع التعليمات للافتراضي؟', text: 'كل التعديلات اللي عملتها هنا هتتشال.', okLabel: 'رجّع', onOk: () => { S.aiRules = AI_DEF(); R(); } }) }), Button({ type: 'primary', label: 'احفظ التعليمات', onClick: () => { LOGV('settings.ai.save', st.aiTab); K.toast('اتحفظت التعليمات — هتتطبق على أي حاجة جديدة بتتولد', 'success'); } })], { sub: 'بتتطبق على كل حاجة بتتولد في «المنتجات» و«التسويق» — اكتبها مرة واحدة.' });
@@ -2307,7 +2307,7 @@
     const ai = SETT().section('ai') || {}; const P = ai.providers && typeof ai.providers === 'object' ? JSON.parse(JSON.stringify(ai.providers)) : {};
     const auto = !AIR || AIR.routingOf(ai).mode === 'auto';
     const get = (k) => (P[k] && typeof P[k] === 'object' ? P[k] : (P[k] = {}));
-    const save = async () => { const r = await SETT().save('ai', { providers: P }); if (!r.ok) return fail(r, 'حفظ المزوّدين'); LOGV('settings.ai.providers', Object.keys(P).map((k) => k + '=' + (P[k].default || 'default')).join(' · ')); K.toast('اتحفظ المزوّد', 'success'); R(); };
+    const save = async () => { const r = await SETT().save('ai', { providers: P }); if (!r.ok) return fail(r, 'حفظ مصادر الذكاء'); LOGV('settings.ai.providers', Object.keys(P).map((k) => k + '=' + (P[k].default || 'default')).join(' · ')); K.toast('اتحفظ مصدر الذكاء', 'success'); R(); };
     const sel = (id, label, value, options, on, help) => U.Select({ id, label, help, options: options.map(([v, l]) => ({ value: v, label: l })), value: value || options[0][0], onChange: (v) => { on(v); save(); } });
     // the owner 22 Nov («تبص علي التصميم بحيث يتنظم بشكل احترافي لصفحة المزودين و تقسيمتها»): a box per kind of content — its icon, what
     // it is for and how many of its companies are linked — with the section's own choice beside its tools' overrides
@@ -2315,17 +2315,17 @@
       const live = (v) => !!LINKS.at && provLive(k, v);
       const offer = (keep) => d.options.filter(([v]) => live(v) || v === keep).map(([v, l]) => [v, live(v) || !LINKS.at ? l : l + ' — مش مربوط']); // before the links are read: the chosen one alone, unmarked
       const field = (t, label) => AIR.modelField({ id: 'prov-' + k + (t ? '-' + t : ''), label, title: t ? [d.label, ' › ', label] : [d.label], section: k, tool: t, live: (v) => provLive(k, v), read: !!LINKS.at, redraw: R });
-      const main = auto ? sel('prov-' + k, 'المزوّد', eff, offer(eff), (v) => { cur.default = v; }, LINKS.at && !live(eff) ? 'المزوّد ده مش مربوط — اربطه من «الربط بالمنصات» أو اختار مزوّد مربوط.' : null)
-        : field(null, 'المزوّد والموديل');
+      const main = auto ? sel('prov-' + k, 'مصدر الذكاء الخارجي', eff, offer(eff), (v) => { cur.default = v; }, LINKS.at && !live(eff) ? 'مصدر الذكاء ده مش مربوط — اربطه من «الربط بالمنصات» أو اختار مصدر مربوط.' : null)
+        : field(null, 'مصدر الذكاء الخارجي والموديل');
       const tools = d.tools.map(([t, tl]) => { if (!auto) return field(t, tl); const tv = (cur.tools || {})[t] || ''; return sel('prov-' + k + '-' + t, tl, tv, [['', 'الافتراضي للقسم']].concat(offer(tv)), (v) => { cur.tools = cur.tools || {}; if (v) cur.tools[t] = v; else delete cur.tools[t]; }); });
       const linked = d.options.filter(([v]) => live(v)); const [ic, what] = PROV_KIND[k];
-      const tag = LINKS.at ? (linked.length ? K.Tag('success', ['المربوط: ', String(linked.length)]) : K.Tag('orange', 'مفيش مزوّد مربوط')) : null;
+      const tag = LINKS.at ? (linked.length ? K.Tag('success', ['المربوط: ', String(linked.length)]) : K.Tag('orange', 'مفيش مصدر ذكاء مربوط')) : null;
       return h('div', { class: 'prov-block prov-kind', 'data-prov': k, 'data-prov-size': d.tools.length ? 'wide' : 'half', 'data-prov-live': linked.map(([v]) => v).join(' ') },
         h('div', { class: 'prov-kind-h' }, h('span', { class: 'set-ic' }, Icon(ic)), h('div', { class: 'prov-kind-t' }, h('h3', { class: 't-h6' }, d.label), h('p', { class: 't-small sub' }, what)), tag),
         h('div', { class: 'prov-fields' + (d.tools.length ? '' : ' solo') },
           h('div', { class: 'prov-main' }, d.tools.length ? h('div', { class: 'prov-cap t-small' }, 'للقسم كله') : null, main),
           d.tools.length ? h('div', { class: 'prov-side' }, h('div', { class: 'prov-cap t-small' }, 'تبديل لكل أداة (اختياري)'), h('div', { class: 'prov-tools' }, tools)) : null)); });
-    return K.Section('مزوّدي الذكاء الاصطناعي', [AIR ? AIR.autoSwitch({ redraw: R }) : null, U.InlineNote({ children: 'بيظهر هنا المزوّد المربوط والشغّال بس — المفاتيح من «الربط بالمنصات › الذكاء الاصطناعي». Magnific بالكريدت، والباقي بالدولار على سقف المحتوى الشهري.' }), h('div', { class: 'prov-grid' }, blocks)], null, { sub: 'شركة لكل نوع محتوى، وتبديل لكل أداة لو محتاج' });
+    return K.Section('مصادر الذكاء', [AIR ? AIR.autoSwitch({ redraw: R }) : null, U.InlineNote({ children: 'بيظهر هنا مصدر الذكاء المربوط والشغّال بس — المفاتيح من «الربط بالمنصات › الذكاء الاصطناعي». Magnific بالكريدت، والباقي بالدولار على سقف المحتوى الشهري.' }), h('div', { class: 'prov-grid' }, blocks)], null, { sub: 'شركة لكل نوع محتوى، وتبديل لكل أداة لو محتاج' });
   }
   const PROV_KIND = { text: ['edit', 'الكتابة والشات وتحليل الأرقام'], image: ['image', 'صور المنتجات والكامبينات'], voice: ['mic', 'الفويس أوفر في الفيديو'], video: ['play', 'مقاطع الفيديو بالذكاء الاصطناعي'] };
   function aiSec() { return aiSecV6(); } // ش42: the providers are a tab of their own

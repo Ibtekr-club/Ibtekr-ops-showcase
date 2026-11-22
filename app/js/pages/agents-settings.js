@@ -84,8 +84,8 @@
     const S0 = SET(); const R = window.IBAIRouting; if (!S0 || !S0.section || !R || !R.brainField) return null;
     const ai = S0.section('ai') || {}; const admin = !!(S0.can && S0.can().admin); const cur = brainOf(ai, agent.id);
     const field = R.brainField({ id: 'ag-brain-' + agent.id, label: tx('المخ الخارجي', 'Outside AI'), title: [agent.name, ' › ', tx('المخ الخارجي', 'Outside AI')], value: cur, live: o.live, read: o.read, disabled: !admin,
-      inherit: tx('تلقائي — زي المزوّدين', 'Automatic — as the providers'),
-      help: cur ? tx('المساعد ده هيستخدم الموديل ده لما توافق على مخ خارجي.', 'This assistant will use this model when you agree to an outside AI.') : tx('السيستم بيختار الشركة والموديل زي كارت «المزوّدين».', 'The system chooses the company and the model as the “Providers” card does.'),
+      inherit: tx('تلقائي', 'Automatic'), inheritSub: tx('السيستم يختار الشركة والموديل المناسب', 'The system chooses the right company and model'),
+      help: cur ? tx('المساعد ده هيستخدم الموديل ده لما توافق على مخ خارجي.', 'This assistant will use this model when you agree to an outside AI.') : tx('السيستم بيختار الشركة والموديل زي كارت «مصادر الذكاء».', 'The system chooses the company and the model as the “Providers” card does.'),
       onChange: (v) => saveAgent(agent.id, { brain: v ? { provider: v.provider, model: v.model } : null }, v ? 'brain=' + v.provider + ':' + v.model : 'brain=auto', o.redraw,
         tx('اتحفظ — ', 'Saved — ') + (v ? R.CATALOG.text[v.provider].name + ' · ' + R.nameOf(v.model) : tx('تلقائي', 'Automatic'))) });
     const card = K.Section(tx('المخ الخارجي', 'Outside AI'), [h('div', { class: 'ag-brain', 'data-ag-brain': cur ? cur.provider + ':' + cur.model : 'auto', 'data-set-instant': '' }, h('span', { class: 'set-ic' }, Icon('zap')),

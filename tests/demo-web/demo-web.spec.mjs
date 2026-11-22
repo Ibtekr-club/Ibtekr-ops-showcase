@@ -231,7 +231,7 @@ test('AI providers: a box per kind with only the linked companies; the switch of
   await expect(page.locator('[data-prov-auto]')).toHaveAttribute('data-prov-auto', 'off'); await expect(page.locator('#prov-text')).toHaveText('ChatGPT — GPT-5.2 mini');
   expect(await arabicShown(page), 'settings › AI providers, the automatic choice off').toEqual([]);
   await page.locator('#prov-text-marketing').click(); await expect(page.locator('.cm-menu [data-cm-tab]')).toHaveCount(2); await page.waitForTimeout(500);
-  expect(await page.evaluate(() => [...document.querySelectorAll('.cm-menu .cm-sec:not([hidden]) .cm-s')].map((x) => x.textContent))).toEqual(['Strong · $4 in · $20 out', 'Medium · $2 in · $10 out', 'Light · $0.10 in · $0.50 out']);
+  expect(await page.evaluate(() => [...document.querySelectorAll('.cm-menu .cm-sec:not([hidden]) .cm-opt')].map((x) => [x.querySelector('.cm-tag').textContent, x.querySelector('.cm-price').textContent]))).toEqual([['Strong', '$4 · $20'], ['Medium', '$2 · $10'], ['Light', '$0.10 · $0.50']]);
   expect(await arabicShown(page), 'settings › AI providers, the list open').toEqual([]);
   await page.keyboard.press('Escape'); await page.locator('#prov-auto').click();
   await expect(page.locator('[data-prov-auto]')).toHaveAttribute('data-prov-auto', 'on'); await page.waitForTimeout(1200);
@@ -254,7 +254,7 @@ test('the assistants in the settings: a tab each with its card, outside AI, rule
   await expect(page.locator('[data-ag-tab]')).toHaveText(['المدير العام', 'الميديا باير الذكي', 'الديزاينر الذكي', 'المبرمج الذكي', 'التشغيل الذكي', 'خدمة العملاء الذكية', 'خدمة المبتكرين الذكية', 'المحاسب الذكي', 'الموارد البشرية الذكية'], { timeout: 20000 });
   for (const id of ['manager', 'buyer', 'designer', 'dev', 'stock', 'cs', 'makers', 'accountant', 'hr']) {
     await page.locator(`[data-ag-tab="${id}"]`).click(); await expect(page.locator(`[data-ag-row="${id}"]`)).toBeVisible();
-    await expect(page.locator(`#ag-brain-${id}`)).toHaveText('تلقائي — زي المزوّدين');
+    await expect(page.locator(`#ag-brain-${id}`)).toHaveText('تلقائي');
     expect(await page.locator('[data-kb="rules"] [data-kb-item]').count(), id + ': the four of every assistant + its own three').toBe(7);
     expect(await page.locator('[data-kb="skills"] [data-kb-item]').count(), id + ': its three skills').toBe(3);
     expect(await page.locator(`[data-ag-srcs="${id}"] .ag-src`).count(), id + ': its sources').toBeGreaterThanOrEqual(3);

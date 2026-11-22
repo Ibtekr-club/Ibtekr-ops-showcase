@@ -20,5 +20,15 @@
 "لسه مفيش مساعدين": "No assistants yet",
 "ابدأ بـ «مساعد جديد».": "Start with “New assistant”.",
 "رجّعه": "Restore",
-"أرشف": "Archive"
+"أرشف": "Archive",
+"مصادر الذكاء": "AI providers",
+"مين بيعمل إيه: مصدر ذكاء افتراضي لكل قسم وتبديل لكل أداة.": "Who does what: a default provider for each section and an override per tool.",
+"حفظ مصادر الذكاء": "Save providers",
+"اتحفظ مصدر الذكاء": "Provider saved",
+"مصدر الذكاء الخارجي": "Outside AI provider",
+"مصدر الذكاء الخارجي والموديل": "Outside AI provider and model",
+"مفيش مصدر ذكاء مربوط": "No provider connected",
+"مصدر الذكاء ده مش مربوط — اربطه من «الربط بالمنصات» أو اختار مصدر مربوط.": "This provider is not connected — connect it from “Integrations” or choose a connected one.",
+"بيظهر هنا مصدر الذكاء المربوط والشغّال بس — المفاتيح من «الربط بالمنصات › الذكاء الاصطناعي». Magnific بالكريدت، والباقي بالدولار على سقف المحتوى الشهري.": "Only the connected, working provider shows here — the keys are in “Integrations › AI”. Magnific is billed in credits, the rest in dollars against the monthly content cap.",
+"الأداة اللي ليها مصدر ذكاء تاني بتمشي على مستويات مصدرها.": "A tool with another provider follows its provider’s levels."
 }

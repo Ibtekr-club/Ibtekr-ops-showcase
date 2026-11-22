@@ -684,12 +684,12 @@
     box-shadow:0 -8px 32px rgba(46,42,27,.24),0 0 0 100vmax rgba(46,42,27,.38);animation:m-sheet-up .22s var(--m-ease)}
   .menu.cm-menu.floating::before{content:'';display:block;width:36px;height:4px;border-radius:2px;background:var(--color-border-default);opacity:.45;margin:4px auto 8px}
   .cm-menu .cm-title{display:block;padding:2px 6px 10px;font-size:16px;font-weight:700;color:var(--color-brand-default)}
-  .cm-menu .cm-inherit{margin:0 0 6px}
-  .cm-menu .cm-tabs{position:static;padding:4px 2px 10px;overscroll-behavior-x:contain}
-  .cm-menu .cm-tab{min-height:44px;padding-inline:16px;font-size:15px}
-  .cm-menu .cm-sec{padding:6px 0 0}
+  .cm-menu .cm-cap{font-size:13px;padding-inline:6px}
+  .cm-menu .cm-tabs{overscroll-behavior-x:contain}
+  .cm-menu .cm-tab{min-height:44px;font-size:15px}
   .cm-menu .cm-opt,.cm-menu .cm-inherit{min-height:52px;padding-inline:12px;border-radius:10px;font-size:15px}
-  .cm-menu .cm-s{font-size:13px}
+  .cm-menu .cm-s,.cm-menu .cm-tag{font-size:13px}
+  .cm-menu .cm-price{min-width:0;font-size:13px}
   /* the box a list opens from stays above the bottom bar while it is open */
   .prov-kind:has(.menu.cm-menu){position:relative;z-index:45}
 }

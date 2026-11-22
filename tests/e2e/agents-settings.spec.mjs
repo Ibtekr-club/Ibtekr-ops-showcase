@@ -59,7 +59,7 @@ test('«المساعدين» — a tab per assistant (+ مساعد جديد · �
   await expect.poll(() => mock.mkt.aiKb.filter((k) => k.kind === 'skills').map((k) => [k.section, k.agents])).toEqual([['التحليل', ['accountant']]]);
   // the accountant's own card, its outside brain (automatic until one is picked) and its shipped sources
   await expect(page.locator('[data-ag-row="accountant"]')).toContainText('الحسابات');
-  await expect(page.locator('[data-ag-brain]')).toHaveAttribute('data-ag-brain', 'auto'); await expect(page.locator('#ag-brain-accountant')).toHaveText('تلقائي — زي المزوّدين');
+  await expect(page.locator('[data-ag-brain]')).toHaveAttribute('data-ag-brain', 'auto'); await expect(page.locator('#ag-brain-accountant')).toHaveText('تلقائي');
   await expect(page.locator('[data-ag-sources]')).toHaveAttribute('data-ag-sources', 'default');
   await expect(page.locator('[data-ag-srcs="accountant"] .ag-src b')).toContainText(['مصلحة الضرائب المصرية', 'Dokan Docs']);
   // «أرشف» the new assistant in its tab — gone from «الذكاء الاصطناعي», its tab marked, «رجّعه» there
@@ -95,7 +95,7 @@ test('ش42: «تعليمات الذكاء الاصطناعي» in tabs — the p
   await signIn(page);
   await page.evaluate(() => { location.hash = 'settings-ai'; });
   const st = page.locator('#pg-settings');
-  await expect(st.getByRole('tab')).toContainText(['المزوّدين', 'الصور', 'الفيديو', 'المحتوى', 'المساعدين']);
+  await expect(st.getByRole('tab')).toContainText(['مصادر الذكاء', 'الصور', 'الفيديو', 'المحتوى', 'المساعدين']);
   await expect(st.locator('[data-prov="text"]')).toBeVisible();
   await expect(st).not.toContainText('قواعد اللقطات');
   await st.getByRole('tab', { name: 'الصور', exact: true }).click();
@@ -192,7 +192,7 @@ test('an assistant\'s outside brain — automatic, or a company and model from t
     await page.locator('.cm-menu [data-cm-tab="openai"]').click({ timeout: 1500 }); await page.locator('.cm-menu [data-cm="openai:gpt-5.2-mini"]').click({ timeout: 1500 }); }).toPass();
   await expect.poll(() => ((aiRow().agents || {}).cs || {}).brain).toEqual({ provider: 'openai', model: 'gpt-5.2-mini' });
   await expect(page.locator('#ag-brain-cs')).toHaveText('ChatGPT — GPT-5.2 mini'); await expect(page.locator('#pg-settings .save-bar')).toHaveCount(0);
-  await page.locator('[data-ag-tab="hr"]').click(); await expect(page.locator('#ag-brain-hr')).toHaveText('تلقائي — زي المزوّدين'); // another assistant keeps its own
+  await page.locator('[data-ag-tab="hr"]').click(); await expect(page.locator('#ag-brain-hr')).toHaveText('تلقائي'); // another assistant keeps its own
   await page.locator('[data-ag-tab="cs"]').click();
   await expect(async () => { await page.keyboard.press('Escape'); await page.locator('#ag-brain-cs').click({ timeout: 1500 }); await page.locator('.cm-menu [data-cm=""]').click({ timeout: 1500 }); }).toPass();
   await expect.poll(() => (aiRow().agents || {}).cs).toBeUndefined();

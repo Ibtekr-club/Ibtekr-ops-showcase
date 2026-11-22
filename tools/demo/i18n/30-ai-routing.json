@@ -103,5 +103,8 @@
 "مقاطع الفيديو بالذكاء الاصطناعي": "AI video clips",
 "المربوط:": "Connected:",
 "مفيش مزوّد مربوط": "No provider connected",
-"شركة لكل نوع محتوى، وتبديل لكل أداة لو محتاج": "A company for each kind of content, with an override per tool if needed"
+"شركة لكل نوع محتوى، وتبديل لكل أداة لو محتاج": "A company for each kind of content, with an override per tool if needed",
+"، والبسيط بيتحاسب زي التقيل. شغّله من كارت «مصادر الذكاء» فوق عشان كل أمر ياخد موديل مستواه.": ", and simple work is billed like heavy work. Turn it on in the providers card above so each command takes the model of its level.",
+"— لو أي شركة مربوطة نزّلت موديل جديد أو وقّفت موديل، «المبرمج الذكي» هيبعت تنبيه في الجرس عشان السيستم يتحدّث. الأداة اللي ليها مصدر ذكاء تاني بتمشي على مستويات مصدرها.": "— if a connected company releases a new model or retires one, the “Smart developer” sends an alert to the bell so the system gets updated. A tool with a provider of its own follows that provider’s levels.",
+"— «اختيار الموديل تلقائي» شغّال (كل أمر على موديل مستواه): الموديل ده بيشتغل لما تقفله بس، من الإعدادات › الذكاء الاصطناعي › مصادر الذكاء.": "— “Choose the model automatically” is on (each command on the model of its level): this model is used only when you turn it off, from Settings › AI › Providers."
 }

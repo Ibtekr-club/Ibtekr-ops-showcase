@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { installSupabaseMock, LIVE, DEV_PW } from './supabase-mock.mjs';
 
 // The owner 22 Nov (docs/superpowers/plans/2026-11-22-model-routing.md — «يبقا مكتوب في التعليمات احسن طريقة تخليني استخدم الكريديت صح
-// يعني امتا يستخدم كل موديل و في اي امر»): the card «أنهي موديل لأنهي أمر» under «الإعدادات › الذكاء الاصطناعي › المزوّدين» — the three
+// يعني امتا يستخدم كل موديل و في اي امر»): the card «أنهي موديل لأنهي أمر» under «الإعدادات › الذكاء الاصطناعي › مصادر الذكاء» — the three
 // levels with their model and price, every command on its recommended level by itself, a command moved by the admin, one model
 // for everything, and this month's spend by model and by kind of work. Mock only.
 const ADMIN = 'admin.dev@ibtekr.local';
@@ -67,7 +67,7 @@ test('the routing card: three levels with their prices, every command on its lev
   await expect.poll(() => aiRow().routing).toBeUndefined();
   // the providers card's switch off: the commands are locked, every field names its company and its model — the light one too
   const sw = page.locator('[data-prov-auto]');
-  await expect(sw).toHaveAttribute('data-prov-auto', 'on'); await expect(sw).toContainText('اختيار مزوّدي الذكاء الاصطناعي تلقائيًا');
+  await expect(sw).toHaveAttribute('data-prov-auto', 'on'); await expect(sw).toContainText('اختيار مصادر الذكاء تلقائيًا');
   await page.locator('#prov-auto').click();
   await expect.poll(() => (aiRow().routing || {}).mode).toBe('single');
   await expect(card).toHaveAttribute('data-ai-routing', 'single'); await expect(card).toContainText('الاختيار التلقائي مقفول');
@@ -123,8 +123,8 @@ test('the providers: a box per kind, only the linked companies offered (the chos
   // nothing of the images is linked in this test: the chosen one alone, marked, with the way out
   await page.locator('#prov-image').click();
   await expect(page.getByRole('option')).toHaveText(['Magnific (كريدت) — مش مربوط']); await page.keyboard.press('Escape');
-  await expect(page.locator('[data-prov="image"]')).toContainText('المزوّد ده مش مربوط'); await expect(page.locator('[data-prov="image"] .prov-kind-h')).toContainText('مفيش مزوّد مربوط');
-  await expect(text).not.toContainText('المزوّد ده مش مربوط');
+  await expect(page.locator('[data-prov="image"]')).toContainText('مصدر الذكاء ده مش مربوط'); await expect(page.locator('[data-prov="image"] .prov-kind-h')).toContainText('مفيش مصدر ذكاء مربوط');
+  await expect(text).not.toContainText('مصدر الذكاء ده مش مربوط');
   // ChatGPT linked from «الربط بالمنصات»: it joins the lists; chosen, the routing card is its own
   link('openai');
   await page.reload(); await expect(page.locator('#root')).toBeVisible(); await page.evaluate(() => { location.hash = 'settings-ai'; });
@@ -143,7 +143,8 @@ test('the providers: a box per kind, only the linked companies offered (the chos
     await page.keyboard.press('Escape'); await page.locator('#prov-text').click({ timeout: 1500 });
     await expect(page.locator('.cm-menu [data-cm-tab]')).toHaveText(['Claude', 'ChatGPT'], { timeout: 1000 });
     await expect(page.locator('.cm-menu [data-cm-tab="openai"]')).toHaveAttribute('aria-selected', 'true', { timeout: 1000 });
-    await expect(page.locator('.cm-menu [role=option]:visible')).toHaveText([/GPT-5\.2.*متوسط وقوي.*\$1\.25 دخل · \$10 خرج/, /GPT-5\.2 mini.*ضعيف/], { timeout: 1000 });
+    await expect(page.locator('.cm-menu [role=option]:visible')).toHaveText([/GPT-5\.2.*متوسط وقوي.*\$1\.25 · \$10/, /GPT-5\.2 mini.*ضعيف.*\$0\.25 · \$2/], { timeout: 1000 });
+    await expect(page.locator('.cm-menu .cm-foot')).toHaveText('السعر بالدولار لكل مليون توكن: دخل · خرج', { timeout: 1000 });
     await page.locator('.cm-menu [data-cm-tab="claude"]').click({ timeout: 1500 }); // the other tab: its three, none chosen
     await expect(page.locator('.cm-menu [role=option]:visible')).toHaveCount(3, { timeout: 1000 }); await expect(page.locator('.cm-menu [role=option][aria-selected=true]:visible')).toHaveCount(0, { timeout: 1000 });
     await page.locator('.cm-menu [data-cm-tab="openai"]').click({ timeout: 1500 }); await page.locator('.cm-menu [data-cm="openai:gpt-5.2-mini"]').click({ timeout: 1500 });
