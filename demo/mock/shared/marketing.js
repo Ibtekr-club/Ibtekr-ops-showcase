@@ -5,19 +5,19 @@
 // model) and the edit prompt with the pins (decision 9), and the AI writing (decision 10): the Claude request of each task and the
 // cleaning of its answer. Nothing here talks to a provider or a database.
 
-import { DEFAULT_MODEL, MAX_PROMPT, MODEL_IDS, line as imgLine, sizeOf } from './ai-images.js?v=d0e88c42dd';
-import { FALLBACK, IMAGE_TYPES, MAX_IMAGE_B64, MAX_TOKENS, line, memberNotes, notesText, paras } from './ai-content.js?v=d0e88c42dd';
-import { kbBlocks } from './agent-kb.js?v=d0e88c42dd';
-import { AGENT_ID } from './ai-agents.js?v=d0e88c42dd';
-import { speedLine } from './site-speed.js?v=d0e88c42dd';
-import { DRAFT_RULE, DRAFT_SCHEMA, campaignDraft } from './campaign-draft.js?v=d0e88c42dd';
-import { pixelText } from './mkt-pixel.js?v=d0e88c42dd';
-import { NAME_RULE } from './names.js?v=d0e88c42dd';
-import { fileBlocks, parseFiles } from './agent-files.js?v=d0e88c42dd';
-import { NEED_SCHEMA, cleanNeed, needRule } from './agent-need.js?v=d0e88c42dd';
-import { TEAM_RULE } from './agent-team.js?v=d0e88c42dd';
-import { PLAN_RULE, PLAN_SCHEMA, cleanPlan } from './product-plan.js?v=d0e88c42dd';
-import { ASK_FIELDS_MAX, ASK_KINDS, ASK_OPTIONS_MAX, CLIENT_TOOL_DEFS, FORMS, PAGES, cleanAction, cleanAsk } from './ai-assistant.js?v=d0e88c42dd';
+import { DEFAULT_MODEL, MAX_PROMPT, MODEL_IDS, line as imgLine, sizeOf } from './ai-images.js?v=33f8b95a4d';
+import { FALLBACK, IMAGE_TYPES, MAX_IMAGE_B64, MAX_TOKENS, line, memberNotes, notesText, paras } from './ai-content.js?v=33f8b95a4d';
+import { kbBlocks } from './agent-kb.js?v=33f8b95a4d';
+import { AGENT_ID } from './ai-agents.js?v=33f8b95a4d';
+import { speedLine } from './site-speed.js?v=33f8b95a4d';
+import { DRAFT_RULE, DRAFT_SCHEMA, campaignDraft } from './campaign-draft.js?v=33f8b95a4d';
+import { pixelText } from './mkt-pixel.js?v=33f8b95a4d';
+import { NAME_RULE } from './names.js?v=33f8b95a4d';
+import { fileBlocks, parseFiles } from './agent-files.js?v=33f8b95a4d';
+import { NEED_SCHEMA, cleanNeed, needRule } from './agent-need.js?v=33f8b95a4d';
+import { TEAM_RULE } from './agent-team.js?v=33f8b95a4d';
+import { PLAN_RULE, PLAN_SCHEMA, cleanPlan } from './product-plan.js?v=33f8b95a4d';
+import { ASK_FIELDS_MAX, ASK_KINDS, ASK_OPTIONS_MAX, CLIENT_TOOL_DEFS, FORMS, PAGES, cleanAction, cleanAsk } from './ai-assistant.js?v=33f8b95a4d';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
