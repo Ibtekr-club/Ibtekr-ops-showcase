@@ -141,6 +141,9 @@
     return null;
   }
   function fillAccount(menu) {
+    // every width (the owner 22 Nov — the account menu, redrawn): the member's own picture heads the menu, beside the name
+    var hd = menu.querySelector('.acct-h'); var av = document.querySelector('.topbar .user-btn .avatar');
+    if (hd && av && !hd.querySelector('.m-av')) { var pic = av.cloneNode(true); pic.classList.add('m-av'); pic.setAttribute('aria-hidden', 'true'); hd.insertBefore(pic, hd.firstChild); }
     if (!narrow || !narrow.matches || menu.querySelector('.m-moved')) return;
     var head = menu.querySelector('.acct-h'); var first = menu.querySelector('.opt'); if (!first) return;
     var frag = document.createDocumentFragment();

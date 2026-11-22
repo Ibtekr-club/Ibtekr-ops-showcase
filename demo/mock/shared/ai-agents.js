@@ -3,7 +3,7 @@
 // the three of marketing (their own prompts stay in marketing.js). The pure part: the base prompt of each, the rules and skills of one
 // assistant out of the one list (0120 ai_agent_kb — empty «agents» = all of them), and the data block the server read with the member's
 // own client. Nothing here executes anything — an assistant reads and advises, a real job goes to a person through «تقديم طلب».
-import { kbOf } from './agent-kb.js?v=21ae9850bd';
+import { kbOf } from './agent-kb.js?v=38791e6e07';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 export const AGENT_ID = /^[a-z][a-z0-9_]{1,30}$/;
