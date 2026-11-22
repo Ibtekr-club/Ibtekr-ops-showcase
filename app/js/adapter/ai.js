@@ -19,7 +19,8 @@
   const MAX_PHOTO = 1568; // Claude reads a photo at this size; the server takes 2 MB of base64 at most
   // the listed models / efforts (the server's MODELS / EFFORTS in _shared/ai-content.js) with their labels, and about one product's
   // cost on each (decision 2) for the confirmations
-  const MODELS = [{ id: 'claude-opus-5-5', label: 'Claude Opus 5.5 — أدق', cost: 0.05 }, { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 — أرخص بالنص', cost: 0.025 }];
+  const MODELS = [{ id: 'claude-opus-5-5', label: 'Claude Opus 5.5 — أدق', cost: 0.05 }, { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 — أرخص بالنص', cost: 0.025 },
+    { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 — الأرخص (للبسيط)', cost: 0.002 }]; // the light one since the owner's 22 Nov (a model of his own under the company)
   const EFFORTS = [{ id: 'low', label: 'سريع — تفكير أقل' }, { id: 'medium', label: 'متوازن' }, { id: 'high', label: 'متأني — تفكير أكتر' }];
   const DEFAULTS = { model: 'claude-opus-5-5', effort: 'medium', cap: null };
   const EST_COST = MODELS[0].cost;
@@ -207,5 +208,26 @@
     return out;
   }
 
-  window.IBAI = { extract, can, write, studio, shotPrompts, assistant, history, photoOf, settings, saveSettings, monthSpend, estCost, MODELS, EFFORTS, EST_COST };
+  // The owner 22 Nov (model routing — «استخدم الكريديت صح»): this Cairo month's text runs for the settings card — every run's kind of work
+  // (action + source), model and cost, and the totals by model. The admin's read is every member's (RLS); images (credits) are not here.
+  async function spendBreakdown() {
+    const cl = c(); if (!cl) return { ok: false, reason: 'network' };
+    try {
+      const now = new Date(); const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) - 3 * 3600 * 1000).toISOString(); const month = cairoMonth(now.toISOString());
+      const all = [];
+      for (let from = 0; from < 10000; from += 1000) {
+        const { data, error } = await cl.from('ai_runs').select('action, source, model, status, cost_usd, created_at').gte('created_at', since).neq('action', 'image').order('created_at', { ascending: true }).range(from, from + 999);
+        if (error) return { ok: false, reason: 'network' };
+        all.push(...(data || [])); if (!data || data.length < 1000) break;
+      }
+      const rows = all.filter((r) => cairoMonth(r.created_at) === month && r.status !== 'cap' && r.status !== 'pending')
+        .map((r) => ({ action: String(r.action || ''), source: String(r.source || ''), model: String(r.model || ''), cost: Number(r.cost_usd) || 0 }));
+      const models = new Map();
+      for (const r of rows) { const m = models.get(r.model) || { model: r.model, runs: 0, cost: 0 }; m.runs++; m.cost += r.cost; models.set(r.model, m); }
+      const total = rows.reduce((t, r) => t + r.cost, 0);
+      return { ok: true, total, runs: rows.length, rows, byModel: [...models.values()].sort((a, b) => b.cost - a.cost) };
+    } catch (e) { return { ok: false, reason: 'network' }; }
+  }
+
+  window.IBAI = { extract, can, write, studio, shotPrompts, assistant, history, photoOf, settings, saveSettings, monthSpend, spendBreakdown, estCost, MODELS, EFFORTS, EST_COST };
 })();

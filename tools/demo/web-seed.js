@@ -195,7 +195,35 @@ export function webSeed(mock, mode) {
   if (!mock || !Array.isArray(mock.orders)) return;
   if (mode === 'single') singleStore(mock); else marketplace(mock);
   money(mock);
+  aiLinks(mock);
   plainNames(mock);
+}
+
+/** The AI companies the demo opens linked — Claude and ChatGPT for the texts (so «المزوّدين» shows a second company's levels), Magnific
+ *  for the images; Gemini is left unlinked, so the lists show what «only the linked companies» means. The keys are made-up fillers
+ *  in the stand-in's Vault (never a real one — the page shows their last four letters only), and a month of made-up runs gives the
+ *  spend card its two tables: each kind of work on the model of its level. */
+function aiLinks(mock) {
+  if (!mock.st || !mock.st.vault) return;
+  const fill = (n) => 'demo'.repeat(n); const now = Date.now(); const ago = (h) => new Date(now - h * 36e5).toISOString();
+  const keys = { anthropic: 'sk-' + 'ant-' + fill(8), openai: 'sk-' + fill(8), magnific_api: fill(6) };
+  for (const [n, key] of Object.entries(keys)) mock.st.vault[n] = JSON.stringify({ key });
+  let row = mock.settings.find((x) => x.section === 'integrations'); if (!row) { row = { section: 'integrations', data: {} }; mock.settings.push(row); }
+  row.data = row.data || {}; row.data.meta = Object.assign({}, row.data.meta);
+  Object.keys(keys).forEach((n, i) => { row.data.meta[n] = { linked_at: ago(24 * (20 + i)), linked_by: null, test: { ok: true, at: ago(24 * (20 + i)), latency_ms: 240 } }; });
+  const runs = [
+    ['assistant', 'chat', 'claude-opus-5-5', 0.0612, 6], ['assistant', 'chat', 'claude-sonnet-5-5', 0.0188, 30], ['assistant', 'chat', 'claude-haiku-5-5', 0.0009, 52], ['assistant', 'chat', 'claude-haiku-5-5', 0.0011, 75],
+    ['assistant', 'filter', 'claude-haiku-5-5', 0.0004, 4], ['assistant', 'filter', 'claude-haiku-5-5', 0.0005, 28], ['assistant', 'filter', 'claude-haiku-5-5', 0.0004, 96],
+    ['write', 'product', 'claude-sonnet-5-5', 0.0241, 9], ['write', 'data', 'claude-sonnet-5-5', 0.0226, 33], ['write', 'product', 'claude-sonnet-5-5', 0.0263, 57],
+    ['studio', 'studio', 'claude-sonnet-5-5', 0.0312, 12], ['studio', 'studio', 'claude-haiku-5-5', 0.0012, 13],
+    ['marketing', 'campaign', 'claude-sonnet-5-5', 0.0284, 20], ['marketing', 'agent', 'claude-sonnet-5-5', 0.0197, 26], ['marketing', 'agent', 'claude-haiku-5-5', 0.0008, 49],
+    ['marketing', 'buyer', 'claude-opus-5-5', 0.0725, 31], ['marketing', 'research', 'claude-opus-5-5', 0.0931, 80],
+  ];
+  const first = new Date(now); first.setUTCDate(1); first.setUTCHours(6, 0, 0, 0); // every run inside this month, whatever the day
+  runs.forEach(([action, source, model, cost, hours], i) => {
+    const at = Math.max(first.getTime() + i * 6e5, now - hours * 36e5);
+    mock.aiRuns.push({ id: 9000 + i, created_at: new Date(at).toISOString(), created_by: null, action, source, model, status: 'ok', credits: 0, cost_usd: cost, label: null });
+  });
 }
 
 /** The tests' stand-in keeps one customer whose name is markup (it proves the pages print names as text). A visitor of the demo
