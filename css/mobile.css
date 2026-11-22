@@ -639,11 +639,12 @@
 /* ---------- 38. «حسابات المبتكرين»: its controls in order (the owner 22 Nov — «شيل زرار ترتيب المبتكرين و رتب الزراير بشكل
    احترافي و منظم») ----------
    The tab opened on three controls of three widths on two ragged lines, then a switch hugging one side. On a phone and a
-   tablet the «ترتيب» list is not shown (the makers stay in the order it starts on — the highest balance first); what is left
+   tablet (and, since, on every width) the «ترتيب» list is not shown — the table's own «ترتيب» sorts it; what is left
    sits on one line — «طلبات السحب» taking the room, «إضافة مبلغ» beside it at the same height — and on a phone the switch
    «الرصيد دلوقتي / كشف بالفترة» runs the full width under it in two equal halves. */
+/* every width (the owner 22 Nov — «زرار الترتيب موجود في الجدول تحت فشيل كمان من الديسكتوب»): the table under it has its own «ترتيب» */
+#vpanel>.toolbar:has([data-wd-filter])>.pop-anchor:has(>.sort-btn:not([data-wd-filter])){display:none}
 @media (max-width:1023px){
-  #vpanel>.toolbar:has([data-wd-filter])>.pop-anchor:has(>.sort-btn:not([data-wd-filter])){display:none}
   #vpanel>.toolbar:has([data-wd-filter]){display:flex;flex-wrap:nowrap;align-items:center;gap:var(--m-s2)}
   #vpanel>.toolbar:has([data-wd-filter])>.pop-anchor{flex:0 0 auto;min-width:0}
   #vpanel>.toolbar:has([data-wd-filter]) .sort-btn,#vpanel>.toolbar:has([data-wd-filter]) .btn{height:44px;min-height:44px;border-radius:var(--m-r-ctl);font-size:14px}
