@@ -71,12 +71,14 @@
   }
   const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return url; } };
 
-  // ---- the assistants on one line of tabs (the archived ones last, marked), then «مساعد جديد»
+  // ---- the assistants as labels (the owner 22 Nov — «خلي الادوار في صفحة المساعدين علي شكل ليبلز عشان ميبقاش التابس فوق و تحت شبه
+  // بعض»): a pill each with its icon, the open one filled — the page's own tabs above keep the underline (the archived ones last,
+  // marked), then «مساعد جديد»
   function tabs(o) {
-    const strip = h('div', { class: 'tabs ag-tabs', role: 'tablist', 'aria-label': tx('المساعدين', 'Assistants'), 'data-ag-tabs': '', 'data-set-instant': '' }, o.agents.map((x) =>
-      h('button', { type: 'button', role: 'tab', class: 'tab ag-tab' + (x.archived ? ' off' : ''), id: 'ag-tab-' + x.id, 'data-ag-tab': x.id, 'aria-selected': String(x.id === o.active), tabindex: x.id === o.active ? '0' : '-1', onClick: () => { if (x.id !== o.active) o.onPick(x.id); } },
+    const strip = h('div', { class: 'ag-tabs', role: 'tablist', 'aria-label': tx('المساعدين', 'Assistants'), 'data-ag-tabs': '', 'data-set-instant': '' }, o.agents.map((x) =>
+      h('button', { type: 'button', role: 'tab', class: 'ag-tab' + (x.archived ? ' off' : ''), id: 'ag-tab-' + x.id, 'data-ag-tab': x.id, 'aria-selected': String(x.id === o.active), tabindex: x.id === o.active ? '0' : '-1', onClick: () => { if (x.id !== o.active) o.onPick(x.id); } },
         Icon(x.icon || 'sparkle', 'sm'), h('span', null, x.name), x.archived ? h('span', { class: 'ag-arch' }, tx('مؤرشف', 'archived')) : null)));
-    return h('div', { class: 'ag-tabs-row' }, strip, o.onAdd ? Button({ size: 'sm', type: 'primary', icon: 'plus', label: tx('مساعد جديد', 'New assistant'), attrs: { 'data-set-ag-add': '' }, onClick: o.onAdd }) : null);
+    return h('div', { class: 'ag-tabs-row' }, h('div', { class: 'ag-tabs-h' }, h('span', { class: 't-small sub' }, tx('اختار المساعد', 'Choose the assistant')), o.onAdd ? Button({ size: 'sm', type: 'primary', icon: 'plus', label: tx('مساعد جديد', 'New assistant'), attrs: { 'data-set-ag-add': '' }, onClick: o.onAdd }) : null), strip);
   }
 
   // ---- the outside brain of one assistant
