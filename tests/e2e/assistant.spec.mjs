@@ -583,3 +583,25 @@ test('read-outs from the system: a maker\'s account, a period\'s orders and expe
   expect(await page.evaluate(() => location.hash), 'the page did not move').toBe(hash);
   expect(mock.aiCalls.filter((c) => c.action === 'assistant').length, 'no model was called').toBe(0);
 });
+
+// The owner 22 Nov — «كل الاكشنز اللي ليها علاقة بالسيستم ادخال او اخراج او تعديل بيانات»: an add or an edit said in words opens the
+// system's own popup filled, from the system — no model called, nothing written until the popup's own button.
+test('add / edit by words from the system: a customer, a team request, an expense, an order to confirm — the popup filled, no model, nothing written before its button', async ({ page }) => {
+  await signIn(page, ADMIN); await page.getByRole('button', { name: 'مساعد AI' }).click();
+  const last = panel(page).locator('.ai-msg.ai').last(); const writes = () => [(mock.cs && mock.cs.customers) || [], mock.tickets || [], (mock.acc && mock.acc.acc_expenses) || []].map((x) => x.length).join(',') + '|' + mock.orders.map((x) => x.status + x.confirm).join(''); // the rows the popups would write
+  const w0 = writes();
+  await say(page, 'ضيف عميل أحمد سامي 01001234567 من طنطا'); await expect(last.locator('[data-ai-src]')).toHaveText('من السيستم'); await openLink(page);
+  const cust = page.locator('.modal[role=dialog]', { hasText: 'إضافة عميل' }).last();
+  await expect(cust.locator('#name')).toHaveValue('أحمد سامي'); await expect(cust.locator('#phone')).toHaveValue('01001234567'); await expect(cust.locator('#city')).toHaveValue('طنطا');
+  await cust.getByRole('button', { name: 'إلغاء' }).click();
+  await say(page, 'افتح طلب الطابعة بايظة عاجل'); await openLink(page); await expect(page).toHaveURL(/#tickets/);
+  const req = page.locator('.modal[role=dialog]').last(); await expect(req.locator('input[value="الطابعة بايظة"]')).toHaveCount(1); await req.getByRole('button', { name: 'إلغاء' }).click();
+  await say(page, 'سجل مصروف 500 كهربا'); await expect(last.locator('.ai-form-link')).toContainText('سحب — المصروفات'); await openLink(page);
+  const exp = page.locator('.modal[role=dialog]').last(); await expect(exp.locator('#f-amount')).toHaveValue('500'); await expect(exp.locator('#f-details')).toHaveValue('كهربا'); await exp.getByRole('button', { name: 'إلغاء' }).click();
+  // an order: with a deposit or without is asked; a cancel is sent to the orders page (its reason)
+  const o = mock.orders.find((x) => !x.deleted_at && x.status === 'جاري التنفيذ'); const no = String(o.woo_order_id || o.number || o.id).replace(/\D/g, '');
+  await say(page, 'أكد الأوردر ' + no); await expect(last.locator('.ai-text')).toHaveText('تأكيد الأوردر #' + no + ' — بعربون ولا من غير؟'); await expect(last.locator('[data-ai-pick] button')).toHaveText(['مؤكد بعربون', 'مؤكد بدون عربون']);
+  await say(page, 'خلي الأوردر ' + no + ' ملغي'); await expect(last.locator('.ai-text')).toHaveText(new RegExp('^الإلغاء والاسترجاع والفشل ليهم بوب أب بسبب — افتح الأوردر #' + no));
+  expect(writes(), 'nothing was written').toBe(w0);
+  expect(mock.aiCalls.filter((c) => c.action === 'assistant').length, 'no model was called').toBe(0);
+});

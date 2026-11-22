@@ -21,7 +21,8 @@ test('T3 — the accountant answers with «افتح البوب أب — مصرو
   mock.mkt.agentAnswer = () => ({ text: 'حطيتلك البيانات في البوب أب — راجعها واضغط زراره', forms: [{ form: 'expense_add', values: [{ key: 'direction', value: 'withdraw' }, { key: 'amount', value: '750' }, { key: 'category', value: 'المصروفات' }] }],
     page: { page: 'accounts', tab: '' }, request: { title: '', details: '' } });
   const writes0 = mock.mkt.writes.length;
-  await pg(page).locator('#mk-ask').fill('سجّل مصروف 750 كهربا'); await pg(page).locator('[data-mk-ask]').click();
+  await pg(page).locator('#mk-ask').fill('عايز أسجل مصروف الكهربا زي الشهر اللي فات'); // (an amount said outright — «سجّل مصروف 750 كهربا» — is the system's own now: assistant.spec)
+   await pg(page).locator('[data-mk-ask]').click();
   const links = pg(page).locator('[data-mk-forms]');
   await expect(links.locator('[data-mk-form="expense_add"]')).toContainText('مصروف');
   await expect(links.locator('[data-mk-page="accounts"]')).toContainText('الحسابات');

@@ -57,7 +57,7 @@ test('a list filtered by words: the list, its tab and the words — never the or
   assert.deepEqual(f('show inactive makers'), ['makers', 'makers', 'سجل المبتكرين', ['inactive']]);
   // what it is not
   assert.equal(f('اعرض الأوردرات المتأخرة'), 'ordersFilter'); assert.equal(f('افتح المخزن'), 'goPage'); assert.equal(f('افتح حسابات المبتكرين'), 'navigate'); assert.equal(f('رتب المبتكرين بالعربون'), 'sortVendors');
-  assert.equal(f('سجل مصروف 500 كهربا'), 'unknown', 'an order to write is not a list to show'); assert.equal(f('ليه المبتكرين متأخرين'), 'unknown');
+  assert.equal(f('سجل مصروف 500 كهربا'), 'addExpense', 'an order to write is not a list to show'); assert.equal(f('ليه المبتكرين متأخرين'), 'unknown');
   assert.equal(typeof f('اعرض المبتكرين الموقوفين', Object.assign({}, all, { pages: [{ id: 'orders', label: 'الأوردرات' }] })), 'string', 'a page the member may not open is not filtered');
 });
 
@@ -86,4 +86,33 @@ test('a read-out: a maker’s account by name, a period’s sales / expenses / o
   assert.notEqual(B.understand('سجل عربون 300 لـ Anticora', all).type, 'readMaker');
   assert.equal(r('اعرض المنتجات مكرمية'), 'listFilter'); assert.equal(r('اعرض الأوردرات المتأخرة'), 'ordersFilter'); assert.equal(r('افتح حسابات المبتكرين'), 'navigate');
   assert.equal(r('ليه مبيعات الشهر ده قليلة'), 'unknown', 'a why is a model’s to answer');
+});
+
+// The owner 22 Nov — «كل الاكشنز اللي ليها علاقة بالسيستم ادخال او اخراج او تعديل بيانات»: an add or an edit names one of the system's
+// popups and what to fill it with; the engine writes nothing.
+test('add / edit by words: the popup and its values — a maker, a member, a customer, a request, my HR requests, an order, the payroll, a settlement, money without «سحب»', () => {
+  const all = { vendors: ['Artisan Loft', 'Anticora'], today: '2026-11-22', pages: ['orders', 'vendors', 'accounts', 'inventory', 'products', 'cs', 'tickets', 'hr'].map((id) => ({ id, label: id })) };
+  const f = (s, c) => { const r = B.understand(s, c || all); return r.type === 'openForm' ? [r.form, r.values] : r.type; };
+  assert.deepEqual(f('ضيف مبتكر جديد اسمه ورشة النور'), ['vendor_add', { name: 'ورشة النور' }]);
+  assert.deepEqual(f('ضيف عميل أحمد سامي 01001234567'), ['customer_add', { name: 'أحمد سامي', phone: '01001234567' }]); assert.deepEqual(f('add customer Sara Ali 01112223334'), ['customer_add', { name: 'Sara Ali', phone: '01112223334' }]);
+  assert.deepEqual(f('ضيف موظف كريم عادل karim@x.com'), ['member_add', { name: 'كريم عادل', email: 'karim@x.com' }]);
+  assert.deepEqual(f('افتح طلب الطابعة بايظة عاجل'), ['ticket_new', { title: 'الطابعة بايظة', priority: 'urgent' }]); assert.deepEqual(f('new request printer is broken'), ['ticket_new', { title: 'printer is broken' }]);
+  assert.deepEqual(f('ضيف مهمة مراجعة الأسعار'), ['ticket_new', { title: 'مراجعة الأسعار' }]);
+  assert.deepEqual(f('عايز إجازة'), ['hr_leave', {}]); assert.deepEqual(f('طلب سلفة 2000'), ['hr_advance', { amount: '2000' }]); assert.deepEqual(f('شغل عن بعد'), ['hr_remote', {}]);
+  assert.deepEqual(f('أكد الأوردر 10234 بعربون'), ['order_update', { order: '10234', confirm: 'مؤكد بعربون' }]); assert.deepEqual(f('أكد الأوردر 10234 من غير عربون'), ['order_update', { order: '10234', confirm: 'مؤكد بدون عربون' }]);
+  assert.equal(f('أكد الأوردر 10234'), 'choose', 'with a deposit or without is asked');
+  assert.deepEqual(f('غير حالة الأوردر 10234 لقيد الشحن'), ['order_update', { order: '10234', status: 'قيد الشحن' }]); assert.deepEqual(f('set order 10234 to shipped'), ['order_update', { order: '10234', status: 'قيد الشحن' }]);
+  assert.equal(f('خلي الأوردر 10234 ملغي'), 'tell', 'a cancel takes its reason on the orders page');
+  assert.deepEqual(f('سوي حساب Anticora'), ['vendor_settle', { vendor: 'Anticora' }]);
+  assert.deepEqual(f('خصم 200 من مرتب محمد علي'), ['salary_adjust', { member: 'محمد علي', kind: 'خصم', amount: '200', label: '' }]); assert.deepEqual(f('حول مرتب منى حسن'), ['salary_pay', { member: 'منى حسن' }]);
+  assert.deepEqual(f('مكافأة 500 لمنى حسن')[1].kind, 'بدل');
+  // money said without «سحب»: the accounts' popup, filled
+  const m = (s) => { const r = B.understand(s, all); return [r.type, r.amount, r.vendorType || r.category, r.vendor || r.details || '']; };
+  assert.deepEqual(m('سجل عربون 300 لـ Anticora'), ['addVendorMove', '300', 'عربون', 'Anticora']); assert.deepEqual(m('مواصلات 150 لـ Artisan Loft'), ['addVendorMove', '150', 'مواصلات', 'Artisan Loft']);
+  assert.deepEqual(m('مصروف 1,200 صيانة المكتب'), ['addExpense', '1200', 'المصروفات', 'صيانة المكتب']);
+  // what it is not: the old commands, a page, a list, a read-out, a why; and a page the member may not open opens no popup
+  assert.equal(f('سجل سحب مرتبات 5000'), 'addExpense'); assert.equal(f('افتح طلبات الفريق'), 'goPage'); assert.equal(f('طلبات الفريق العاجلة'), 'listFilter'); assert.equal(f('الموظف منى'), 'readMember');
+  assert.equal(f('ليه المصروف 500 عالي'), 'unknown'); assert.equal(f('عربون 300'), 'unknown', 'no maker named');
+  const few = Object.assign({}, all, { pages: [{ id: 'orders', label: 'الأوردرات' }] });
+  assert.equal(typeof f('ضيف عميل أحمد سامي', few), 'string'); assert.equal(typeof f('ضيف مبتكر ورشة النور', few), 'string');
 });

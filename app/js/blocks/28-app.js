@@ -1000,12 +1000,22 @@
       // said, behind a link under the answer — «حفظ» in it is the confirmation (the system's engine does as the outside model did)
       case 'addExpense': case 'addVendorMove': case 'addAccountMove': {
         const values = { direction: cmd.direction, amount: cmd.amount || '' };
-        if (cmd.type === 'addExpense') { if (cmd.category) values.category = cmd.category; if (cmd.beneficiary) values.beneficiary = cmd.beneficiary === D.OTHER ? cmd.otherName : cmd.beneficiary; }
+        if (cmd.type === 'addExpense') { if (cmd.category) values.category = cmd.category; if (cmd.details) values.details = cmd.details; if (cmd.beneficiary) values.beneficiary = cmd.beneficiary === D.OTHER ? cmd.otherName : cmd.beneficiary; }
         else if (cmd.type === 'addVendorMove') { if (cmd.vendor) values.vendor = cmd.vendor; if (cmd.vendorType) values.type = cmd.vendorType; }
         else if (cmd.account) values.account = cmd.account;
         ai.msgs.push({ role: 'ai', text: 'جهّزتلك البوب أب باللي قلته — افتحه وراجع وكمّل الناقص، و«حفظ» فيه هو التأكيد:', forms: [{ name: 'open_form', input: { form: { addExpense: 'expense_add', addVendorMove: 'vendor_move', addAccountMove: 'account_move' }[cmd.type], values } }] }); aiDraw(); return;
       }
       // the system's own engine (js/pages/system-brain.js): a page by its name; two names that fit → the member picks one
+      // add / edit by words (js/pages/system-brain.js — the owner 22 Nov): one of the system's own popups with what was said in it; the
+      // link opens it (aiOpenForm — the same rights as by hand) and the popup's own button is the confirmation
+      case 'openForm': {
+        const v = Object.assign({}, cmd.values);
+        if ((cmd.form === 'salary_adjust' || cmd.form === 'salary_pay') && v.member && window.IBHR && window.IBHR.everyone) { // the name as the team list writes it («لمنى» = «منى»)
+          const all = window.IBHR.everyone(); const hit = (q) => all.find((m) => String(m.name || '').trim() === q) || all.find((m) => q && String(m.name || '').includes(q));
+          const m = hit(String(v.member).trim()) || hit(String(v.member).trim().replace(/^لـ?\s*/, '')); if (m) v.member = m.name; }
+        ai.msgs.push({ role: 'ai', text: 'جهّزتلك البوب أب باللي قلته — افتحه وراجع وكمّل الناقص، و«حفظ» فيه هو التأكيد:', forms: [{ name: 'open_form', input: { form: cmd.form, values: v } }] }); aiDraw(); return;
+      }
+      case 'tell': aiSay(window.IB_LANG === 'en' && cmd.en ? cmd.en : cmd.text); return;
       // the system's read-outs (js/pages/system-brain.js): the numbers the page holds, said in the chat with «تفاصيل» / «تنزيل Excel»
       case 'readMaker': case 'readPeriod': case 'readProduct': case 'readMember': {
         const asked = ai.msgs.filter((x) => x.role === 'user').slice(-1)[0]; const m = { role: 'ai', text: 'بقرا الأرقام من السيستم…', live: true, question: asked ? asked.text : '' }; ai.msgs.push(m); aiBusy(true); aiDraw();
@@ -1105,7 +1115,9 @@
         if (!admin() && can('sensitive.salaries') !== 'F') no(); const api = hrApi();
         const mem = (window.IBHR.everyone ? window.IBHR.everyone() : []).find((m) => String(m.name || '').trim() === String(v.member || '').trim())
           || (window.IBHR.everyone ? window.IBHR.everyone() : []).find((m) => v.member && String(m.name || '').includes(String(v.member).trim()));
-        if (form === 'salary_pay') { if (!mem) throw new Error('مش لاقي العضو ده'); if (location.hash.slice(1) !== 'hr-payroll') location.hash = 'hr-payroll'; const r = api.payPopup(mem.id); if (r === 'paid') throw new Error('مرتب ' + mem.name + ' اتحوّل الشهر ده'); if (r === 'loading') throw new Error('الكشف لسه بيتحمّل — جرّب كمان ثانية'); return 'form salary_pay'; }
+        if (form === 'salary_pay') { if (!mem) throw new Error('مش لاقي العضو ده'); if (location.hash.slice(1) !== 'hr-payroll') location.hash = 'hr-payroll'; // the sheet loads with the page: the popup waits for it (up to ~5 s) rather than ask the member to press again
+          let tries = 0; const open = () => { const r = api.payPopup(mem.id); if (r === 'loading' && ++tries < 25) { setTimeout(open, 200); return; } if (r === 'paid') K.toast('مرتب ' + mem.name + ' اتحوّل الشهر ده', 'warning'); else if (r === 'none') K.toast(mem.name + ' مالوش سطر في كشف الشهر ده', 'warning'); else if (r === 'loading') K.toast('الكشف لسه بيتحمّل — جرّب كمان ثانية', 'warning'); };
+          setTimeout(open, 60); return 'form salary_pay'; }
         const amt = Number(String(v.amount || '').replace(/[,٬]/g, ''));
         if (location.hash.slice(1) !== 'hr-payroll') location.hash = 'hr-payroll';
         setTimeout(() => api.adjustPopup(mem ? mem.id : null, { kind: v.kind === 'خصم' ? 'خصم' : 'بدل', label: String(v.label || '').slice(0, 80), amount: Number.isFinite(amt) && amt > 0 ? String(amt) : '' }), 60); return 'form salary_adjust'; }
@@ -1142,7 +1154,8 @@
   // back as the system's popup filled — { text, forms } for a link under the answer; nothing else is run from there
   window.IBSystemEntry = (text) => {
     const got = window.IBBrain ? window.IBBrain.understand(String(text || ''), aiCtx()) : { type: 'unknown' };
-    if (!['addExpense', 'addVendorMove', 'addAccountMove'].includes(got.type) || (got.missing && got.missing.length) || !got.amount) return null;
+    const money = ['addExpense', 'addVendorMove', 'addAccountMove'].includes(got.type) && !(got.missing && got.missing.length) && !!got.amount;
+    if (!money && got.type !== 'openForm') return null; // (an add / edit by words opens its popup from an assistant's chat too)
     const at = ai.msgs.length; aiExec(got); const out = ai.msgs.splice(at); aiDraw(); const m = out.find((x) => x.forms && x.forms.length);
     return m ? { text: m.text, forms: m.forms.map((f) => f.input).filter((f) => f && f.form) } : null;
   };
@@ -1185,7 +1198,7 @@
     aiBusy(false); aiDraw();
     aiExecActions(acts.filter((a) => a.name !== 'open_form' && a.name !== 'plan_categories' && a.name !== 'plan_requests' && a.name !== 'offer_file' && a.name !== 'ask_choice'));
   }
-  const AI_FORM_LABEL = { vendor_add: 'إضافة مبتكر', member_add: 'إضافة عضو', customer_add: 'إضافة عميل', ticket_new: 'طلب جديد', hr_leave: 'طلب إجازة', hr_advance: 'طلب سُلفة', hr_remote: 'شغل عن بُعد',
+  const AI_FORM_LABEL = { vendor_settle: 'تسوية حساب المبتكر', salary_adjust: 'مكافأة / خصم', salary_pay: 'تحويل المرتب', vendor_add: 'إضافة مبتكر', member_add: 'إضافة عضو', customer_add: 'إضافة عميل', ticket_new: 'طلب جديد', hr_leave: 'طلب إجازة', hr_advance: 'طلب سُلفة', hr_remote: 'شغل عن بُعد',
     task_add: 'إضافة مهمة', order_update: 'تحديث الأوردر', expense_add: 'المصروفات', account_move: 'الحساب الفعلي', vendor_move: 'حركة المبتكر' };
   const aiFormLabel = (a) => { const v = (a.input && a.input.values) || {}; const dir = v.direction === 'deposit' ? 'إيداع — ' : v.direction === 'withdraw' ? 'سحب — ' : ''; return dir + (AI_FORM_LABEL[a.input && a.input.form] || 'البوب أب'); };
   // the category plan → the products page's review popup («نشر على الموقع» in it is the confirmation; products.add / the admin)

@@ -118,6 +118,16 @@ test('marketplace: dashboard, orders (a status change kept after a reload), prod
   await readOut('الموظف منى', /^منى حسن — .+: الدور .+، الحالة نشط، الدوام .+، رصيد الإجازات \d+ يوم\. النهارده: .+\. طلبات موارد بشرية مستنية: \d+، طلبات فريق معاه: \d+\.$/);
   await page.fill('.ai-input', 'المنتج glass'); await page.locator('.ai-form').press('Enter'); await expect(lastAi.locator('[data-ai-pick] button')).toHaveCount(2); // two fit: the system asks which
   expect(await page.evaluate(() => location.hash), 'a read-out leaves the page where it was').toBe(before);
+  // add / edit by words (the owner 22 Nov): the system's own popup, filled — its button is the confirmation; an order's confirmation
+  // asks with a deposit or without; a cancel is sent to the orders page
+  const customers0 = await page.evaluate(() => window.__ibDemo.mock.cs.customers.length);
+  await page.fill('.ai-input', 'ضيف عميل أحمد سامي 01001234567'); await page.locator('.ai-form').press('Enter');
+  await expect(lastAi.locator('.ai-form-link')).toHaveText(/افتح بوب أب «إضافة عميل»/); await expect(lastAi.locator('[data-ai-src]')).toHaveText('من السيستم'); await lastAi.locator('.ai-form-link').click();
+  const addC = page.locator('.modal[role=dialog]', { hasText: 'إضافة عميل' }).last(); await expect(addC.locator('#name')).toHaveValue('أحمد سامي'); await expect(addC.locator('#phone')).toHaveValue('01001234567');
+  await addC.getByRole('button', { name: 'إلغاء' }).click(); expect(await page.evaluate(() => window.__ibDemo.mock.cs.customers.length), 'nothing is written before the popup’s button').toBe(customers0);
+  const anOrder = await page.evaluate(() => String(window.OrdersApp.query({}, 50).rows.find((r) => r.status === 'جاري التنفيذ').id).replace(/\D/g, ''));
+  await page.fill('.ai-input', 'أكد الأوردر ' + anOrder); await page.locator('.ai-form').press('Enter'); await expect(lastAi.locator('[data-ai-pick] button')).toHaveText(['مؤكد بعربون', 'مؤكد بدون عربون']);
+  await page.fill('.ai-input', 'خلي الأوردر ' + anOrder + ' ملغي'); await page.locator('.ai-form').press('Enter'); await expect(lastAi.locator('.ai-text')).toHaveText(/^الإلغاء والاسترجاع والفشل ليهم بوب أب بسبب/);
   await page.keyboard.press('Escape');
 
   await page.evaluate(() => window.__ibDemoAfter('POST', window.__ibDemo.HOST + '/functions/v1/share-mail', '{}', {}));
@@ -226,7 +236,13 @@ test('English: the language drop-down in the banner turns the demo to English, l
     await page.fill('.ai-input', q); await page.locator('.ai-form').press('Enter'); await expect(aiLast.locator('.ai-text')).toHaveText(want, { timeout: 10000 }); }
   expect(await arabicShown(page), 'the assistant › the read-outs').toEqual([]);
   await aiLast.locator('[data-ai-details]').click(); await expect(page.locator('.modal').last()).toContainText('Completed sales'); await page.waitForTimeout(400);
-  expect(await arabicShown(page), 'the assistant › a read-out’s details').toEqual([]); await page.locator('.modal').last().getByRole('button', { name: 'Close' }).last().click(); await page.keyboard.press('Escape');
+  expect(await arabicShown(page), 'the assistant › a read-out’s details').toEqual([]); await page.locator('.modal').last().getByRole('button', { name: 'Close' }).last().click();
+  // add / edit by words in English: the answer, the link and the popup it opens
+  await page.fill('.ai-input', 'add customer Sara Ali 01112223334'); await page.locator('.ai-form').press('Enter'); await expect(aiLast.locator('.ai-form-link')).toBeVisible({ timeout: 10000 }); await page.waitForTimeout(400);
+  expect(await arabicShown(page), 'the assistant › a popup prepared').toEqual([]);
+  await aiLast.locator('.ai-form-link').click(); const addE = page.locator('.modal[role=dialog]').last(); await expect(addE.locator('#name')).toHaveValue('Sara Ali', { timeout: 10000 }); await expect(addE.locator('#phone')).toHaveValue('01112223334'); await page.waitForTimeout(400);
+  expect(await arabicShown(page), 'the assistant › the popup it opened').toEqual([]); await addE.getByRole('button', { name: 'Cancel' }).click();
+  await page.fill('.ai-input', 'set order 99999 to cancelled'); await page.locator('.ai-form').press('Enter'); await expect(aiLast.locator('.ai-text')).toHaveText(/^Cancelling, refunding and failing an order take a reason/); await page.keyboard.press('Escape');
   // an assistant's own chat in English: the system's numbers, the hand-over, the company and the data card
   await go(page, 'ai'); const aiP = page.locator('#pg-ai'); await aiP.getByRole('tab', { name: /General manager/ }).click({ timeout: 20000 }); await expect(aiP.locator('#mk-ask')).toBeVisible(); await page.waitForTimeout(500); const aiA = aiP.locator('.mk-msg.ai[data-mk-turn]').last();
   await aiP.locator('#mk-ask').fill('Any news today?'); await aiP.locator('[data-mk-ask]').click(); await expect(aiA.locator('[data-mk-src]')).toHaveText('From the system', { timeout: 10000 }); await expect(aiA).toContainText('Where every assistant stands now:');
