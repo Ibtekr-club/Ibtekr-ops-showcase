@@ -191,30 +191,44 @@ test('English: the language drop-down in the banner turns the demo to English, l
 // The owner 22 Nov («ممكن تطبق ده الديمو و الاساسي»): the providers tab as the original has it — only the linked companies in the
 // lists (the demo opens with Claude and ChatGPT linked, Gemini not), the automatic switch and the levels under the text company,
 // the model select when it is off, the card of the commands and the month's spend — in Arabic and in English
-test('AI providers: only the linked companies, the automatic switch with the company\'s levels, the model under the company when it is off; in English too', async ({ page }) => {
+test('AI providers: a box per kind with only the linked companies; the switch off — a tab per linked company with its models, one choice; in English too', async ({ page }) => {
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/'); await page.locator('[data-demo-mode="marketplace"]').click(); await inApp(page);
   await go(page, 'settings-ai');
   const text = page.locator('[data-prov="text"]');
   await expect(text).toHaveAttribute('data-prov-live', 'claude openai', { timeout: 20000 });
+  await expect(page.locator('.prov-grid [data-prov]')).toHaveCount(4); await expect(text.locator('.prov-kind-h')).toContainText('المربوط: 2');
+  const sw = page.locator('[data-prov-auto]'); await expect(sw).toHaveAttribute('data-prov-auto', 'on');
   await page.locator('#prov-text').click();
   await expect(page.getByRole('option')).toHaveText(['Claude (Anthropic)', 'ChatGPT (OpenAI)']); await page.keyboard.press('Escape'); // Gemini is not linked: not offered
-  const pk = text.locator('[data-air-pick]');
-  await expect(pk).toHaveAttribute('data-air-pick', 'auto');
-  await expect(pk.locator('[data-air-level]')).toHaveText(['ضعيف Claude Haiku 5.5', 'متوسط Claude Sonnet 5.5', 'قوي Claude Opus 5.5']);
   const card = page.locator('[data-ai-routing]');
   await expect(card.locator('[data-air-cmd]')).toHaveCount(14); await expect(card.locator('[data-air-sized="true"]')).toHaveCount(2);
   await expect(page.locator('[data-air-spend] table').first().locator('tbody tr')).toHaveCount(3); // the month's made-up runs: three models
-  // off: the model under the company; on again
-  await page.locator('#air-auto').click();
-  await expect(pk).toHaveAttribute('data-air-pick', 'single'); await expect(page.locator('#air-one')).toBeVisible(); await expect(page.locator('#air-write')).toBeDisabled();
-  await page.locator('#air-auto').click();
-  await expect(pk).toHaveAttribute('data-air-pick', 'auto');
-  // English: the same tab with no Arabic left, the levels in English words
+  // off: every field is «company — model», its list a tab per linked company with that company's models
+  await page.locator('#prov-auto').click();
+  await expect(sw).toHaveAttribute('data-prov-auto', 'off'); await expect(page.locator('#air-write')).toBeDisabled(); await expect(page.locator('#pg-settings .save-bar')).toHaveCount(0);
+  await expect(page.locator('#prov-text')).toHaveText(/^Claude — /);
+  await expect(async () => {
+    await page.keyboard.press('Escape'); await page.locator('#prov-text').click({ timeout: 1500 });
+    await expect(page.locator('.cm-menu [data-cm-tab]')).toHaveText(['Claude', 'ChatGPT'], { timeout: 1000 });
+    await expect(page.locator('.cm-menu [role=option]:visible')).toHaveCount(3, { timeout: 1000 });
+    await page.locator('.cm-menu [data-cm-tab="openai"]').click({ timeout: 1500 });
+    await expect(page.locator('.cm-menu [role=option]:visible')).toHaveCount(2, { timeout: 1000 });
+    await page.locator('.cm-menu [data-cm="openai:gpt-5.2-mini"]').click({ timeout: 1500 });
+  }).toPass();
+  await expect(page.locator('#prov-text')).toHaveText('ChatGPT — GPT-5.2 mini'); await expect(page.locator('.cm-menu')).toHaveCount(0);
+  await expect(card).toContainText('أنهي موديل لأنهي أمر (ChatGPT)');
+  // English (the demo keeps what was chosen: the switch is still off): no Arabic left, with the list open too; then on again
   await page.locator('#demo-bar [data-demo-dd="lang"]').click(); await page.locator('#demo-bar [data-demo-dd-opt="en"]').click();
   await inApp(page); await go(page, 'settings-ai');
-  await expect(page.locator('[data-prov="text"] [data-air-pick]')).toBeVisible({ timeout: 20000 }); await page.waitForTimeout(1500);
-  expect(await page.evaluate(() => [...document.querySelectorAll('[data-air-level] b')].map((b) => b.firstChild.nodeValue))).toEqual(['Light', 'Medium', 'Strong']);
+  await expect(page.locator('[data-prov="text"]')).toHaveAttribute('data-prov-live', 'claude openai', { timeout: 20000 }); await page.waitForTimeout(1500);
+  await expect(page.locator('[data-prov-auto]')).toHaveAttribute('data-prov-auto', 'off'); await expect(page.locator('#prov-text')).toHaveText('ChatGPT — GPT-5.2 mini');
+  expect(await arabicShown(page), 'settings › AI providers, the automatic choice off').toEqual([]);
+  await page.locator('#prov-text-marketing').click(); await expect(page.locator('.cm-menu [data-cm-tab]')).toHaveCount(2); await page.waitForTimeout(500);
+  expect(await page.evaluate(() => [...document.querySelectorAll('.cm-menu .cm-sec:not([hidden]) .cm-s')].map((x) => x.textContent))).toEqual(['Strong · $4 in · $20 out', 'Medium · $2 in · $10 out', 'Light · $0.10 in · $0.50 out']);
+  expect(await arabicShown(page), 'settings › AI providers, the list open').toEqual([]);
+  await page.keyboard.press('Escape'); await page.locator('#prov-auto').click();
+  await expect(page.locator('[data-prov-auto]')).toHaveAttribute('data-prov-auto', 'on'); await page.waitForTimeout(1200);
   expect(await arabicShown(page), 'settings › AI providers').toEqual([]);
   expect(errors).toEqual([]);
 });

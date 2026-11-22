@@ -92,5 +92,16 @@
 "بيقرا بيانات السيستم بأدوات على كذا خطوة ويجهّز البوب أبات": "Reads the system’s data with tools over several steps and prepares the popups",
 "قراية سكرين شوتس وتحويلها لصفوف منتجات": "Reading screenshots and turning them into product rows",
 "تحليل أرقام الإعلانات واقتراحات الميزانية": "Analysing the ad numbers and suggesting budgets",
-"بحث بمصادر ومقارنتها — البحث مش متاح على الموديل الضعيف": "Research with sources, compared — the web search is not available on the light model"
+"بحث بمصادر ومقارنتها — البحث مش متاح على الموديل الضعيف": "Research with sources, compared — the web search is not available on the light model",
+"للقسم كله": "For the whole section",
+"تبديل لكل أداة (اختياري)": "Override per tool (optional)",
+"المزوّد": "Provider",
+"المزوّد والموديل": "Provider and model",
+"الكتابة والشات وتحليل الأرقام": "Writing, chat and reading the numbers",
+"صور المنتجات والكامبينات": "Product and campaign images",
+"الفويس أوفر في الفيديو": "Voice-over for videos",
+"مقاطع الفيديو بالذكاء الاصطناعي": "AI video clips",
+"المربوط:": "Connected:",
+"مفيش مزوّد مربوط": "No provider connected",
+"شركة لكل نوع محتوى، وتبديل لكل أداة لو محتاج": "A company for each kind of content, with an override per tool if needed"
 }
