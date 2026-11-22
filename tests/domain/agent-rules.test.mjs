@@ -79,6 +79,11 @@ test('the check writes one note a rule that holds, keeps the row while it holds,
   assert.ok(!refs().some((r) => r && r.startsWith('rule:dev:')));
   const st = rulesStatus(mock, at); assert.equal(st.agents.dev.own, true); assert.deepEqual(st.agents.dev.rules.map((r) => [r.id, r.now, r.firing]), [['speed', 41, false]]);
   assert.deepEqual(st.agents.accountant.rules.map((r) => [r.metric, r.now, r.firing]), [['withdraw_pending', 1, true], ['sub_days_left', 20, false]]); assert.equal(st.agents.accountant.own, false);
+  // a seller without makers: nothing about them is counted into a note, and their assistant has no rule
+  const one = install(); one.settings.push({ section: 'store', data: { platform: 'woo', mode: 'single' } }); runRules(one, at);
+  assert.ok(!one.mkt.agentNotes.some((n) => String(n.ref).startsWith('rule:makers:'))); assert.ok(one.mkt.agentNotes.some((n) => n.ref === 'rule:stock:orders_late'));
+  assert.deepEqual(rulesStatus(one, at).agents.makers, { own: false, metrics: [], rules: [] });
+  for (const m of Object.values(METRICS)) if (m.data !== 'vendors') assert.ok(!/مبتكر|maker/i.test(m.ar + m.en + m.doAr + m.doEn), 'only the makers’ own metrics name them');
   // off for an install that did not ask for it
   const quiet = install(); quiet.mkt.rulesOn = false; assert.equal(runRules(quiet, at), null); assert.equal(quiet.mkt.agentNotes.length, 1);
 });
