@@ -184,6 +184,18 @@ test('English: the switch under «الإعدادات» turns the demo to English
 
 
 // The phone and tablet pass (21 Nov): look and touch only — the same pages, laid out for a thumb.
+// the owner 22 Nov — «تعيد تصميم الدروب داون للبروفايل في الديسكتوب بشكل احترافي»: the member's picture beside the name and the e-mail,
+// every row in sight with no scroll bar, each icon on a tile, «تسجيل الخروج» set apart at the end — and the rows still work
+test('desktop: the account menu — the picture, the name and the e-mail, every row in sight, the way out set apart', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 }); await page.goto('/'); await page.locator('[data-demo-mode="marketplace"]').click(); await page.waitForSelector('#demo-bar'); await expect(page.locator('.topbar .user-btn')).toBeVisible({ timeout: 30000 });
+  await page.locator('.topbar .user-btn').click(); const menu = page.locator('.menu.acct'); await expect(menu).toBeVisible();
+  const m = await menu.evaluate((el) => { const r = el.getBoundingClientRect(); const av = el.querySelector('.acct-h .m-av').getBoundingClientRect(); const nm = el.querySelector('.acct-h b').getBoundingClientRect(); const ml = el.querySelector('.acct-h small').getBoundingClientRect(); const opts = [...el.querySelectorAll('.opt')]; const last = opts[opts.length - 1]; const tile = getComputedStyle(opts[0].querySelector('svg'));
+    return { w: Math.round(r.width), scrolls: el.scrollHeight > el.clientHeight + 1, inPage: r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth, av: Math.round(av.width), side: av.left >= nm.right - 1 && av.left >= ml.right - 1, rightEdges: Math.abs(nm.right - ml.right) <= 1, n: opts.length, lastDanger: last.classList.contains('danger'), gap: Math.round(last.getBoundingClientRect().top - opts[opts.length - 2].getBoundingClientRect().bottom), tile: tile.backgroundColor !== 'rgba(0, 0, 0, 0)' && parseFloat(tile.width) >= 30 }; });
+  expect(m.w).toBeGreaterThanOrEqual(280); expect(m.scrolls).toBe(false); expect(m.inPage).toBe(true); expect(m.av).toBe(44); expect(m.side).toBe(true); expect(m.rightEdges).toBe(true);
+  expect(m.n).toBeGreaterThanOrEqual(5); expect(m.lastDanger).toBe(true); expect(m.gap).toBeGreaterThanOrEqual(10); expect(m.tile).toBe(true);
+  await menu.locator('.opt', { hasText: 'ملفي' }).click(); await expect(page.locator('#pg-profile')).toBeVisible(); await expect(menu).toHaveCount(0);
+});
+
 test.describe('a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const PAGES = ['dashboard', 'orders', 'vendors', 'accounts', 'inventory', 'products', 'cs', 'autoreply', 'tickets', 'reports', 'marketing', 'ai', 'hr', 'settings', 'profile'];
