@@ -113,6 +113,7 @@
     // ش42 (the owner 17 Nov — «ممكن تقسم اقسام الذكاء الاصطناعي لتابس بدل ما هما تحت بعض في نفس الصفحة»): one tab at a time — the providers,
     // the images, the video, the content, the assistants
     if (st.aiTab === 'prov') return [K.Section('تعليمات الذكاء الاصطناعي', [aiTabs], null, { sub: 'مين بيعمل إيه: مصدر ذكاء افتراضي لكل قسم وتبديل لكل أداة.' }), providersSec()]
+      .concat(window.IBBrainShare ? [window.IBBrainShare.card({ redraw: R })] : []) // what an outside AI may be shown, and what was sent (the owner 22 Nov)
       .concat(window.IBAIRouting ? window.IBAIRouting.sections({ redraw: R }) : []); // which model runs which command (the original's model-routing plan, 22 Nov)
     if (st.aiTab === 'agents') return [K.Section('تعليمات الذكاء الاصطناعي', [aiTabs], null, { sub: 'المساعدين: تاب لكل مساعد — مخّه الخارجي وقواعده وسكيلزه ومصادره.' })].concat(agentsSec());
     const head = K.Section('تعليمات الذكاء الاصطناعي', [aiTabs], [Button({ type: 'text', label: 'رجّع للافتراضي', onClick: () => K.confirm({ title: 'ترجّع التعليمات للافتراضي؟', text: 'كل التعديلات اللي عملتها هنا هتتشال.', okLabel: 'رجّع', onOk: () => { S.aiRules = AI_DEF(); R(); } }) }), Button({ type: 'primary', label: 'احفظ التعليمات', onClick: () => { LOGV('settings.ai.save', st.aiTab); K.toast('اتحفظت التعليمات — هتتطبق على أي حاجة جديدة بتتولد', 'success'); } })], { sub: 'بتتطبق على كل حاجة بتتولد في «المنتجات» و«التسويق» — اكتبها مرة واحدة.' });

@@ -19,14 +19,14 @@
 // vendors_brands_guard_delete (23503 naming brand_owners_vendor_id_fkey) and the cascade of the origin's brands). Not a product feature.
 // Spec files call installSupabaseMock(page) unless E2E_SUPABASE_LIVE=1: then installLiveConfig(page) points the app at the
 // staging project in E2E_SUPABASE_URL / E2E_SUPABASE_ANON_KEY (never at whatever app/config.js holds), or skips without them.
-import { buildStudio, matchWooBrand, sheetCsvUrl, wooBrandIds } from '../../mock/shared/woo-studio.js?v=fd2e0b57f6';
-import { parseWrite, parseStudio, parsePrompts, parseExtract, cleanWrite, cleanStudio, cleanPrompts, cleanExtract, shotPromptRows, aiSettings } from '../../mock/shared/ai-content.js?v=fd2e0b57f6';
-import { parseGenerate, parseEdit, parseCreate, imageSettings, creditsFor, usdOf, studioPathOk, studioGenPath, studioEditPath, toolPath, renameInState, flowShotPrompt, MODEL_IDS } from '../../mock/shared/ai-images.js?v=fd2e0b57f6';
-import { hrState, hrRoute } from './hr-mock.js?v=fd2e0b57f6'; // phase 10 (0046): the HR tables, RPCs, team-admin and the bucket hr-docs
-import { mktState, mktRoute } from './mkt-mock.js?v=fd2e0b57f6'; // phase 9.5.1 (0049): the marketing tables, RPCs, the bucket marketing and its AI actions
-import { settingsState, settingsRoute } from './settings-mock.js?v=fd2e0b57f6';
+import { buildStudio, matchWooBrand, sheetCsvUrl, wooBrandIds } from '../../mock/shared/woo-studio.js?v=8449c1a4fb';
+import { parseWrite, parseStudio, parsePrompts, parseExtract, cleanWrite, cleanStudio, cleanPrompts, cleanExtract, shotPromptRows, aiSettings } from '../../mock/shared/ai-content.js?v=8449c1a4fb';
+import { parseGenerate, parseEdit, parseCreate, imageSettings, creditsFor, usdOf, studioPathOk, studioGenPath, studioEditPath, toolPath, renameInState, flowShotPrompt, MODEL_IDS } from '../../mock/shared/ai-images.js?v=8449c1a4fb';
+import { hrState, hrRoute } from './hr-mock.js?v=8449c1a4fb'; // phase 10 (0046): the HR tables, RPCs, team-admin and the bucket hr-docs
+import { mktState, mktRoute } from './mkt-mock.js?v=8449c1a4fb'; // phase 9.5.1 (0049): the marketing tables, RPCs, the bucket marketing and its AI actions
+import { settingsState, settingsRoute } from './settings-mock.js?v=8449c1a4fb';
 // phase 11 (0056): the team RPCs, settings-admin / notify, company_docs, the buckets company-docs / settings, activity_log filters
-import { portalState, portalRoute } from './portal-mock.js?v=fd2e0b57f6'; // phase 13 T4 (0065): the maker portal's Edge Function on the mock's rows
+import { portalState, portalRoute } from './portal-mock.js?v=8449c1a4fb'; // phase 13 T4 (0065): the maker portal's Edge Function on the mock's rows
 export const SUPABASE_URL = 'https://demo.ibtekr.invalid';
 // what the developer's «تحديثات ووردبريس» check answers when a spec gives no list of its own (the demo copy shows this)
 const WP_STATUS = { core: { version: '6.7.2', latest: '6.8.3', update: true, known: true }, woo: { version: '9.8.1' }, php: '8.2.20',
@@ -2324,11 +2324,16 @@ export async function installSupabaseMock(page, opts = {}) {
         if (fail === 'not_configured' || fail === 'busy' || fail === 'ai_error') { mock.aiRuns.push({ ...base, status: 'error', error: fail }); return json(fail === 'not_configured' ? 503 : fail === 'busy' ? 429 : 502, { error: fail }); }
         if (fail === 'ai_cap') { mock.aiRuns.push({ ...base, status: 'cap', error: 'ai_cap' }); return json(402, { error: 'ai_cap' }); }
         const a = typeof mock.aiAnswer === 'function' ? mock.aiAnswer('assistant', req) : null;
+        // the owner 22 Nov: a chat's answer that read data kinds the request did not approve (b.share) is not given — the kinds it
+        // wants come back as `need`, for the assistant to ask the member; the filter mode reads no rows
+        if (mode === 'chat' && Array.isArray(b.share)) { const want = (a && Array.isArray(a.tools) ? a.tools : []).filter((k, i, l) => l.indexOf(k) === i); const miss = want.filter((k) => !b.share.includes(k));
+          if (miss.length) { const run0 = { ...base, status: 'ok', error: null, input_tokens: 400, output_tokens: 40, cost_usd: 0.002, output: { text: '', actions: [], tools: [] } }; mock.aiRuns.push(run0);
+            return json(200, { result: 'ok', text: '', actions: [], tools: [], report: [], need: miss, shared: [], model: 'claude-opus-5-5', cost_usd: 0.002, run_id: run0.id }); } }
         const out = { text: a && typeof a.text === 'string' ? a.text : (mode === 'filter' ? '' : 'تمام.'), actions: a && Array.isArray(a.actions) ? a.actions : [], tools: a && Array.isArray(a.tools) ? a.tools : [] };
         const report = a && Array.isArray(a.report) ? a.report : []; // decision 23: the reads for «تفاصيل» — never in ai_runs
         const run = { ...base, status: 'ok', error: null, input_tokens: 3000, output_tokens: 400, cost_usd: 0.02, output: out };
         mock.aiRuns.push(run);
-        return json(200, { result: 'ok', ...out, report, model: 'claude-opus-5-5', cost_usd: 0.02, run_id: run.id });
+        return json(200, { result: 'ok', ...out, report, need: [], shared: Array.isArray(b.share) ? out.tools.filter((k) => b.share.includes(k)) : [], model: 'claude-opus-5-5', cost_usd: 0.02, run_id: run.id });
       }
       const may = u && (action === 'write' ? isAdmin(u) || hasPerm(u, 'products.add') === 'F' || hasPerm(u, 'products.edit') === 'F' : action === 'studio' || action === 'prompts' || action === 'extract' ? isAdmin(u) || hasPerm(u, 'products.add') === 'F' : isAdmin(u));
       if (!may) return json(401, { error: 'unauthorized' });

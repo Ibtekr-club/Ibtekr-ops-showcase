@@ -1113,14 +1113,19 @@
     for (const f of failed) aiSay(f);
   }
   function aiBusy(b) { ai.busy = b; if (aiInput) aiInput.disabled = b; if (aiSendBtn) aiSendBtn.hidden = b; if (aiStopBtn) aiStopBtn.hidden = !b; if (!b && aiInput && aiPanel && !aiPanel.hidden) aiInput.focus(); }
-  function aiModeNote() { if (aiNoteEl) aiNoteEl.textContent = 'السيستم بيرد من بياناته الأول — المخ الخارجي بموافقتك بس. أي تسجيل بيطلب تأكيدك الأول.'; }
+  function aiModeNote() { if (aiNoteEl) aiNoteEl.textContent = 'السيستم بيرد من بياناته الأول — المخ الخارجي بموافقتك بس، وبياخد رسالتك من غير بيانات الشركة إلا اللي توافق عليه. أي تسجيل بيطلب تأكيدك الأول.'; }
   const aiContext = () => ({ page: state.page, tab: state.page === 'accounts' ? state.tab : '', period: state.page === 'accounts' ? { from: state.range.from, to: state.range.to } : null });
-  async function aiChat(text, brain) {
-    ai.turns.push({ role: 'user', text }); ai.turns = ai.turns.slice(-12);
+  // the owner 22 Nov («اي مخ خارجي … من غير ما يكون عندوا كل معلومات الشركة الا لو انا وافقت بعد ما الايجنت بتاعي يطلب مني»): the outside
+  // model gets the message only — `share` = the data kinds the member approved for this request (none at first). When the
+  // server answers `need`, the assistant asks about those kinds (aiNeedPick): «وافق المرة دي» sends the same message again
+  // with them, «ارفض» sends nothing more. Under the answer: what was sent.
+  async function aiChat(text, brain, share, again) {
+    const kinds = window.IBBrainShare ? window.IBBrainShare.clean(share) : [];
+    if (!again) { ai.turns.push({ role: 'user', text }); ai.turns = ai.turns.slice(-12); }
     const via = aiBrains().find((b) => b.id === brain) || null;
     const m = { role: 'ai', text: '', live: true, via: via ? via.name : '', brain: brain || '' }; ai.msgs.push(m); aiBusy(true); aiDraw();
     aiCtl = new AbortController();
-    const r = window.IBAI && window.IBAI.assistant ? await window.IBAI.assistant({ mode: 'chat', turns: ai.turns, context: aiContext(), provider: brain || undefined, signal: aiCtl.signal }) : { ok: false, reason: 'not_configured' };
+    const r = window.IBAI && window.IBAI.assistant ? await window.IBAI.assistant({ mode: 'chat', turns: ai.turns, context: kinds.length ? aiContext() : {}, provider: brain || undefined, share: kinds, signal: aiCtl.signal }) : { ok: false, reason: 'not_configured' };
     aiCtl = null; m.live = false;
     if (!r.ok) {
       ai.msgs = ai.msgs.filter((x) => x !== m); ai.turns.pop();
@@ -1132,6 +1137,12 @@
       aiBusy(false); return;
     }
     aiServer = true; aiModeNote();
+    // it needs the system's data to go on: nothing was read — the assistant asks, kind by kind
+    if (r.result !== 'refused' && r.need && r.need.length && window.IBBrainShare) {
+      m.sys = true; m.via = ''; m.text = 'عشان يكمّل، ' + (via ? via.name : 'المخ الخارجي') + ' محتاج يشوف البيانات دي من السيستم. أوافق؟';
+      m.need = { text, brain: brain || '', name: via ? via.name : '', kinds: kinds.concat(r.need), ask: r.need.slice(), done: '' }; aiBusy(false); aiDraw(); return;
+    }
+    m.shared = r.shared || []; m.sent = true;
     m.text = r.result === 'refused' ? 'مش هقدر أرد على ده.' : (r.text || (r.actions.length ? 'تمام.' : 'مفيش رد.'));
     m.report = r.result === 'refused' ? [] : (r.report || []); m.question = text; // decision 23: the reads behind the answer → «تفاصيل»
     ai.turns.push({ role: 'assistant', text: m.text });
@@ -1225,7 +1236,14 @@
   function aiConsentPick(m, brain) {
     if (m.consent.done || ai.busy) return;
     if (!brain) { m.consent.done = 'no'; ai.msgs.push({ role: 'ai', sys: true, text: 'تمام، ما استخدمتش مخ خارجي. جرّب صيغة من دي:', tries: true }); aiDraw(); return; }
-    m.consent.done = brain.name; aiChat(m.consent.text, brain.id);
+    ai.turns = []; // a new request starts clean: an earlier answer (with what was shared for it) is not passed on
+    m.consent.done = brain.name; aiChat(m.consent.text, brain.id, []);
+  }
+  // the member's answer on the data card: approved = the same message again with those kinds, this once; refused = nothing more is sent
+  function aiNeedPick(m, ok) {
+    if (m.need.done || ai.busy) return;
+    if (!ok) { m.need.done = 'no'; ai.turns.pop(); ai.msgs.push({ role: 'ai', sys: true, text: 'تمام، مااتبعتش أي بيانات' + (m.need.name ? ' لـ ' + m.need.name : '') + '. من غيرها مش هيقدر يجاوب على ده — جرّب صيغة من دي يرد عليها السيستم نفسه:', tries: true }); aiDraw(); return; }
+    m.need.done = 'yes'; aiChat(m.need.text, m.need.brain, m.need.kinds, true);
   }
   // the fixed commands (commands.js) — the fallback without the AI
   function aiLocal(t) {
@@ -1248,6 +1266,12 @@
       if (m.consent) kids.push(m.consent.done ? h('p', { class: 'ai-done t-small' }, m.consent.done === 'no' ? 'ما استخدمتش مخ خارجي.' : ['اتبعت لـ ', h('bdi', null, m.consent.done), '.']) : h('div', { class: 'ai-actions ai-consent', 'data-ai-consent': '' },
         m.consent.brains.map((b) => Button({ type: 'primary', size: 'sm', label: m.consent.brains.length > 1 ? b.name : 'أيوه، استخدمه', attrs: Object.assign({ 'data-ai-brain': b.id }, m.consent.brains.length > 1 ? { 'data-i18n-off': '' } : {}), onClick: () => aiConsentPick(m, b) })),
         Button({ size: 'sm', label: 'لا', attrs: { 'data-ai-brain': '' }, onClick: () => aiConsentPick(m, null) })));
+      if (m.need && window.IBBrainShare) { const BS = window.IBBrainShare;
+        kids.push(h('ul', { class: 'ai-need', 'data-ai-need': m.need.ask.join(' ') }, m.need.ask.map((k) => h('li', { 'data-ai-need-kind': k }, h('b', null, BS.KINDS[k].label), h('span', null, BS.KINDS[k].has), h('small', null, BS.KINDS[k].not)))));
+        kids.push(m.need.done ? h('p', { class: 'ai-done t-small' }, m.need.done === 'no' ? 'مااتبعتش بيانات.' : 'وافقت المرة دي.') : h('div', { class: 'ai-actions ai-consent', 'data-ai-share': '' },
+          Button({ type: 'primary', size: 'sm', label: 'وافق المرة دي', attrs: { 'data-ai-share-ok': '' }, onClick: () => aiNeedPick(m, true) }), Button({ size: 'sm', label: 'ارفض', attrs: { 'data-ai-share-no': '' }, onClick: () => aiNeedPick(m, false) }))); }
+      // what left the system for this answer: the message alone, or the message and the kinds approved
+      if (m.sent && m.via && !m.live && window.IBBrainShare) kids.push(h('p', { class: 'ai-shared t-small', 'data-ai-shared': (m.shared || []).join(' ') }, Icon('lock', 'sm'), h('span', null, m.shared && m.shared.length ? 'اتبعتله: رسالتك + ' + window.IBBrainShare.names(m.shared) : 'اتبعتله: رسالتك بس — من غير بيانات من السيستم')));
       if (m.tries) kids.push(h('div', { class: 'ai-actions ai-tries' }, (window.IBBrain ? window.IBBrain.EXAMPLES : AI_EXAMPLES).map((x) => h('span', { class: 'chip' }, x))));
       if (m.pick) kids.push(m.pick.done ? h('p', { class: 'ai-done t-small' }, m.pick.done) : h('div', { class: 'ai-actions ai-pick', 'data-ai-pick': '' }, m.pick.options.map((x, i) => Button({ size: 'sm', label: x, attrs: { 'data-i18n-off': '' }, onClick: () => { m.pick.done = x; aiRun(m.pick.texts[i]); } }))));
       if (m.forms && m.forms.length && !m.live) kids.push(h('div', { class: 'ai-actions ai-forms' }, m.forms.map((a) => h('a', { href: '#', class: 'ai-form-link', 'data-ai-open': a.name === 'plan_categories' ? 'category_plan' : a.name === 'plan_requests' ? 'request_plan' : (a.input && a.input.form) || '',

@@ -10,7 +10,7 @@ window.IB_DEMO = true;
   var set = function (k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch (e) { return false; } };
   var MODES = { marketplace: 'Marketplace', single: 'Single store' };
   // a new build of the demo starts from its own data: changes a visitor saved on an older build are dropped (the model he picked stays)
-  var BUILD = 'fd2e0b57f6', KEY_BUILD = 'ib.demo.build';
+  var BUILD = '8449c1a4fb', KEY_BUILD = 'ib.demo.build';
   if (get(KEY_BUILD) !== BUILD) { set(KEY_LOG, null); set(KEY_BUILD, BUILD); }
   var mode = MODES[get(KEY_MODE)] ? get(KEY_MODE) : null;
   // the language: Arabic as the system is, or English — the dictionary (en.js) and the layer that writes the page in English (i18n.js)
@@ -316,8 +316,19 @@ window.IB_DEMO = true;
     var conv = ((m.cs || {}).conversations || []).filter(function (c) { return c.status === 'مستنية ردنا' || c.status === 'جديدة'; });
     return { os: os, done: done, doneSum: doneSum, work: work, workSum: workSum, late: late, bal: bal, pend: pend, vname: vname, conv: conv, newO: by('قيد الانتظار'), ship: by('قيد الشحن') };
   }
+  // a request for words alone (a caption, a name, a translation) needs none of the system's data; the others read these kinds
+  var WORDS = /(اكتب|صيغ|ترجم|كابشن|بوست|write|translate|caption|slogan|شعار)/i;
+  function kindsOf(q) {
+    if (WORDS.test(q)) return [];
+    if (/(متأخر|تأخير|late|delay)/i.test(q)) return ['orders'];
+    if (/(مبيعات|بيع|sales|revenue|إيراد)/i.test(q)) return ['orders', 'sales'];
+    if (/(مبتكر|رصيد|سحب|maker|balance|withdraw)/i.test(q)) return mode === 'single' ? [] : ['vendors'];
+    if (/(عميل|عملاء|رسايل|واتساب|customer|message|whatsapp)/i.test(q)) return ['customers'];
+    return ['summary'];
+  }
   function reply(q) {
     var f = facts();
+    if (WORDS.test(q)) return 'ده نص مقترح من غير أي بيانات من السيستم: «قطعة معمولة بالإيد، تفاصيلها بتحكي عن بيتك. اطلبها دلوقتي وتوصلك لحد الباب.» قولّي المنتج أو المناسبة وأظبطه عليها.';
     if (/(متأخر|تأخير|late)/.test(q)) return f.late.length ? 'عندك ' + f.late.length + ' أوردر متأخر: ' + f.late.map(function (o) { return 'IB-' + o.id; }).join('، ') + '. أقترح تكلّم المبتكر وتحدّث العميل بميعاد جديد — والفلتر «متأخرة» في الأوردرات بيجيبهم.' : 'مفيش أوردرات متأخرة دلوقتي 👌';
     if (/(مبيعات|بيع|sales|إيراد)/.test(q)) return 'المبيعات المكتملة ' + fmt(f.doneSum) + ' ج.م من ' + f.done.length + ' أوردر، ومتوسط الأوردر ' + fmt(f.done.length ? f.doneSum / f.done.length : 0) + ' ج.م. وفيه ' + f.work.length + ' أوردر جاري تنفيذهم بإجمالي ' + fmt(f.workSum) + ' ج.م.';
     if (/(مبتكر|رصيد|سحب|maker)/.test(q)) return f.bal || f.pend.length ? 'إجمالي أرصدة المبتكرين على Dokan ' + fmt(f.bal) + ' ج.م' + (f.pend.length ? '، وفيه ' + f.pend.length + ' طلب سحب مستني موافقتك (' + f.pend.map(function (w) { return f.vname(w.vendor_id) + ' — ' + fmt(w.amount) + ' ج.م'; }).join('، ') + ').' : '.') : 'المتجر ده بيبيع براند واحد، فمفيش مبتكرين ولا أرصدة.';
@@ -326,6 +337,7 @@ window.IB_DEMO = true;
   }
   function replyEn(q) {
     var f = facts(); var pl = function (n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); };
+    if (WORDS.test(q)) return 'A suggested line, with no data from the system: “Made by hand, with details that tell your home’s story. Order it now, delivered to your door.” Tell me the product or the occasion and I will fit it.';
     if (/(متأخر|تأخير|late|delay)/i.test(q)) return f.late.length ? 'You have ' + pl(f.late.length, 'late order') + ': ' + f.late.map(function (o) { return 'IB-' + o.id; }).join(', ') + '. I suggest following up on production and giving the customer a new date — the “Late” filter in Orders lists them.' : 'No late orders right now 👌';
     if (/(مبيعات|بيع|sales|revenue|إيراد)/i.test(q)) return 'Completed sales are ' + fmt(f.doneSum) + ' EGP from ' + pl(f.done.length, 'order') + ', an average of ' + fmt(f.done.length ? f.doneSum / f.done.length : 0) + ' EGP per order. Another ' + pl(f.work.length, 'order') + ' in processing add up to ' + fmt(f.workSum) + ' EGP.';
     if (/(مبتكر|رصيد|سحب|maker|balance|withdraw)/i.test(q)) return f.bal || f.pend.length ? 'Makers’ balances on Dokan total ' + fmt(f.bal) + ' EGP' + (f.pend.length ? ', and ' + pl(f.pend.length, 'withdrawal request') + ' are waiting for your approval (' + f.pend.map(function (w) { return f.vname(w.vendor_id) + ' — ' + fmt(w.amount) + ' EGP'; }).join(', ') + ').' : '.') : 'This store sells one brand, so there are no makers or balances.';
@@ -337,7 +349,11 @@ window.IB_DEMO = true;
     var b; try { b = JSON.parse(body); } catch (e) { return null; }
     if (!b || b.action !== 'assistant' || b.mode === 'filter') return null;
     var turns = Array.isArray(b.turns) ? b.turns : []; var q = String((turns[turns.length - 1] || {}).text || '');
-    return { result: 'ok', text: lang === 'en' ? replyEn(q) : reply(q), actions: [], tools: [], report: [], model: 'demo', cost_usd: 0, run_id: Date.now() };
+    // the outside AI gets the message only: a reply that reads the demo's data is given only for the kinds this request approved
+    // (b.share) — else the kinds it wants come back as `need` and the assistant asks (the owner 22 Nov)
+    var want = kindsOf(q); var share = Array.isArray(b.share) ? b.share : []; var miss = want.filter(function (k) { return share.indexOf(k) < 0; });
+    if (miss.length) return { result: 'ok', text: '', actions: [], tools: [], report: [], need: miss, shared: [], model: 'demo', cost_usd: 0, run_id: Date.now() };
+    return { result: 'ok', text: lang === 'en' ? replyEn(q) : reply(q), actions: [], tools: want, report: [], need: [], shared: want, model: 'demo', cost_usd: 0, run_id: Date.now() };
   };
 
   window.__ibDemoWeb = {
