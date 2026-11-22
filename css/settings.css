@@ -596,3 +596,14 @@ button.dx-stat{cursor:pointer}button.dx-stat:hover{background:var(--color-bg-hov
 .ag-src-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ag-src-t small { color: var(--color-text-secondary); }
 .ag-src-u { align-self: flex-start; max-width: 100%; font-size: 12px; color: var(--color-brand-default); text-decoration: underline; text-underline-offset: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: start; }
+
+/* the assistants' own rules (the owner 22 Nov): a row a rule — its switch, the sentence and the number now, whether it holds */
+.ag-rules { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ag-rule { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--color-border-subtle); border-radius: 10px; background: var(--color-bg-container); min-width: 0; }
+.ag-rule[data-firing="yes"] { border-color: var(--color-warning-default, #d99a00); }
+.ag-rule.off .ag-rule-t { opacity: .6; }
+.ag-rule .sw { flex: none; }
+.ag-rule-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ag-rule-t b { font-weight: 600; }
+.ag-rule-t small { color: var(--color-text-secondary); }
+.ag-rule-s { flex: none; }
