@@ -9,6 +9,7 @@
        { type: 'listFilter', list, page, hash, tab, name, words }   a list of another page filtered by words (the page's own filter)
        { type: 'readMaker', vendor } · { type: 'readPeriod', what, preset } · { type: 'readProduct', q } · { type: 'readMember', q }
                                                        a read-out from the system's own data, said in the chat
+       { type: 'openForm', form, values, name, en }    one of the system's popups to open filled (its own button confirms) · { type: 'tell', text, en }
        { type: 'choose', question, options, texts }    two names fit: the member picks, texts[i] is the request said again
        { type: 'unknown' }
      ctx: { vendors: [name], today, pages: [{ id, label }] }
@@ -166,6 +167,65 @@
     return null;
   }
 
+  // ---- add / edit by words (the owner 22 Nov — «كل الاكشنز اللي ليها علاقة بالسيستم ادخال او اخراج او تعديل بيانات»): the ask names
+  // one of the system's own popups and what to fill it with. Nothing is written here or by the page that opens it — the popup's
+  // own button is the confirmation, under the same rights as by hand.
+  const ADD = ['ضيف', 'ضيفلي', 'اضف', 'اضافه', 'اعمل', 'اعملي', 'سجل', 'سجلي', 'افتح', 'افتحلي', 'قدم', 'قدملي', 'عايز', 'عاوز', 'محتاج', 'add', 'new', 'create', 'open', 'register', 'file'];
+  const NEW = ['جديد', 'جديده', 'new']; const NAMED = ['باسم', 'اسمه', 'اسمها', 'named', 'called', 'a', 'an', 'the', 'ل', 'لـ', 'for'];
+  const KIND = [['vendor_add', ['مبتكر', 'مبتكره', 'maker', 'vendor'], 'vendors'], ['member_add', ['عضو', 'موظف', 'موظفه', 'member', 'employee'], 'hr'], ['customer_add', ['عميل', 'عميله', 'customer', 'client'], 'cs']];
+  const ORDER_ST = ['قيد الانتظار', 'معلّق', 'جاري التنفيذ', 'جاهز للشحن', 'قيد الشحن', 'مكتمل']; const ORDER_NO = ['ملغي', 'الغاء', 'استرجاع', 'فشل', 'cancel', 'cancelled', 'refund', 'refunded', 'failed'];
+  const ORDER_EN = { pending: 'قيد الانتظار', 'on hold': 'معلّق', processing: 'جاري التنفيذ', 'ready to ship': 'جاهز للشحن', shipping: 'قيد الشحن', shipped: 'قيد الشحن', completed: 'مكتمل', complete: 'مكتمل', done: 'مكتمل' };
+  function formAsk(t, raw, nm, pages) {
+    const P = /[؟?!،:]|[.,](?=\s|$)/g; const ws = words(t.replace(P, ' ')); const rw = String(raw || '').replace(P, ' ').trim().split(/\s+/); const asSaid = (i) => (rw.length === ws.length ? rw[i] : ws[i]);
+    if (!ws.length || ws.length > 14) return null;
+    const ids = pages ? new Set(pages.map((p) => p.id)) : null; const may = (page) => !ids || ids.has(page);
+    const has = (...list) => ws.some((w) => list.includes(w) || list.includes(bare(w))); const add = ADD.includes(ws[0]) || has(...NEW);
+    const num = () => { const m = /(^|\s)(\d[\d,]*(?:\.\d+)?)(\s|$)/.exec(t); return m ? m[2].replace(/,/g, '') : ''; };
+    const form = (f, values, name, en) => ({ type: 'openForm', form: f, values, name, en });
+    const tail = (skip) => ws.map((w, i) => [w, i]).filter(([w, i]) => !skip(w, i)).map(([, i]) => asSaid(i)).join(' ').trim();
+    // an order: confirm it, or move it to a status the assistant may set
+    const on = /(^|\s)(ال)?(اوردر|order)\s*#?\s*(\d{2,})(\s|$)/.exec(t) || /(^|\s)#(\d{2,})(\s|$)/.exec(t); const order = on ? on[on.length - 2] : '';
+    if (order && /(^|\s)(اكد|اكدلي|تاكيد|confirm)(\s|$)/.test(t)) {
+      if (!may('orders')) return null;
+      if (/(بدون|من غير|without|no)\s+(ال)?(عربون|deposit)/.test(t)) return form('order_update', { order, confirm: 'مؤكد بدون عربون' }, 'تحديث الأوردر', 'Update the order');
+      if (/(ب|مع)?(ال)?عربون|with (a )?deposit/.test(t)) return form('order_update', { order, confirm: 'مؤكد بعربون' }, 'تحديث الأوردر', 'Update the order');
+      return { type: 'choose', what: 'confirm', question: 'تأكيد الأوردر #' + order + ' — بعربون ولا من غير؟', options: ['مؤكد بعربون', 'مؤكد بدون عربون'], texts: ['أكد الأوردر ' + order + ' بعربون', 'أكد الأوردر ' + order + ' بدون عربون'] };
+    }
+    if (order && /(^|\s)(غير|غيرلي|خلي|خليلي|حول|حدث|عدل|change|set|update|move|mark)(\s|$)/.test(t)) {
+      if (!may('orders')) return null;
+      if (ORDER_NO.some((w) => (' ' + t + ' ').includes(' ' + norm(w) + ' '))) return { type: 'tell', text: 'الإلغاء والاسترجاع والفشل ليهم بوب أب بسبب — افتح الأوردر #' + order + ' من صفحة الأوردرات.', en: 'Cancelling, refunding and failing an order take a reason — open order #' + order + ' on the orders page.' };
+      const st = ORDER_ST.find((x) => t.includes(norm(x))) || (Object.entries(ORDER_EN).find(([k]) => (' ' + t + ' ').includes(' ' + k + ' ')) || [])[1];
+      return st ? form('order_update', { order, status: st }, 'تحديث الأوردر', 'Update the order') : null;
+    }
+    // a maker's settlement: «سوّي حساب <مبتكر>»
+    if (nm && nm.hit && /(^|\s)(سوي|سويلي|تسويه|تقفيل|قفل|settle|settlement)(\s|$)/.test(t)) return may('accounts') ? form('vendor_settle', { vendor: nm.hit }, 'تسوية حساب المبتكر', 'Settle the maker’s account') : null;
+    // the payroll: a bonus / a deduction for a member, a member's salary transfer
+    const bonus = has('مكافاه', 'مكافئه', 'بونص', 'bonus'); const cut = !bonus && /(^|\s)(خصم|اخصم|deduct|deduction)(\s|$)/.test(t) && /(^|\s)(من|from)(\s|$)/.test(t) && /(^|\s)(مرتب|راتب|salary|موظف|عضو)(\s|$)/.test(t);
+    if (bonus || cut) { const who = tail((w) => /^\d[\d,.]*$/.test(w) || ADD.includes(w) || NAMED.includes(w) || ['مكافاه', 'مكافئه', 'بونص', 'bonus', 'خصم', 'اخصم', 'deduct', 'deduction', 'من', 'from', 'مرتب', 'راتب', 'salary', 'موظف', 'الموظف', 'عضو', 'العضو', 'جنيه', 'ج', 'egp', 'to'].includes(w));
+      return may('hr') ? form('salary_adjust', { member: who, kind: cut ? 'خصم' : 'بدل', amount: num(), label: cut ? '' : 'مكافأة' }, 'مكافأة / خصم', 'Bonus / deduction') : null; }
+    if (/(^|\s)(حول|حوللي|ادفع|pay|transfer)(\s|$)/.test(t) && /(^|\s)(مرتب|راتب|salary)(\s|$)/.test(t) && !/\d/.test(t)) { const who = tail((w) => ['حول', 'حوللي', 'ادفع', 'pay', 'transfer', 'مرتب', 'راتب', 'salary', 'the', 'of', 'to', 's'].includes(w) || NAMED.includes(w));
+      return who && may('hr') ? form('salary_pay', { member: who.replace(/[’']s$/, '') }, 'تحويل المرتب', 'Transfer the salary') : null; }
+    // my own HR requests: a leave, an advance, a day from home
+    const asks = add || has('طلب', 'request');
+    if (asks && has('اجازه', 'اجازات', 'leave', 'vacation')) return form('hr_leave', {}, 'طلب إجازة', 'Leave request');
+    if (asks && has('سلفه', 'سلفة', 'advance')) return form('hr_advance', num() ? { amount: num() } : {}, 'طلب سُلفة', 'Advance request');
+    if ((asks || ws.length <= 4) && (/(عن بعد|من البيت)/.test(t) || has('remote'))) return form('hr_remote', {}, 'طلب شغل عن بُعد', 'Remote-work request');
+    if (!add) return null;
+    // a maker, a team member, a customer: the name as it was written (an e-mail and a phone number go to their boxes)
+    for (const [f, kw, page] of KIND) { const at = ws.findIndex((w) => kw.includes(bare(w))); if (at < 0 || at > 3) continue; if (!may(page)) return null;
+      const email = (rw.find((w) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(w)) || '').toLowerCase(); const phone = (rw.find((w) => /^\+?\d[\d-]{7,14}$/.test(w)) || '').replace(/-/g, '');
+      const name = tail((w, i) => i <= at && (ADD.includes(w) || kw.includes(bare(w))) || NEW.includes(w) || NAMED.includes(w) || /@/.test(w) || /^\+?\d[\d-]{7,14}$/.test(w) || ['رقمه', 'رقمها', 'موبايل', 'تليفون', 'ايميل', 'phone', 'email', 'mobile'].includes(w));
+      const v = {}; let nmv = name; if (f === 'customer_add') { const cm = /^(.+?)\s+(?:من|from)\s+(.+)$/.exec(name); if (cm) { nmv = cm[1]; v.city = cm[2].slice(0, 60); } } // «منة من طنطا»: the city to its own box
+      if (nmv) v.name = nmv.slice(0, 120); if (email) v.email = email; if (phone) v.phone = phone;
+      return form(f, v, { vendor_add: 'إضافة مبتكر', member_add: 'إضافة عضو', customer_add: 'إضافة عميل' }[f], { vendor_add: 'Add a maker', member_add: 'Add a member', customer_add: 'Add a customer' }[f]); }
+    // a team request (and what used to be a task): the rest of the words are its title
+    const rq = ws.findIndex((w) => ['طلب', 'request', 'ticket', 'مهمه', 'task'].includes(bare(w)));
+    if (rq >= 0 && rq <= 2 && may('tickets')) { const title = tail((w, i) => i <= rq || (NEW.includes(w) && i === rq + 1) || ['عاجل', 'عاجله', 'urgent'].includes(w));
+      const v = {}; if (title) v.title = title.slice(0, 200); if (has('عاجل', 'عاجله', 'urgent')) v.priority = 'urgent';
+      return form('ticket_new', v, 'طلب جديد', 'New request'); }
+    return null;
+  }
+
   function understand(text, ctx) {
     const raw = String(text == null ? '' : text).trim(); const t = norm(raw); if (!t) return { type: 'unknown' };
     const c = ctx || {}; const vendors = c.vendors || [];
@@ -175,6 +235,17 @@
     if (!nm.hit && nm.others.length) return { type: 'choose', what: 'vendor', question: 'تقصد أنهي مبتكر؟', options: nm.others, texts: nm.others.map((n) => put(raw, nm.from, nm.to, n)) };
     if (nm.hit && !norm(raw).includes(norm(nm.hit))) said = put(raw, nm.from, nm.to, nm.hit);
     const cmd = C.parseCommand(oldWords(said), Object.assign({}, c, { vendors }));
+    // money said without «سحب» / «إيداع»: «عربون 300 لـ <مبتكر>» and «مواصلات 150 <مبتكر>» come off the maker, «مصروف 500 كهربا» is a
+    // general expense with what it was for — the accounts' own popup, filled
+    if (cmd.type === 'unknown' && !/(^|\s)(سحب|ايداع|اسحب|اودع|withdraw|deposit)(\s|$)/.test(t)) { const am = /(^|\s)(\d[\d,]*(?:\.\d+)?)(\s|$)/.exec(t); const amount = am ? am[2].replace(/,/g, '') : '';
+      const kind = /(^|\s)(ال)?(عربون|deposit)(\s|$)/.test(t) ? 'عربون' : /(^|\s)(ال)?(مواصلات|اوبر|transport)(\s|$)/.test(t) ? 'مواصلات' : '';
+      if (amount && kind && nm.hit) return { type: 'addVendorMove', direction: 'withdraw', amount, vendorType: kind, otherName: '', vendor: nm.hit, missing: [], heard: nm.hit };
+      const ex = /^(?:(?:سجل|سجلي|ضيف|اضف|add|record)\s+)?(?:مصروف|مصاريف|expense)\s+(.*)$/.exec(t);
+      if (amount && ex) { const rw = raw.replace(/[؟?!،:]/g, ' ').trim().split(/\s+/); const ws = words(t.replace(/[؟?!،:]/g, ' ')); const skip = ['سجل', 'سجلي', 'ضيف', 'اضف', 'add', 'record', 'مصروف', 'مصاريف', 'expense', 'جنيه', 'egp'];
+        const details = ws.map((w, i) => [w, i]).filter(([w]) => !skip.includes(w) && !/^\d[\d,.]*$/.test(w)).map(([, i]) => (rw.length === ws.length ? rw[i] : ws[i])).join(' ').slice(0, 200);
+        return { type: 'addExpense', direction: 'withdraw', amount, category: 'المصروفات', beneficiary: '', otherName: '', details, missing: [] }; } }
+    // add / edit: the system's own popup, filled — before the old commands read a page or a filter in the same words
+    if (!['addExpense', 'addVendorMove', 'addAccountMove'].includes(cmd.type)) { const fa = formAsk(t, raw, nm, c.pages); if (fa) return fa; }
     if (cmd.type === 'addExpense' && !cmd.category && /(^|\s)(ال)?مصروفات(\s|$)/.test(t)) { cmd.category = 'المصروفات'; cmd.missing = (cmd.missing || []).filter((k) => k !== 'category'); } // «سحب مصروفات 1500»: the general kind
     // a filter is the whole request only: words it does not account for («حساب فلان وعدد …») mean more was asked than it does
     if (cmd.type === 'ordersFilter' && !cmd.filter.q && extra(said, cmd, vendors) > 1) return { type: 'unknown' };
@@ -194,7 +265,7 @@
   }
 
   // what to try when the member says no to an outside model
-  const EXAMPLES = ['افتح المخزن', 'اعرض الأوردرات المتأخرة', 'اعرض المبتكرين الموقوفين', 'مبيعات الشهر ده', 'حساب المبتكر ‹الاسم›', 'أوردرات المبتكر ‹الاسم› جاري التنفيذ', 'سجل سحب مرتبات 5000', 'رتب المبتكرين بالعربون'];
+  const EXAMPLES = ['افتح المخزن', 'اعرض الأوردرات المتأخرة', 'اعرض المبتكرين الموقوفين', 'مبيعات الشهر ده', 'حساب المبتكر ‹الاسم›', 'ضيف عميل ‹الاسم›', 'افتح طلب ‹العنوان›', 'أوردرات المبتكر ‹الاسم› جاري التنفيذ', 'سجل سحب مرتبات 5000', 'رتب المبتكرين بالعربون'];
   /** A model's work, never the system's: a why, an opinion, writing, a picture. */
   const thinks = (text) => THINK.test(' ' + norm(text) + ' ');
   return Object.freeze({ understand, findName, skel, norm, thinks, pickOptions, LISTS, EXAMPLES });
