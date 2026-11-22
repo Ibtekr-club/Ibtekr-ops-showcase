@@ -11,7 +11,6 @@
 "أوردرات المبتكر ‹الاسم› جاري التنفيذ": "Orders of maker ‹name› in progress",
 "الصفحة دي مش من صلاحياتك.": "This page is not within your permissions.",
 "جهّزتلك البوب أب باللي قلته — افتحه وراجع وكمّل الناقص، و«حفظ» فيه هو التأكيد:": "I prepared the popup with what you said — open it, review and fill in what’s missing; its “Save” is the confirmation:",
-"السيستم بيرد من بياناته الأول — المخ الخارجي بموافقتك بس. أي تسجيل بيطلب تأكيدك الأول.": "The system answers from its own data first — an outside AI only with your consent. Any entry asks for your confirmation first.",
 "المخ الخارجي مش متاح دلوقتي (مفتاحه مش متظبط) — الأدمن يربطه من «الإعدادات › الربط بالمنصات».": "The outside AI isn’t available right now (its key isn’t set up) — the admin connects it from “Settings › Integrations”.",
 "تقصد أنهي مبتكر؟": "Which maker do you mean?",
 "المساعدين: تاب لكل مساعد — مخّه الخارجي وقواعده وسكيلزه ومصادره.": "Assistants: a tab for each — its outside AI, its rules, its skills and its sources.",
@@ -30,5 +29,10 @@
 "مفيش مصدر ذكاء مربوط": "No provider connected",
 "مصدر الذكاء ده مش مربوط — اربطه من «الربط بالمنصات» أو اختار مصدر مربوط.": "This provider is not connected — connect it from “Integrations” or choose a connected one.",
 "بيظهر هنا مصدر الذكاء المربوط والشغّال بس — المفاتيح من «الربط بالمنصات › الذكاء الاصطناعي». Magnific بالكريدت، والباقي بالدولار على سقف المحتوى الشهري.": "Only the connected, working provider shows here — the keys are in “Integrations › AI”. Magnific is billed in credits, the rest in dollars against the monthly content cap.",
-"الأداة اللي ليها مصدر ذكاء تاني بتمشي على مستويات مصدرها.": "A tool with another provider follows its provider’s levels."
+"الأداة اللي ليها مصدر ذكاء تاني بتمشي على مستويات مصدرها.": "A tool with another provider follows its provider’s levels.",
+"السيستم بيرد من بياناته الأول — المخ الخارجي بموافقتك بس، وبياخد رسالتك من غير بيانات الشركة إلا اللي توافق عليه. أي تسجيل بيطلب تأكيدك الأول.": "The system answers from its own data first — an outside AI only with your consent, and it gets your message without the company’s data except what you approve. Any entry asks for your confirmation first.",
+"وافق المرة دي": "Approve this once",
+"مااتبعتش بيانات.": "No data was sent.",
+"وافقت المرة دي.": "Approved this once.",
+"اتبعتله: رسالتك بس — من غير بيانات من السيستم": "Sent to it: your message only — no data from the system"
 }

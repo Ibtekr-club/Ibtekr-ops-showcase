@@ -30,5 +30,17 @@
  [
   "^(فلترت الأوردرات: .+) — (\\d+) أوردر\\.$",
   "$1 — $2 orders."
+ ],
+ [
+  "^عشان يكمّل، (.+) محتاج يشوف البيانات دي من السيستم\\. أوافق؟$",
+  "To go on, $1 needs to see this data from the system. Approve?"
+ ],
+ [
+  "^تمام، مااتبعتش أي بيانات لـ (.+)\\. من غيرها مش هيقدر يجاوب على ده — جرّب صيغة من دي يرد عليها السيستم نفسه:$",
+  "OK, no data was sent to $1. Without it, it can’t answer this — try one of these, which the system itself answers:"
+ ],
+ [
+  "^اتبعتله: رسالتك \\+ (.+)$",
+  "Sent to it: your message + $1"
  ]
 ]

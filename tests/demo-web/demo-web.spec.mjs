@@ -91,7 +91,17 @@ test('marketplace: dashboard, orders (a status change kept after a reload), prod
   await page.fill('.ai-input', 'حلل الأوردرات المتأخرة'); await page.locator('.ai-form').press('Enter');
   await expect(lastAi.locator('[data-ai-consent] button')).toHaveText(['Claude', 'ChatGPT', 'لا']);
   await lastAi.locator('[data-ai-brain="openai"]').click();
+  // the outside model got the message alone: for the orders it asks — the kind, what it holds and what it leaves out; «ارفض» sends nothing
+  await expect(lastAi.locator('[data-ai-need]')).toHaveAttribute('data-ai-need', 'orders', { timeout: 10000 }); await expect(lastAi).toContainText('عشان يكمّل، ChatGPT محتاج يشوف البيانات دي من السيستم. أوافق؟');
+  await expect(lastAi.locator('[data-ai-need-kind="orders"]')).toContainText('من غير أسامي العملاء وتليفوناتهم وعناوينهم'); await expect(page.locator('.ai-panel')).not.toContainText('IB-182013');
+  await lastAi.locator('[data-ai-share-no]').click(); await expect(lastAi).toContainText('تمام، مااتبعتش أي بيانات لـ ChatGPT'); await expect(page.locator('.ai-panel')).not.toContainText('IB-182013');
+  await page.fill('.ai-input', 'حلل الأوردرات المتأخرة'); await page.locator('.ai-form').press('Enter'); await lastAi.locator('[data-ai-brain="openai"]').click();
+  await lastAi.locator('[data-ai-share-ok]').click();
   await expect(lastAi).toContainText('IB-182013', { timeout: 10000 }); await expect(lastAi.locator('[data-ai-src]')).toHaveText('الرد من ChatGPT');
+  await expect(lastAi.locator('[data-ai-shared]')).toHaveText('اتبعتله: رسالتك + الأوردرات');
+  // words alone need none of the system's data
+  await page.fill('.ai-input', 'اكتبلي كابشن لمنتج جديد'); await page.locator('.ai-form').press('Enter'); await lastAi.locator('[data-ai-brain="claude"]').click();
+  await expect(lastAi.locator('[data-ai-shared]')).toHaveText('اتبعتله: رسالتك بس — من غير بيانات من السيستم', { timeout: 10000 }); await expect(lastAi.locator('[data-ai-src]')).toHaveText('الرد من Claude');
   await page.keyboard.press('Escape');
 
   await page.evaluate(() => window.__ibDemoAfter('POST', window.__ibDemo.HOST + '/functions/v1/share-mail', '{}', {}));
@@ -182,6 +192,13 @@ test('English: the language drop-down in the banner turns the demo to English, l
   await go(page, 'orders');
   const st = page.locator('#orders select[data-st]').first(); await expect(st).toBeVisible({ timeout: 20000 });
   expect(await st.evaluate((el) => /[\u0621-\u064A]/.test(el.value))).toBe(true);
+  // the assistant's data card in English: an ask the system does not take → the company → the kinds it wants, then what was sent
+  await page.getByRole('button', { name: 'AI assistant' }).click(); const aiLast = page.locator('.ai-panel .ai-msg.ai').last();
+  await page.fill('.ai-input', 'Why are these orders late?'); await page.locator('.ai-form').press('Enter'); await aiLast.locator('[data-ai-brain]').first().click();
+  await expect(aiLast.locator('[data-ai-need]')).toHaveAttribute('data-ai-need', 'orders', { timeout: 10000 }); await page.waitForTimeout(600);
+  await expect(aiLast.locator('[data-ai-need-kind="orders"]')).toContainText('No customer names, phones or addresses'); expect(await arabicShown(page), 'the assistant › the data card').toEqual([]);
+  await aiLast.locator('[data-ai-share-ok]').click(); await expect(aiLast.locator('[data-ai-shared]')).toHaveText('Sent to it: your message + Orders', { timeout: 10000 }); await page.waitForTimeout(600);
+  expect(await arabicShown(page), 'the assistant › the answer and what was sent').toEqual([]); await page.keyboard.press('Escape');
   expect(errors).toEqual([]);
   // back to Arabic
   await page.locator('#demo-bar [data-demo-dd="lang"]').click(); await page.locator('#demo-bar [data-demo-dd-opt="ar"]').click();
@@ -236,6 +253,7 @@ test('AI providers: a box per kind with only the linked companies; the switch of
   await page.keyboard.press('Escape'); await page.locator('#prov-auto').click();
   await expect(page.locator('[data-prov-auto]')).toHaveAttribute('data-prov-auto', 'on'); await page.waitForTimeout(1200);
   expect(await arabicShown(page), 'settings › AI providers').toEqual([]);
+  await expect(page.locator('[data-brain-share]')).toContainText('An outside AI gets your message only'); await expect(page.locator('[data-bs-never] li').first()).toHaveText('Customer phones');
   // the assistants' tab in English: a tab per assistant, «General manager» first, its rules, skills and sources in English
   await page.locator('#tab-agents').click(); await expect(page.locator('[data-ag-tab]')).toHaveCount(9, { timeout: 20000 }); await page.waitForTimeout(1500);
   await expect(page.locator('[data-ag-tab]').first()).toHaveAttribute('data-ag-tab', 'manager'); await expect(page.locator('[data-ag-srcs="manager"] .ag-src')).toHaveCount(4);
