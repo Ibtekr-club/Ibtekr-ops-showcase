@@ -82,10 +82,16 @@ test('marketplace: dashboard, orders (a status change kept after a reload), prod
   const statuses = await page.evaluate(() => [...new Set(window.__ibDemo.mock.orders.map((o) => o.status))].sort());
   expect(statuses).toEqual(['استرجاع', 'جاري التنفيذ', 'جاهز للشحن', 'فشل', 'قيد الانتظار', 'قيد الشحن', 'معلّق', 'مكتمل', 'ملغي'].sort());
 
-  // the header assistant answers from the demo's own data after a short wait
+  // the header assistant: the system's own engine answers first (a filter, with what it found); an ask it does not understand
+  // waits for the visitor's choice of an outside model — Claude or ChatGPT here — and that one's answer says who it is from
   await page.getByRole('button', { name: 'مساعد AI' }).click();
+  const lastAi = page.locator('.ai-panel .ai-msg.ai').last();
   await page.fill('.ai-input', 'إيه الأوردرات المتأخرة؟'); await page.locator('.ai-form').press('Enter');
-  await expect(page.locator('.ai-panel .ai-msg.ai').last()).toContainText('IB-182013', { timeout: 10000 });
+  await expect(lastAi.locator('.ai-text')).toHaveText(/^فلترت الأوردرات: التسليم = متأخر — \d+ أوردر\.$/); await expect(lastAi.locator('[data-ai-src]')).toHaveText('من السيستم');
+  await page.fill('.ai-input', 'حلل الأوردرات المتأخرة'); await page.locator('.ai-form').press('Enter');
+  await expect(lastAi.locator('[data-ai-consent] button')).toHaveText(['Claude', 'ChatGPT', 'لا']);
+  await lastAi.locator('[data-ai-brain="openai"]').click();
+  await expect(lastAi).toContainText('IB-182013', { timeout: 10000 }); await expect(lastAi.locator('[data-ai-src]')).toHaveText('الرد من ChatGPT');
   await page.keyboard.press('Escape');
 
   await page.evaluate(() => window.__ibDemoAfter('POST', window.__ibDemo.HOST + '/functions/v1/share-mail', '{}', {}));

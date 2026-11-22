@@ -1,0 +1,17 @@
+{
+"من السيستم": "From the system",
+"الرد من": "Answer from",
+"مش فاهم الطلب ده من السيستم. أستخدم مخ خارجي؟ اختار أنهي واحد:": "The system itself doesn’t understand this request. Use an outside AI? Choose which one:",
+"أيوه، استخدمه": "Yes, use it",
+"ما استخدمتش مخ خارجي.": "No outside AI was used.",
+"اتبعت لـ": "Sent to",
+"مش فاهم الطلب ده من السيستم، ومفيش مخ خارجي مربوط أسأله. جرّب صيغة من دي:": "The system itself doesn’t understand this request, and no outside AI is connected to ask. Try one of these:",
+"تمام، ما استخدمتش مخ خارجي. جرّب صيغة من دي:": "OK, no outside AI was used. Try one of these:",
+"افتح المخزن": "Open the inventory",
+"أوردرات المبتكر ‹الاسم› جاري التنفيذ": "Orders of maker ‹name› in progress",
+"الصفحة دي مش من صلاحياتك.": "This page is not within your permissions.",
+"جهّزتلك البوب أب باللي قلته — افتحه وراجع وكمّل الناقص، و«حفظ» فيه هو التأكيد:": "I prepared the popup with what you said — open it, review and fill in what’s missing; its “Save” is the confirmation:",
+"السيستم بيرد من بياناته الأول — المخ الخارجي بموافقتك بس. أي تسجيل بيطلب تأكيدك الأول.": "The system answers from its own data first — an outside AI only with your consent. Any entry asks for your confirmation first.",
+"المخ الخارجي مش متاح دلوقتي (مفتاحه مش متظبط) — الأدمن يربطه من «الإعدادات › الربط بالمنصات».": "The outside AI isn’t available right now (its key isn’t set up) — the admin connects it from “Settings › Integrations”.",
+"تقصد أنهي مبتكر؟": "Which maker do you mean?"
+}

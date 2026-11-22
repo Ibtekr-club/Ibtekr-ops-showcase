@@ -18,5 +18,17 @@
  [
   "^(.+?) من (\\d+) دقيقة — الهدف أول رد خلال (\\d+) دقيقة$",
   "$1 for $2 min — target: first reply within $3 min"
+ ],
+ [
+  "^مش فاهم الطلب ده من السيستم\\. أستخدم مخ خارجي \\((.+)\\)؟$",
+  "The system itself doesn’t understand this request. Use an outside AI ($1)?"
+ ],
+ [
+  "^فتحت «(.+)»\\.$",
+  "Opened “$1”."
+ ],
+ [
+  "^(فلترت الأوردرات: .+) — (\\d+) أوردر\\.$",
+  "$1 — $2 orders."
  ]
 ]

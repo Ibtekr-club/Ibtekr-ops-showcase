@@ -951,7 +951,7 @@
   const aiCtx = () => {
     const names = SEED.vendors.map((v) => v.name); const seen = new Set(names.map((n) => n.toLowerCase()));
     const orders = (window.OrdersApp && window.OrdersApp.vendors) ? window.OrdersApp.vendors() : [];
-    return { vendors: names.concat(orders.filter((n) => !seen.has(n.toLowerCase()))), today: TODAY };
+    return { vendors: names.concat(orders.filter((n) => !seen.has(n.toLowerCase()))), today: TODAY, pages: NAV.filter((n) => !barred(n[2])).map((n) => ({ id: n[2], label: n[1] })) };
   };
   const AI_ASK = { amount: 'المبلغ كام؟', category: 'النوع إيه؟ (المرتبات، المصروفات، الاشتراكات، الإعلانات)', vendor: 'أنهي مبتكر؟' };
   const KIND_OF = { addExpense: 'expenses', addVendorMove: 'vendorMoves', addAccountMove: 'accountMoves' };
@@ -989,16 +989,25 @@
     switch (cmd.type) {
       case 'navigate': if (cmd.tab) state.tab = cmd.tab; go(cmd.page); aiSay(cmd.page === 'orders' ? 'فتحت الأوردرات.' : 'فتحت تاب ' + TABS.find((t) => t.id === state.tab).label + '.'); return;
       case 'ordersFilter': {
-        if (state.page !== 'orders') go('orders'); window.OrdersApp.apply(cmd.filter);
+        if (state.page !== 'orders') go('orders'); const found = window.OrdersApp.apply(cmd.filter);
         const gq = document.getElementById('gq'); if (gq && cmd.filter.q !== undefined) gq.value = cmd.filter.q;
-        aiSay('فلترت الأوردرات: ' + Object.entries(cmd.filter).map(([k, v]) => ({ q: 'بحث', st: 'الحالة', deliv: 'التسليم', vendor: 'المبتكر' }[k]) + ' = ' + ({ late: 'متأخر', risk: 'قابل للتأخير', ok: 'غير متأخر' }[v] || v)).join('، ') + '.'); return;
+        aiSay('فلترت الأوردرات: ' + Object.entries(cmd.filter).map(([k, v]) => ({ q: 'بحث', st: 'الحالة', deliv: 'التسليم', vendor: 'المبتكر' }[k]) + ' = ' + ({ late: 'متأخر', risk: 'قابل للتأخير', ok: 'غير متأخر' }[v] || v)).join('، ') + (typeof found === 'number' ? ' — ' + found + ' أوردر.' : '.')); return;
       }
       case 'ordersClear': window.OrdersApp.clear(); { const gq = document.getElementById('gq'); if (gq) gq.value = ''; } aiSay('مسحت فلاتر الأوردرات.'); return;
       case 'setRange': { const r = cmd.range || D.presetRange(cmd.preset, TODAY); state.range = { from: r.from, to: r.to, preset: cmd.preset || 'custom' }; if (state.page !== 'accounts') go('accounts'); else render(); aiSay('غيّرت ' + D.rangeLabel(r.from, r.to) + '.'); return; }
       case 'sortVendors': state.sort = cmd.sort; state.tab = 'vendors'; go('accounts'); aiSay('رتّبت المبتكرين: ' + SORTS.find((x) => x.value === cmd.sort).label + '.'); return;
-      case 'addExpense': case 'addVendorMove': case 'addAccountMove':
-        if (cmd.missing.length) { ai.pending = cmd; aiSay(AI_ASK[cmd.missing[0]]); return; }
-        ai.msgs.push({ role: 'ai', text: 'هسجّل الحركة دي — راجعها وأكّد:', confirm: cmd }); aiDraw(); return;
+      // decisions 40 and 41 (the owner 10 Nov): a money entry is the accounts page's own «سحب / إيداع» popup, filled with what was
+      // said, behind a link under the answer — «حفظ» in it is the confirmation (the system's engine does as the outside model did)
+      case 'addExpense': case 'addVendorMove': case 'addAccountMove': {
+        const values = { direction: cmd.direction, amount: cmd.amount || '' };
+        if (cmd.type === 'addExpense') { if (cmd.category) values.category = cmd.category; if (cmd.beneficiary) values.beneficiary = cmd.beneficiary === D.OTHER ? cmd.otherName : cmd.beneficiary; }
+        else if (cmd.type === 'addVendorMove') { if (cmd.vendor) values.vendor = cmd.vendor; if (cmd.vendorType) values.type = cmd.vendorType; }
+        else if (cmd.account) values.account = cmd.account;
+        ai.msgs.push({ role: 'ai', text: 'جهّزتلك البوب أب باللي قلته — افتحه وراجع وكمّل الناقص، و«حفظ» فيه هو التأكيد:', forms: [{ name: 'open_form', input: { form: { addExpense: 'expense_add', addVendorMove: 'vendor_move', addAccountMove: 'account_move' }[cmd.type], values } }] }); aiDraw(); return;
+      }
+      // the system's own engine (js/pages/system-brain.js): a page by its name; two names that fit → the member picks one
+      case 'goPage': if (barred(cmd.page)) { aiSay('الصفحة دي مش من صلاحياتك.'); return; } go(cmd.page); aiSay('فتحت «' + (NAV.find((n) => n[2] === cmd.page) || [])[1] + '».'); return;
+      case 'choose': ai.msgs.push({ role: 'ai', text: cmd.question, pick: { options: cmd.options, texts: cmd.texts } }); aiDraw(); return;
       default: aiSay(AI_HELP);
     }
   }
@@ -1104,18 +1113,19 @@
     for (const f of failed) aiSay(f);
   }
   function aiBusy(b) { ai.busy = b; if (aiInput) aiInput.disabled = b; if (aiSendBtn) aiSendBtn.hidden = b; if (aiStopBtn) aiStopBtn.hidden = !b; if (!b && aiInput && aiPanel && !aiPanel.hidden) aiInput.focus(); }
-  function aiModeNote() { if (aiNoteEl) aiNoteEl.textContent = aiServer === false ? 'الـ AI مش متظبط دلوقتي — بفهم صيغ أوامر محددة بس (افتح، اعرض، سجل، رتب).' : 'محادثة مع Claude على بياناتك بصلاحياتك. أي تسجيل بيطلب تأكيدك الأول.'; }
+  function aiModeNote() { if (aiNoteEl) aiNoteEl.textContent = 'السيستم بيرد من بياناته الأول — المخ الخارجي بموافقتك بس. أي تسجيل بيطلب تأكيدك الأول.'; }
   const aiContext = () => ({ page: state.page, tab: state.page === 'accounts' ? state.tab : '', period: state.page === 'accounts' ? { from: state.range.from, to: state.range.to } : null });
-  async function aiChat(text) {
+  async function aiChat(text, brain) {
     ai.turns.push({ role: 'user', text }); ai.turns = ai.turns.slice(-12);
-    const m = { role: 'ai', text: '', live: true }; ai.msgs.push(m); aiBusy(true); aiDraw();
+    const via = aiBrains().find((b) => b.id === brain) || null;
+    const m = { role: 'ai', text: '', live: true, via: via ? via.name : '', brain: brain || '' }; ai.msgs.push(m); aiBusy(true); aiDraw();
     aiCtl = new AbortController();
-    const r = window.IBAI && window.IBAI.assistant ? await window.IBAI.assistant({ mode: 'chat', turns: ai.turns, context: aiContext(), signal: aiCtl.signal }) : { ok: false, reason: 'not_configured' };
+    const r = window.IBAI && window.IBAI.assistant ? await window.IBAI.assistant({ mode: 'chat', turns: ai.turns, context: aiContext(), provider: brain || undefined, signal: aiCtl.signal }) : { ok: false, reason: 'not_configured' };
     aiCtl = null; m.live = false;
     if (!r.ok) {
       ai.msgs = ai.msgs.filter((x) => x !== m); ai.turns.pop();
       if (r.reason === 'cancelled') aiSay('وقفت.');
-      else if (r.reason === 'not_configured' || r.reason === 'forbidden') { aiServer = false; aiModeNote(); aiSay('المحادثة مع الـ AI مش متاحة دلوقتي (مفتاح الـ AI مش متظبط)، فهشتغل بالأوامر المحددة.'); aiBusy(false); aiLocal(text); return; }
+      else if (r.reason === 'not_configured' || r.reason === 'forbidden') { aiServer = false; aiModeNote(); aiSay('المخ الخارجي مش متاح دلوقتي (مفتاحه مش متظبط) — الأدمن يربطه من «الإعدادات › الربط بالمنصات».'); aiBusy(false); return; }
       else if (r.reason === 'ai_cap') aiSay('سقف الـ AI الشهري خلص — الأدمن يزوّده من إعدادات الـ AI.');
       else if (r.reason === 'busy') aiSay('الاستخدام كتير دلوقتي، جرّب بعد شوية.');
       else aiSay('حصلت مشكلة في الاتصال، جرّب تاني.');
@@ -1191,11 +1201,31 @@
     parts.forEach(walk);
     window.IBKit.xlsxExport('ibtekr-assistant-' + TODAY + '.xlsx', 'مساعد AI', aoa);
   }
-  function aiRun(text) {
+  // the owner 22 Nov («المساعدين … ذكائهم في السيستم مش بيستخدموا مخ خارجي» · «يقولي مش فاهم و هستخدم تدخل خارجي و انا اوافق او ارفض» ·
+  // «لو مركب اكتر من مخ ممكن يخيرني مثلا شات جي بي او كلود»): a message goes to the system's own engine first (IBBrain — no model, no
+  // spend); what it understands is done here and marked «من السيستم». What it does not is asked about: a button per linked company
+  // («موافق» when there is one) and «لا» — no outside model is called before the member's click on that message. An answer to the
+  // outside model's own question (its buttons / its popup) goes back to it: the same request going on.
+  function aiRun(text, o) {
     const t = text.trim(); if (!t || ai.busy) return;
     ai.msgs.push({ role: 'user', text: t });
-    if (aiServer !== false) { aiChat(t); return; }
-    aiLocal(t);
+    if (o && o.brain) { aiChat(t, o.brain); return; }
+    const at = ai.msgs.length; const sys = () => ai.msgs.slice(at).forEach((m) => { if (m.role === 'ai') m.sys = true; });
+    if (ai.pending) { aiLocal(t); sys(); aiDraw(); return; }
+    const got = window.IBBrain ? window.IBBrain.understand(t, aiCtx()) : C.parseCommand(t, aiCtx());
+    if (got.type !== 'unknown') { aiExec(got); sys(); aiDraw(); return; }
+    aiConsent(t);
+  }
+  const aiBrains = () => (window.IBSettings && window.IBSettings.textBrains ? window.IBSettings.textBrains() : []);
+  function aiConsent(t) {
+    const brains = aiBrains();
+    if (!brains.length) { ai.msgs.push({ role: 'ai', sys: true, text: 'مش فاهم الطلب ده من السيستم، ومفيش مخ خارجي مربوط أسأله. جرّب صيغة من دي:', tries: true }); aiDraw(); return; }
+    ai.msgs.push({ role: 'ai', sys: true, text: brains.length > 1 ? 'مش فاهم الطلب ده من السيستم. أستخدم مخ خارجي؟ اختار أنهي واحد:' : 'مش فاهم الطلب ده من السيستم. أستخدم مخ خارجي (' + brains[0].name + ')؟', consent: { text: t, brains, done: '' } }); aiDraw();
+  }
+  function aiConsentPick(m, brain) {
+    if (m.consent.done || ai.busy) return;
+    if (!brain) { m.consent.done = 'no'; ai.msgs.push({ role: 'ai', sys: true, text: 'تمام، ما استخدمتش مخ خارجي. جرّب صيغة من دي:', tries: true }); aiDraw(); return; }
+    m.consent.done = brain.name; aiChat(m.consent.text, brain.id);
   }
   // the fixed commands (commands.js) — the fallback without the AI
   function aiLocal(t) {
@@ -1213,9 +1243,16 @@
     if (!aiList) return;
     aiList.replaceChildren(...ai.msgs.map((m) => {
       const kids = [h('p', { class: 'ai-text' }, m.live && !m.text ? 'بفكّر…' : m.welcome ? aiWelcome() : m.text)];
+      // where the answer came from: the system itself, or the outside model the member agreed to
+      if (m.role === 'ai' && !m.welcome && !m.live && (m.sys || m.via)) kids.unshift(h('span', { class: 'ai-src' + (m.sys ? ' sys' : ''), 'data-ai-src': m.sys ? 'system' : 'brain' }, m.sys ? 'من السيستم' : ['الرد من ', h('bdi', null, m.via)]));
+      if (m.consent) kids.push(m.consent.done ? h('p', { class: 'ai-done t-small' }, m.consent.done === 'no' ? 'ما استخدمتش مخ خارجي.' : ['اتبعت لـ ', h('bdi', null, m.consent.done), '.']) : h('div', { class: 'ai-actions ai-consent', 'data-ai-consent': '' },
+        m.consent.brains.map((b) => Button({ type: 'primary', size: 'sm', label: m.consent.brains.length > 1 ? b.name : 'أيوه، استخدمه', attrs: Object.assign({ 'data-ai-brain': b.id }, m.consent.brains.length > 1 ? { 'data-i18n-off': '' } : {}), onClick: () => aiConsentPick(m, b) })),
+        Button({ size: 'sm', label: 'لا', attrs: { 'data-ai-brain': '' }, onClick: () => aiConsentPick(m, null) })));
+      if (m.tries) kids.push(h('div', { class: 'ai-actions ai-tries' }, (window.IBBrain ? window.IBBrain.EXAMPLES : AI_EXAMPLES).map((x) => h('span', { class: 'chip' }, x))));
+      if (m.pick) kids.push(m.pick.done ? h('p', { class: 'ai-done t-small' }, m.pick.done) : h('div', { class: 'ai-actions ai-pick', 'data-ai-pick': '' }, m.pick.options.map((x, i) => Button({ size: 'sm', label: x, attrs: { 'data-i18n-off': '' }, onClick: () => { m.pick.done = x; aiRun(m.pick.texts[i]); } }))));
       if (m.forms && m.forms.length && !m.live) kids.push(h('div', { class: 'ai-actions ai-forms' }, m.forms.map((a) => h('a', { href: '#', class: 'ai-form-link', 'data-ai-open': a.name === 'plan_categories' ? 'category_plan' : a.name === 'plan_requests' ? 'request_plan' : (a.input && a.input.form) || '',
         onClick: (e) => { e.preventDefault(); aiOpenLink(a); } }, Icon('plus', 'sm'), a.name === 'plan_categories' ? 'راجع الأقسام (' + ((a.input && a.input.items) || []).length + ') ↗' : a.name === 'plan_requests' ? 'راجع الطلبات (' + ((a.input && a.input.items) || []).length + ') ↗' : 'افتح بوب أب «' + aiFormLabel(a) + '» ↗'))));
-      if (m.ask && !m.live && window.IBChatAsk) kids.push(window.IBChatAsk.card(m.ask, { key: 'hdr:' + ai.msgs.indexOf(m), used: m !== ai.msgs.filter((x) => x.ask).slice(-1)[0], onSend: (t) => aiRun(t) }));
+      if (m.ask && !m.live && window.IBChatAsk) kids.push(window.IBChatAsk.card(m.ask, { key: 'hdr:' + ai.msgs.indexOf(m), used: m !== ai.msgs.filter((x) => x.ask).slice(-1)[0], onSend: (t) => aiRun(t, m.brain ? { brain: m.brain } : null) }));
       if (m.files && m.files.length && !m.live) kids.push(h('div', { class: 'ai-actions ai-forms' }, m.files.map((a) => h('a', { href: '#', class: 'ai-form-link', 'data-ai-file': (a.input && a.input.source) || '',
         onClick: (e) => { e.preventDefault(); aiFile(a); } }, Icon('download', 'sm'), 'تنزيل «' + String((a.input && a.input.name) || 'الملف') + '»'))));
       if (m.report && m.report.length && !m.live) kids.push(h('div', { class: 'ai-actions' }, Button({ size: 'sm', icon: 'file', label: 'تفاصيل', attrs: { 'data-ai-details': '' }, onClick: () => aiReport(m) }),
@@ -1328,7 +1365,7 @@
       aiList,
       h('div', { class: 'ai-chips' }, AI_EXAMPLES.map((x) => Button({ size: 'sm', label: x, onClick: () => aiRun(x) }))),
       form,
-      (aiNoteEl = h('p', { class: 'ai-note t-small' }, 'محادثة مع Claude على بياناتك بصلاحياتك. أي تسجيل بيطلب تأكيدك الأول.')));
+      (aiNoteEl = h('p', { class: 'ai-note t-small' }, 'السيستم بيرد من بياناته الأول — المخ الخارجي بموافقتك بس. أي تسجيل بيطلب تأكيدك الأول.')));
     aiPanel.hidden = true;
     aiPanel.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); aiToggle(false); } });
     return aiPanel;
