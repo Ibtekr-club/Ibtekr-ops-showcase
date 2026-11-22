@@ -14,12 +14,12 @@ async function signIn(page) {
   await expect(page.locator('#root')).toBeVisible();
 }
 
-test('0120: «المساعدين» — the assistants table (+ مساعد جديد · ⋮ أرشف), then the rules and skills as one list each: an item says its assistants, a filter by assistant; the designer\'s trend tags', async ({ page }) => {
+test('«المساعدين» — a tab per assistant (+ مساعد جديد · أرشف): under it its own card, its outside brain, its rules and skills (an item says its assistants) and its sources; the designer\'s trend tags', async ({ page }) => {
   await signIn(page);
   await page.evaluate(() => { location.hash = 'settings-ai'; });
   await page.locator('#pg-settings').getByRole('tab', { name: 'المساعدين' }).click();
-  // the eight of the system, in their order
-  await expect(page.locator('[data-ag-row] b')).toHaveText(['الميديا باير الذكي', 'الديزاينر الذكي', 'المبرمج الذكي', 'التشغيل الذكي', 'خدمة العملاء الذكية', 'خدمة المبتكرين الذكية', 'المحاسب الذكي', 'الموارد البشرية الذكية']);
+  // the eight of the system, in their order: a tab each (the owner 22 Nov — «بدل ما المساعدين تحت بعض تفصلهم في تابس»)
+  await expect(page.locator('[data-ag-tab]')).toHaveText(['الميديا باير الذكي', 'الديزاينر الذكي', 'المبرمج الذكي', 'التشغيل الذكي', 'خدمة العملاء الذكية', 'خدمة المبتكرين الذكية', 'المحاسب الذكي', 'الموارد البشرية الذكية']);
   // a new assistant: the name, the page that opens it, the data it reads — it opens on its own tab in «الذكاء الاصطناعي»
   await page.locator('[data-set-ag-add]').click();
   const md = page.locator('.modal[role=dialog]', { hasText: 'مساعد جديد' });
@@ -32,21 +32,22 @@ test('0120: «المساعدين» — the assistants table (+ مساعد جدي
   // back in the settings: a rule for two assistants, then one for all of them
   await page.evaluate(() => { location.hash = 'settings-ai'; });
   await page.locator('#pg-settings').getByRole('tab', { name: 'المساعدين' }).click();
-  await expect(page.locator('[data-ag-row] b')).toContainText(['مساعد المنتجات']);
+  await expect(page.locator('[data-ag-tab]')).toContainText(['مساعد المنتجات']);
+  await page.locator('[data-ag-tab="designer"]').click(); // a rule added in the designer's tab is his; the buyer is added to it
   await page.locator('[data-kb-add="rules"]').click();
   let f = page.locator('.modal[role=dialog]', { hasText: 'قاعدة جديدة' });
   await f.locator('input').nth(0).fill('البراند'); await f.locator('input').nth(1).fill('الألوان'); await f.locator('textarea').fill('أخضر غامق ودهبي');
-  await f.locator('[data-kb-agent="designer"]').click(); await f.locator('[data-kb-agent="buyer"]').click();
+  await expect(f.locator('[data-kb-agent="designer"]')).toHaveAttribute('aria-pressed', 'true'); await f.locator('[data-kb-agent="buyer"]').click();
   await f.getByRole('button', { name: 'ضيف', exact: true }).click();
   await expect(page.locator('[data-kb="rules"] [data-kb-item]')).toContainText('الألوان');
   expect(mock.mkt.aiKb.filter((k) => k.kind === 'rules').map((k) => [k.section, k.title, k.agents])).toEqual([['البراند', 'الألوان', ['designer', 'buyer']]]);
   await expect(page.locator('[data-kb="rules"] [data-kb-to]')).toHaveText('الديزاينر الذكي · الميديا باير الذكي');
   await page.locator('[data-kb="rules"] [data-kb-add-item="rules:البراند"]').click();
   f = page.locator('.modal[role=dialog]', { hasText: 'قاعدة جديدة' });
-  await f.locator('input').nth(1).fill('الكلام'); await f.getByRole('button', { name: 'ضيف', exact: true }).click();
+  await f.locator('input').nth(1).fill('الكلام'); await f.locator('[data-kb-agent="all"]').click(); await f.getByRole('button', { name: 'ضيف', exact: true }).click();
   await expect.poll(() => mock.mkt.aiKb.filter((k) => k.kind === 'rules').map((k) => [k.title, k.agents])).toEqual([['الألوان', ['designer', 'buyer']], ['الكلام', []]]);
-  // the filter: the accountant sees the one for all of them only, and a new rule under it is for him
-  await page.locator('[data-kb-filter-id="accountant"]').click();
+  // the accountant's tab: the one for all of them only, and a new skill added there is his
+  await page.locator('[data-ag-tab="accountant"]').click();
   await expect(page.locator('[data-kb="rules"] [data-kb-item]')).toHaveCount(1);
   await expect(page.locator('[data-kb="rules"] [data-kb-to]')).toHaveText('كل المساعدين');
   await expect(page.locator('[data-trend-chips]')).toHaveCount(0); // the tags are the designer's
@@ -56,16 +57,20 @@ test('0120: «المساعدين» — the assistants table (+ مساعد جدي
   await f.locator('input').nth(0).fill('التحليل'); await f.locator('input').nth(1).fill('المصروفات الكبيرة');
   await f.getByRole('button', { name: 'ضيف', exact: true }).click();
   await expect.poll(() => mock.mkt.aiKb.filter((k) => k.kind === 'skills').map((k) => [k.section, k.agents])).toEqual([['التحليل', ['accountant']]]);
-  // ⋮ أرشف the new assistant — gone from «الذكاء الاصطناعي», «رجّعه» in the table
-  await page.locator('[data-kb-filter-id="all"]').click();
-  const row = page.locator('tr', { has: page.locator('[data-ag-row]', { hasText: 'مساعد المنتجات' }) });
-  await row.getByRole('button', { name: /إجراءات/ }).click();
-  await page.getByRole('menuitem', { name: 'أرشف' }).click();
+  // the accountant's own card, its outside brain (automatic until one is picked) and its shipped sources
+  await expect(page.locator('[data-ag-row="accountant"]')).toContainText('الحسابات');
+  await expect(page.locator('[data-ag-brain]')).toHaveAttribute('data-ag-brain', 'auto'); await expect(page.locator('#ag-brain-accountant')).toHaveText('تلقائي — زي المزوّدين');
+  await expect(page.locator('[data-ag-sources]')).toHaveAttribute('data-ag-sources', 'default');
+  await expect(page.locator('[data-ag-srcs="accountant"] .ag-src b')).toContainText(['مصلحة الضرائب المصرية', 'Dokan Docs']);
+  // «أرشف» the new assistant in its tab — gone from «الذكاء الاصطناعي», its tab marked, «رجّعه» there
+  const tab = page.locator('[data-ag-tab]', { hasText: 'مساعد المنتجات' });
+  await tab.click();
+  await page.locator('#pg-settings').getByRole('button', { name: 'أرشف' }).click();
   await page.locator('.modal').getByRole('button', { name: 'أرشف' }).click();
   await expect.poll(() => !!mock.mkt.aiAgents.find((a) => a.name === 'مساعد المنتجات').archived_at).toBe(true);
-  await expect(row).toContainText('مؤرشف');
+  await expect(tab).toContainText('مؤرشف'); await expect(page.locator('#pg-settings').getByRole('button', { name: 'رجّعه' })).toBeVisible();
   // the designer's tags: several at once, the # dropped; two words become one tag with _; a mark that is no letter is refused in words
-  await page.locator('[data-kb-filter-id="designer"]').click();
+  await page.locator('[data-ag-tab="designer"]').click();
   await page.locator('[data-trend-add="tags"]').click();
   await page.locator('.modal input').first().fill('#Macrame، ديكور_منزلي');
   await page.locator('.modal').getByRole('button', { name: /حفظ|ضيف|تم/ }).last().click();
@@ -97,7 +102,7 @@ test('ش42: «تعليمات الذكاء الاصطناعي» in tabs — the p
   await expect(st).toContainText('قواعد اللقطات');
   await expect(st.locator('[data-prov]')).toHaveCount(0);
   await st.getByRole('tab', { name: 'المساعدين' }).click();
-  await expect(st.locator('[data-kb-filter]')).toBeVisible();
+  await expect(st.locator('[data-ag-tabs]')).toBeVisible();
   await expect(st).not.toContainText('قواعد اللقطات');
 });
 
@@ -106,7 +111,7 @@ test('ش44: the media buyer\'s settings — the competitors (the same list) and 
   await page.evaluate(() => { location.hash = 'settings-ai'; });
   const st = page.locator('#pg-settings');
   await st.getByRole('tab', { name: 'المساعدين' }).click();
-  await page.locator('[data-kb-filter-id="buyer"]').click();
+  await page.locator('[data-ag-tab="buyer"]').click();
   await page.locator('[data-set-comp-add]').click();
   await page.locator('.modal #name').fill('Boho Corner');
   await page.getByRole('button', { name: 'ضيف المنافس' }).click();
@@ -172,4 +177,39 @@ test('the owner 17 Nov — «أعد الكتابة بالـ AI» in a rule\'s po
   expect(mock.mkt.calls.find((c) => c.action === 'kb')).toMatchObject({ notes: 'خليها أقصر' });
   await md.getByRole('button', { name: 'ضيف' }).click();
   await expect.poll(() => mock.mkt.aiKb.some((k) => k.title === 'متخترعش (أوضح)' && /^مكتوبة بالـ AI/.test(k.text))).toBe(true);
+});
+
+// The owner 22 Nov («اختار الموديل لكل مساعد او اعمل اختيار تلقائي … زي المزودين» · «اضف لكل مساعد مصادر مختلفة»)
+test('an assistant\'s outside brain — automatic, or a company and model from the linked companies\' tabs — and its sources: the shipped ones, a new one, an edit, a delete, back to the shipped', async ({ page }) => {
+  mock.st.vault.anthropic = JSON.stringify({ key: 'sk-ant-' + 'a'.repeat(40) }); mock.st.vault.openai = JSON.stringify({ key: 'sk-' + 'o'.repeat(40) });
+  await signIn(page);
+  await page.evaluate(() => { location.hash = 'settings-ai'; });
+  await page.locator('#pg-settings').getByRole('tab', { name: 'المساعدين' }).click();
+  await page.locator('[data-ag-tab="cs"]').click();
+  const aiRow = () => ((mock.settings.find((x) => x.section === 'ai') || {}).data || {});
+  // the brain: «تلقائي» above the tabs; a tab per linked company; one choice, saved for this assistant alone
+  await expect(async () => { await page.keyboard.press('Escape'); await page.locator('#ag-brain-cs').click({ timeout: 1500 }); await expect(page.locator('.cm-menu [data-cm-tab]')).toHaveText(['Claude', 'ChatGPT'], { timeout: 1000 });
+    await page.locator('.cm-menu [data-cm-tab="openai"]').click({ timeout: 1500 }); await page.locator('.cm-menu [data-cm="openai:gpt-5.2-mini"]').click({ timeout: 1500 }); }).toPass();
+  await expect.poll(() => ((aiRow().agents || {}).cs || {}).brain).toEqual({ provider: 'openai', model: 'gpt-5.2-mini' });
+  await expect(page.locator('#ag-brain-cs')).toHaveText('ChatGPT — GPT-5.2 mini'); await expect(page.locator('#pg-settings .save-bar')).toHaveCount(0);
+  await page.locator('[data-ag-tab="hr"]').click(); await expect(page.locator('#ag-brain-hr')).toHaveText('تلقائي — زي المزوّدين'); // another assistant keeps its own
+  await page.locator('[data-ag-tab="cs"]').click();
+  await expect(async () => { await page.keyboard.press('Escape'); await page.locator('#ag-brain-cs').click({ timeout: 1500 }); await page.locator('.cm-menu [data-cm=""]').click({ timeout: 1500 }); }).toPass();
+  await expect.poll(() => (aiRow().agents || {}).cs).toBeUndefined();
+  // the sources: the shipped list until it is changed
+  const srcs = page.locator('[data-ag-srcs="cs"] .ag-src');
+  await expect(srcs).toHaveCount(5); await expect(srcs.first()).toContainText('WhatsApp Business Platform'); await expect(srcs.first().locator('a')).toHaveAttribute('href', 'https://developers.facebook.com/docs/whatsapp');
+  await page.locator('[data-ag-src-add]').click();
+  const f = page.locator('.modal[role=dialog]', { hasText: 'مصدر جديد' });
+  await f.locator('#name').fill('دليل الرد'); await f.locator('#url').fill('http://example.com/guide'); await f.getByRole('button', { name: 'ضيف', exact: true }).click();
+  await expect(f).toContainText('لينك https صحيح'); // https only
+  await f.locator('#url').fill('https://example.com/guide'); await f.locator('#note').fill('طريقة الرد على الشكاوى'); await f.getByRole('button', { name: 'ضيف', exact: true }).click();
+  await expect(srcs).toHaveCount(6); await expect(page.locator('[data-ag-sources]')).toHaveAttribute('data-ag-sources', 'own');
+  expect(aiRow().agents.cs.sources.at(-1)).toEqual({ name: 'دليل الرد', url: 'https://example.com/guide', note: 'طريقة الرد على الشكاوى' });
+  await srcs.last().getByRole('button', { name: /إجراءات/ }).click(); await page.getByRole('menuitem', { name: 'امسح' }).click(); await page.locator('.modal').getByRole('button', { name: 'امسح' }).click();
+  await expect(srcs).toHaveCount(5);
+  await page.locator('[data-ag-src-reset]').click(); await page.locator('.modal').getByRole('button', { name: 'رجّع', exact: true }).click();
+  await expect(page.locator('[data-ag-sources]')).toHaveAttribute('data-ag-sources', 'default'); await expect.poll(() => (aiRow().agents || {}).cs).toBeUndefined();
+  await expect.poll(() => mock.activity.filter((r) => r.action === 'settings.ai.agent').map((r) => r.new_value)).toEqual(expect.arrayContaining(['cs · brain=openai:gpt-5.2-mini', 'cs · brain=auto', 'cs · sources=6', 'cs · sources=default']));
+  expect(JSON.stringify(mock.activity.filter((r) => r.action === 'settings.ai.agent'))).not.toContain('example.com'); // no link in the log
 });

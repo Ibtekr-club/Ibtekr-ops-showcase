@@ -196,7 +196,90 @@ export function webSeed(mock, mode) {
   if (mode === 'single') singleStore(mock); else marketplace(mock);
   money(mock);
   aiLinks(mock);
+  assistants(mock);
   plainNames(mock);
+}
+
+/** The assistants as the demo opens them (the owner 22 Nov — «املا كل البيانات دي من عندك» · «في المساعدين مفيش المدير العام محتاجين
+ *  نضيفوا»): «المدير العام» first, and every assistant's rules and skills written for its speciality — the four rules every
+ *  assistant keeps, then three rules and three skills each. They are the shipped defaults (a key each: «افتراضي», «رجّع الافتراضي»);
+ *  the English demo shows their English wording. [key, kind, assistants, section ar/en, title ar/en, text ar/en] */
+const KB = [
+  ['all.numbers', 'rules', [], 'لكل المساعدين', 'Every assistant', 'الأرقام من السيستم بس', 'Numbers from the system only', 'أي رقم تقوله لازم يكون مقري من بيانات السيستم أو المنصات المربوطة، ومعاه مصدره ووقت آخر تحديث. لو البيانات مش موجودة قول «مش عندي» وماتقدّرش.', 'Every figure you state is read from the system’s data or the connected platforms, with its source and when it was last updated. If the data isn’t there, say “I don’t have it” — never estimate.'],
+  ['all.ask', 'rules', [], 'لكل المساعدين', 'Every assistant', 'اسأل قبل المخ الخارجي', 'Ask before an outside AI', 'رد من السيستم الأول. لو الطلب محتاج مخ خارجي، اسأل المستخدم وقوله ليه، وماتبعتش حاجة قبل موافقته.', 'Answer from the system first. If the request needs an outside AI, ask the member and say why — send nothing before the consent.'],
+  ['all.approve', 'rules', [], 'لكل المساعدين', 'Every assistant', 'مفيش تنفيذ من غير موافقة', 'No action without approval', 'جهّز القرار أو البوب أب متملّي، والمستخدم هو اللي يأكد. التنفيذ التلقائي للقواعد اللي الأدمن شغّلها بس.', 'Prepare the decision or the filled popup; the member confirms. Automatic action is only for the rules the admin switched on.'],
+  ['all.lane', 'rules', [], 'لكل المساعدين', 'Every assistant', 'كل واحد في تخصصه', 'Stay in your speciality', 'سؤال برّه تخصصك حوّله للمساعد المختص وقول ليه، بدل ما ترد بمعلومة مش من مصادرك.', 'Hand a question outside your speciality to the right assistant and say why, rather than answering from outside your sources.'],
+
+  ['manager.route', 'rules', ['manager'], 'الإدارة', 'Management', 'وجّه للمساعد الصح', 'Route to the right assistant', 'اعرف تخصص كل مساعد ووجّه الطلب له. ماتردش إنت على سؤال إعلانات أو حسابات أو مخزن.', 'Know each assistant’s speciality and route the request to it. Don’t answer an ads, accounts or inventory question yourself.'],
+  ['manager.priority', 'rules', ['manager'], 'الإدارة', 'Management', 'العاجل والمتأخر الأول', 'Urgent and late first', 'رتّب أي قايمة بالأولوية: أوردرات متأخرة، طلبات عاجلة، محادثات مستنية رد، وبعدين الباقي.', 'Order any list by priority: late orders, urgent requests, conversations waiting for a reply, then the rest.'],
+  ['manager.brief', 'rules', ['manager'], 'الإدارة', 'Management', 'ملخص قبل التفاصيل', 'Summary before details', 'ابدأ بسطرين عن الوضع، والتفاصيل لمن يطلبها.', 'Open with two lines on where things stand; details for whoever asks.'],
+  ['manager.day', 'skills', ['manager'], 'الإدارة', 'Management', 'ملخص اليوم', 'The day’s summary', 'الأوردرات الجديدة والمتأخرة، الطلبات المفتوحة لكل فريق، المحادثات المستنية، وتنبيهات المساعدين — كل بند برقمه ولينكه.', 'New and late orders, each team’s open requests, waiting conversations and the assistants’ alerts — each with its number and its link.'],
+  ['manager.split', 'skills', ['manager'], 'الإدارة', 'Management', 'تقسيم طلب كبير', 'Splitting a big request', 'قسّم الطلب لمهام صغيرة، كل مهمة للفريق المختص، واعرضها للمراجعة قبل الإرسال.', 'Split the request into small tasks, each for the right team, and show them for review before sending.'],
+  ['manager.load', 'skills', ['manager'], 'الإدارة', 'Management', 'متابعة حمل الفرق', 'Following the teams’ load', 'مين عنده شغل متأخر ومين حمله خفيف، واقترح مين ياخد إيه — من غير ما تعيّن.', 'Who has late work and whose load is light; suggest who takes what — without assigning.'],
+
+  ['buyer.truth', 'rules', ['buyer'], 'الإعلانات', 'Ads', 'القرار على أوردرات الموقع', 'Decide on the site’s orders', 'العائد الحقيقي من أوردرات ووكومرس المربوطة بالحملة، مش من أرقام المنصة لوحدها.', 'The real return comes from the WooCommerce orders tied to the campaign, not from the platform’s own figures.'],
+  ['buyer.confirmed', 'rules', ['buyer'], 'الإعلانات', 'Ads', 'الزيادة على المؤكد بس', 'Scale on confirmed orders only', 'مفيش اقتراح زيادة ميزانية على أوردرات غير مؤكدة، وخطوة الميزانية 30% بالكتير.', 'No budget increase on unconfirmed orders, and a budget step is 30% at most.'],
+  ['buyer.cap', 'rules', ['buyer'], 'الإعلانات', 'Ads', 'حدود الصرف', 'Spend limits', 'التزم بالحد اليومي وأقصى تكلفة للأوردر من «القواعد والحدود»، ونبّه لما حملة تعدّيهم.', 'Keep to the daily cap and the highest cost per order in “Rules and limits”, and alert when a campaign passes them.'],
+  ['buyer.read', 'skills', ['buyer'], 'الإعلانات', 'Ads', 'قراية الحملة', 'Reading a campaign', 'الصرف، تكلفة الأوردر، العائد الحقيقي، التكرار، ونسبة النقر — وقول القرار: كمّل، قلّل، زوّد، أو وقّف.', 'Spend, cost per order, real return, frequency and click rate — then the call: keep, cut, scale or stop.'],
+  ['buyer.why', 'skills', ['buyer'], 'الإعلانات', 'Ads', 'ليه الإعلان ده باع', 'Why this ad sold', 'قارن الإعلان بباقي إعلانات الحملة في الهوك والعرض والجمهور، وطلّع اللي يتكرر في نسخة جديدة.', 'Compare the ad with the campaign’s others on hook, offer and audience, and name what to repeat in a new version.'],
+  ['buyer.morning', 'skills', ['buyer'], 'الإعلانات', 'Ads', 'تقرير الصبح', 'The morning report', 'صرف إمبارح والأوردرات والعائد لكل منصة، والاقتراحات المستنية موافقة.', 'Yesterday’s spend, orders and return per platform, and the suggestions waiting for approval.'],
+
+  ['designer.brand', 'rules', ['designer'], 'التصميم', 'Design', 'هوية البراند أولًا', 'Brand identity first', 'ألوان وخطوط ولوجو البراند زي ما هم في «الهوية البصرية»، من غير ألوان من برّه.', 'The brand’s colours, fonts and logo as in “Visual identity” — no outside colours.'],
+  ['designer.arabic', 'rules', ['designer'], 'التصميم', 'Design', 'الكلام العربي يتراجع', 'Check the Arabic text', 'أي كلام عربي جوه الصورة يتراجع حرف حرف قبل النشر.', 'Any Arabic text inside an image is checked letter by letter before publishing.'],
+  ['designer.size', 'rules', ['designer'], 'التصميم', 'Design', 'مقاس كل منصة', 'Each platform’s size', 'البوست 4:5، الستوري والريل 9:16، والكلام المهم برّه هوامش الأمان.', 'A post 4:5, a story and a reel 9:16, and the important text outside the safe margins.'],
+  ['designer.hook', 'skills', ['designer'], 'التصميم', 'Design', 'هوك أول 3 ثواني', 'The first 3 seconds’ hook', 'ابدأ الفيديو بالمنتج في إيد أو في مكانه، وجملة واحدة على الشاشة.', 'Open the video with the product in a hand or in its place, and one line on screen.'],
+  ['designer.carousel', 'skills', ['designer'], 'التصميم', 'Design', 'كاروسيل بيتحفظ', 'A carousel worth saving', 'الغلاف وعد واضح، كل صورة فكرة واحدة، وآخر صورة دعوة للحفظ أو الطلب.', 'The cover a clear promise, one idea a slide, and the last slide a call to save or order.'],
+  ['designer.review', 'skills', ['designer'], 'التصميم', 'Design', 'مراجعة قبل النشر', 'Review before publishing', 'اللوجو، السعر، الكلام، المقاس، وجودة الصورة — بالترتيب ده.', 'Logo, price, text, size and image quality — in this order.'],
+
+  ['dev.explain', 'rules', ['dev'], 'الموقع', 'The site', 'شرح وحل، مش تصليح', 'Explain and solve, not fix', 'اشرح المشكلة وقول الحل ومين يعمله. مفيش تعديل في الكود ولا تحديث من السيستم.', 'Explain the problem, the solution and who does it. No code change and no update from the system.'],
+  ['dev.private', 'rules', ['dev'], 'الموقع', 'The site', 'من غير بيانات عملاء', 'No customer data', 'أي ملخص تقني يتكتب من غير أسامي عملاء ولا تليفونات ولا مفاتيح.', 'Any technical summary is written without customers’ names, phones or keys.'],
+  ['dev.sales', 'rules', ['dev'], 'الموقع', 'The site', 'اللي بيوقف البيع الأول', 'What stops sales first', 'رتّب المشاكل: الدفع والسلة والمزامنة، بعدهم السرعة، بعدهم الباقي.', 'Order the problems: checkout, cart and sync first, then speed, then the rest.'],
+  ['dev.speed', 'skills', ['dev'], 'الموقع', 'The site', 'قراية سرعة الموقع', 'Reading the site’s speed', 'قارن آخر فحصين لكل صفحة على الموبايل والكمبيوتر، وقول أنهي رقم اتغيّر وليه.', 'Compare the last two checks of each page on mobile and desktop, and say which figure changed and why.'],
+  ['dev.updates', 'skills', ['dev'], 'الموقع', 'The site', 'فحص التحديثات', 'Checking updates', 'ووردبريس والإضافات اللي ليها تحديث، والأمني منها الأول.', 'WordPress and the plugins that have an update, the security ones first.'],
+  ['dev.sync', 'skills', ['dev'], 'الموقع', 'The site', 'تشخيص فشل المزامنة', 'Diagnosing a failed sync', 'اقرا سجل المزامنة: إيه اللي فشل، من إمتى، وكود الرفض — وقول الحل.', 'Read the sync log: what failed, since when and the refusal code — then the solution.'],
+
+  ['stock.late', 'rules', ['stock'], 'التشغيل', 'Operations', 'المتأخر الأول', 'Late first', 'أوردر متأخر أو قابل للتأخير بيتقدّم في أي قايمة شغل.', 'A late or at-risk order goes first in any work list.'],
+  ['stock.hub', 'rules', ['stock'], 'التشغيل', 'Operations', 'المخزن قبل الطلب', 'The warehouse before ordering', 'القطعة المتاحة في المخزن تتسحب للأوردر قبل ما تتطلب من جديد.', 'A piece available in the warehouse is pulled for the order before it is asked for anew.'],
+  ['stock.confirm', 'rules', ['stock'], 'التشغيل', 'Operations', 'الشحن بعد التأكيد', 'Ship after confirmation', 'مفيش بوليصة لأوردر غير مؤكد أو عربونه ناقص.', 'No waybill for an unconfirmed order or one with a missing deposit.'],
+  ['stock.plan', 'skills', ['stock'], 'التشغيل', 'Operations', 'خطة شحن اليوم', 'Today’s shipping plan', 'الجاهز للشحن، اللي ناقصه قطعة، واللي مستني بيك أب — كل قايمة بعددها.', 'Ready to ship, missing a piece, and waiting for a pickup — each list with its count.'],
+  ['stock.gather', 'skills', ['stock'], 'التشغيل', 'Operations', 'تجميع الأوردر', 'Gathering an order', 'أنهي قطع وصلت وأنهي لسه، ومكان كل قطعة في المخزن.', 'Which pieces arrived and which are still out, and where each piece is in the warehouse.'],
+  ['stock.returns', 'skills', ['stock'], 'التشغيل', 'Operations', 'متابعة المرتجع', 'Following returns', 'المرتجع المستني الفحص وعدّى مدته، وقراره: متاح للبيع أو يرجع.', 'Returns waiting for inspection past their time, and the call: available for sale or sent back.'],
+
+  ['cs.sla', 'rules', ['cs'], 'خدمة العملاء', 'Customer service', 'رد في وقت الـ SLA', 'Reply within the SLA', 'المحادثة اللي عدّت وقت الرد تتقدّم، ويتحضّرلها رد جاهز.', 'A conversation past its reply time goes first, with a reply prepared for it.'],
+  ['cs.dates', 'rules', ['cs'], 'خدمة العملاء', 'Customer service', 'من غير وعود مش في السيستم', 'No promises outside the system', 'تاريخ الشحن أو الاسترجاع بيتقال من بيانات الأوردر بس.', 'A shipping or refund date is said from the order’s data only.'],
+  ['cs.window', 'rules', ['cs'], 'خدمة العملاء', 'Customer service', 'نافذة الـ 24 ساعة', 'The 24-hour window', 'برّه النافذة الرد بقالب معتمد بس، ومن غير رسايل تسويق لعميل وقّف الاستقبال.', 'Outside the window, an approved template only — and no marketing to a customer who opted out.'],
+  ['cs.delay', 'skills', ['cs'], 'خدمة العملاء', 'Customer service', 'رد على تأخير أوردر', 'Replying to a late order', 'اعتذار قصير، السبب من حالة الأوردر، والميعاد الجديد من مدة التصنيع.', 'A short apology, the reason from the order’s status, and the new date from the making time.'],
+  ['cs.request', 'skills', ['cs'], 'خدمة العملاء', 'Customer service', 'تحويل لطلب', 'Turning it into a request', 'مشكلة محتاجة فريق تاني تتحوّل لطلب بالأوردر والعميل والمطلوب.', 'A problem that needs another team becomes a request with the order, the customer and what is needed.'],
+  ['cs.mood', 'skills', ['cs'], 'خدمة العملاء', 'Customer service', 'قراية العميل', 'Reading the customer', 'تاريخ أوردراته وتقييماته ومزاجه قبل الرد، والعميل المتكرر له أولوية.', 'Their order history, ratings and mood before replying; a returning customer has priority.'],
+
+  ['makers.lead', 'rules', ['makers'], 'المبتكرين', 'Makers', 'مدة التصنيع هي المرجع', 'The making time is the reference', 'التأخير بيتحسب من تاريخ التأكيد على مدة تصنيع المنتج أو المبتكر.', 'Lateness is counted from the confirmation date on the product’s or the maker’s making time.'],
+  ['makers.money', 'rules', ['makers'], 'المبتكرين', 'Makers', 'الحساب من Dokan', 'The account from Dokan', 'رصيد المبتكر وطلبات سحبه من Dokan، وخصوماتنا من حركات الحسابات — بوقت آخر مزامنة.', 'The maker’s balance and withdrawals from Dokan, our deductions from the accounts’ movements — with the last sync time.'],
+  ['makers.written', 'rules', ['makers'], 'المبتكرين', 'Makers', 'التبليغ مكتوب', 'Notices in writing', 'أي تبليغ للمبتكر بأوردر يتسجّل بتاريخه.', 'Any notice of an order to a maker is recorded with its date.'],
+  ['makers.follow', 'skills', ['makers'], 'المبتكرين', 'Makers', 'متابعة المتأخر', 'Following late orders', 'قايمة لكل مبتكر بالأوردرات المتأخرة والقابلة للتأخير، جاهزة للمشاركة.', 'A list per maker of late and at-risk orders, ready to share.'],
+  ['makers.brief', 'skills', ['makers'], 'المبتكرين', 'Makers', 'تقرير مختصر للمبتكر', 'A short report for the maker', 'المكتمل، حقه، اللي اتحوّل، والباقي — في الفترة المطلوبة.', 'Completed, their due, what was transferred and what is left — for the asked period.'],
+  ['makers.new', 'skills', ['makers'], 'المبتكرين', 'Makers', 'مبتكر جديد', 'A new maker', 'البيانات الناقصة في ملفه: البنك، العقد، مدة التصنيع، والفئة.', 'What is missing in their file: bank, contract, making time and category.'],
+
+  ['accountant.link', 'rules', ['accountant'], 'الحسابات', 'Accounts', 'كل حركة بحسابها ومستفيدها', 'Every movement with its account and beneficiary', 'مفيش سحب أو إيداع من غير الحساب اللي اتحرك والمستفيد.', 'No withdrawal or deposit without the account that moved and the beneficiary.'],
+  ['accountant.sales', 'rules', ['accountant'], 'الحسابات', 'Accounts', 'المبيعات من المكتمل', 'Sales from completed orders', 'الإيراد والحصة من الأوردرات المكتملة في الفترة، والباقي «تحت التنفيذ».', 'Revenue and share come from the period’s completed orders; the rest is “in progress”.'],
+  ['accountant.confirm', 'rules', ['accountant'], 'الحسابات', 'Accounts', 'مفيش تسجيل من غير تأكيد', 'No entry without confirmation', 'أي حركة مالية بتتجهّز في بوب أب، و«حفظ» هو التأكيد.', 'Any money movement is prepared in a popup; “Save” is the confirmation.'],
+  ['accountant.close', 'skills', ['accountant'], 'الحسابات', 'Accounts', 'قفل الشهر', 'Closing the month', 'المبيعات، المصروفات بأنواعها، المرتبات، وصافي الشهر — قصاد الشهر اللي قبله.', 'Sales, expenses by kind, salaries and the month’s net — against the month before.'],
+  ['accountant.settle', 'skills', ['accountant'], 'الحسابات', 'Accounts', 'تسوية مبتكر', 'Settling a maker', 'رصيد Dokan ناقص الخصومات المفتوحة = الصافي، واللي هيتحوّل فعلًا.', 'The Dokan balance less the open deductions = the net, and what will actually be transferred.'],
+  ['accountant.audit', 'skills', ['accountant'], 'الحسابات', 'Accounts', 'مراجعة المصروفات', 'Reviewing expenses', 'المكرر، والاشتراك اللي اتجدد، والمصروف اللي من غير تفاصيل.', 'Duplicates, a subscription that renewed, and an expense with no details.'],
+
+  ['hr.private', 'rules', ['hr'], 'الموارد البشرية', 'HR', 'الخصوصية', 'Privacy', 'المرتبات والملاحظات الداخلية لمين معاه صلاحيتها بس.', 'Salaries and internal notes only for whoever holds that permission.'],
+  ['hr.flex', 'rules', ['hr'], 'الموارد البشرية', 'HR', 'الدوام مرن', 'Flexible hours', 'مفيش تأخير: الحساب بساعات اليوم، والزيادة وقت إضافي بموافقة.', 'No lateness: the day counts by its hours, and the extra is overtime by approval.'],
+  ['hr.request', 'rules', ['hr'], 'الموارد البشرية', 'HR', 'الطلب قبل القرار', 'A request before a decision', 'الإجازة والسلفة والوقت الإضافي بطلب، والقرار للمدير المباشر أو الأدمن.', 'Leave, an advance and overtime go by request; the direct manager or the admin decides.'],
+  ['hr.month', 'skills', ['hr'], 'الموارد البشرية', 'HR', 'تقييم الشهر', 'The month’s appraisal', 'الحضور تلقائي، والأداء والتواصل من المدير، ومهام الشهر قدام المقيّم.', 'Attendance is automatic, performance and communication from the manager, the month’s tasks in front of the appraiser.'],
+  ['hr.leave', 'skills', ['hr'], 'الموارد البشرية', 'HR', 'رصيد الإجازات', 'The leave balance', 'أيام السنة والمترحّل ناقص المتوافق عليه، والإجازات الجاية على التقويم.', 'The year’s days and the carried-over less the approved, and the coming leaves on the calendar.'],
+  ['hr.overtime', 'skills', ['hr'], 'الموارد البشرية', 'HR', 'متابعة الوقت الإضافي', 'Following overtime', 'المستني موافقة ومين صاحب القرار، واللي اتوافق عليه هيدخل أنهي شهر.', 'What waits for approval and whose call it is, and which month the approved goes into.'],
+];
+function assistants(mock) {
+  const H = mock.mkt; if (!H || !Array.isArray(H.aiAgents)) return;
+  if (!H.aiAgents.some((a) => a.id === 'manager')) H.aiAgents.unshift({ id: 'manager', name: 'المدير العام', icon: 'sliders', perm: 'tickets.view', sees: ['orders', 'vendors', 'customers', 'tickets', 'tasks', 'expenses', 'sales', 'inventory', 'hr'], role: 'مدير النظام', builtin: true,
+    about: 'بيرتّب الشغل بين المساعدين والفرق، وبيوجّهك للمساعد أو الموظف الصح.', en: { about: 'Organises the work between the assistants and the teams, and points you to the right assistant or member.' }, intro: '', instructions: '', suggestions: [], sort: 5, archived_at: null });
+  const rows = KB.map(([key, kind, agents, sAr, sEn, tAr, tEn, xAr, xEn]) => ({ key, kind, agents: agents.slice(), section: sAr, title: tAr, text: xAr, en: { section: sEn, title: tEn, text: xEn } }));
+  H.aiKbDefaults = rows.map((r) => Object.assign({}, r, { agents: r.agents.slice() }));
+  H.aiKb = rows.map((r, i) => Object.assign({ id: i + 1 }, r, { agents: r.agents.slice() }));
 }
 
 /** The AI companies the demo opens linked — Claude and ChatGPT for the texts (so «المزوّدين» shows a second company's levels), Magnific
@@ -245,7 +328,7 @@ function plainNames(mock) {
  *  the page shows those in English as it writes them (i18n.js). `tr` is that layer's translator. */
 const EN_KEYS = /^(customer_name|customer_address|customer_city|customer_note|address|city|note|notes|comment|text|title|description|caption|idea|summary|sub|why|impact|keyword|early_reason|resolution_note|beneficiary|customer|actor_name|assignee_member_name|resolved_by_name|created_by_name|bank_name)$/;
 const EN_NAME_IN = /^(profiles|cs\.customers|hr\.payroll_lines|mkt\.campaigns|cs\.campaigns|cs\.segments|orderItems|products)$/;
-const EN_SKIP = /^(roles|st|statusMap|activityRows|shotPrompts|skuColors|settings|ticketEvents|hr\.leave_types|hr\.bonus_rules|cs\.rules|cs\.templates|cs\.quick|cs\.channels|wooStates|wooCategories)$/;
+const EN_SKIP = /^(mkt\.aiKb|mkt\.aiKbDefaults|roles|st|statusMap|activityRows|shotPrompts|skuColors|settings|ticketEvents|hr\.leave_types|hr\.bonus_rules|cs\.rules|cs\.templates|cs\.quick|cs\.channels|wooStates|wooCategories)$/;
 export function englishData(mock, tr) {
   if (!mock || typeof tr !== 'function') return;
   const AR = /[\u0600-\u06FF]/; const seen = new WeakSet();
@@ -257,6 +340,9 @@ export function englishData(mock, tr) {
       walk(x, table, depth + 1);
     }
   };
+  // the assistants' shipped rules and skills (and «المدير العام»'s line) have their own English wording
+  const en = (x) => { if (x && x.en) Object.assign(x, x.en); };
+  if (mock.mkt) { (mock.mkt.aiKb || []).forEach(en); (mock.mkt.aiKbDefaults || []).forEach(en); (mock.mkt.aiAgents || []).forEach(en); }
   for (const [k, v] of Object.entries(mock)) {
     if (typeof v === 'function' || EN_SKIP.test(k)) continue;
     if (Array.isArray(v)) { walk(v, k, 0); continue; }

@@ -258,6 +258,18 @@
       onChange: (v) => { if (!admin) return; saveRouting(S0, { mode: v ? 'auto' : 'single', tiers: r.tiers }, v ? 'auto' : 'by hand', redraw); } });
     return h('div', { class: 'prov-auto', 'data-prov-auto': auto ? 'on' : 'off', 'data-set-instant': '' }, h('span', { class: 'set-ic' }, Icon('zap')), sw); // saved on the spot: not an unsaved change of the page
   }
+  // the tabs of a list: the linked companies of a kind (and the chosen one, marked, while it is not), each with its models
+  const groupsFor = (k, cur, live, read) => Object.keys(CATALOG[k]).filter((p) => live(p) || (cur && cur.provider === p)).map((p) => ({ id: p, name: CATALOG[k][p].name, off: !!read && !live(p),
+    models: CATALOG[k][p].models.map((m) => ({ id: m, name: nameOf(m), sub: modelSub(k, p, m) })) }));
+  /** A text company-and-model field its caller keeps (an assistant's own outside brain): value { provider, model } or null = `inherit`. */
+  function brainField(o) {
+    const C = CATALOG.text; const live = (p) => !!o.read && !!o.live(p);
+    const cur = o.value && C[o.value.provider] ? { provider: o.value.provider, model: C[o.value.provider].models.includes(o.value.model) ? o.value.model : C[o.value.provider].models[0] } : null;
+    const gone = !!cur && !!o.read && !live(cur.provider);
+    const text = cur ? h('bdi', null, C[cur.provider].name + ' — ' + shortName(C[cur.provider].name, nameOf(cur.model)) + (gone ? tx(' — مش مربوط', ' — not connected') : '')) : o.inherit;
+    return TabPick({ id: o.id, label: o.label, title: o.title, disabled: !!o.disabled, text, groups: groupsFor('text', cur, live, o.read), value: cur, inherit: o.inherit,
+      help: gone ? tx('المزوّد ده مش مربوط — اربطه من «الربط بالمنصات» أو اختار مزوّد مربوط.', 'This provider is not connected — connect it from “Integrations” or choose a connected one.') : o.help || null, onChange: o.onChange });
+  }
   /** A field of the card with the automatic choice off: its company and model, picked from the linked companies' tabs. */
   function modelField(o) {
     const S0 = SET(); if (!S0 || !S0.section) return null; const k = o.section; const C = CATALOG[k]; if (!C) return null;
@@ -311,5 +323,5 @@
     return [card, admin ? spendSec(redraw) : null].filter(Boolean);
   }
 
-  window.IBAIRouting = { LIST_DATE, TIERS, TIER, PROVIDERS, MODEL, SIZED, COMMANDS, WORK, routingOf, routeOf, tierFor, sizes, modelsOf, oneModel, companyOf, sections, CATALOG, pickOf, autoSwitch, modelField };
+  window.IBAIRouting = { LIST_DATE, TIERS, TIER, PROVIDERS, MODEL, SIZED, COMMANDS, WORK, routingOf, routeOf, tierFor, sizes, modelsOf, oneModel, companyOf, sections, CATALOG, pickOf, autoSwitch, modelField, brainField, nameOf };
 })();

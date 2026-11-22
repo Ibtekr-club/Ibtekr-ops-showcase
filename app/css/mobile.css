@@ -694,3 +694,18 @@
   .prov-kind:has(.menu.cm-menu){position:relative;z-index:45}
 }
 @media (max-width:767px) and (prefers-reduced-motion:reduce){.menu.cm-menu.floating{animation:none}}
+
+/* ---------- 40. The assistants' settings (the owner 22 Nov): the tabs slide on one line, the cards in one column ---------- */
+@media (max-width:1023px){
+  .ag-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ag-brain{grid-template-columns:auto minmax(0,1fr)}
+  .ag-brain-n{grid-column:1 / -1}
+}
+@media (max-width:767px){
+  .ag-tabs-row{flex-direction:column;align-items:stretch;gap:var(--m-s2)}
+  .ag-tabs-row .btn{align-self:flex-start}
+  .ag-tab{min-height:44px}
+  .ag-facts,.ag-srcs{grid-template-columns:minmax(0,1fr)}
+  .ag-brain .set-ic{display:none}
+  .ag-brain{grid-template-columns:minmax(0,1fr)}
+}

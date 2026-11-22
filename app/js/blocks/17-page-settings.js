@@ -114,7 +114,7 @@
     // the images, the video, the content, the assistants
     if (st.aiTab === 'prov') return [K.Section('تعليمات الذكاء الاصطناعي', [aiTabs], null, { sub: 'مين بيعمل إيه: مزوّد افتراضي لكل قسم وتبديل لكل أداة.' }), providersSec()]
       .concat(window.IBAIRouting ? window.IBAIRouting.sections({ redraw: R }) : []); // which model runs which command (the original's model-routing plan, 22 Nov)
-    if (st.aiTab === 'agents') return [K.Section('تعليمات الذكاء الاصطناعي', [aiTabs], null, { sub: 'المساعدين: قواعد كل مساعد وسكيلزه — بتتبعت مع كل سؤال ليه، وعمرها ما بتخليه ينفّذ حاجة لوحده.' })].concat(agentsSec());
+    if (st.aiTab === 'agents') return [K.Section('تعليمات الذكاء الاصطناعي', [aiTabs], null, { sub: 'المساعدين: تاب لكل مساعد — مخّه الخارجي وقواعده وسكيلزه ومصادره.' })].concat(agentsSec());
     const head = K.Section('تعليمات الذكاء الاصطناعي', [aiTabs], [Button({ type: 'text', label: 'رجّع للافتراضي', onClick: () => K.confirm({ title: 'ترجّع التعليمات للافتراضي؟', text: 'كل التعديلات اللي عملتها هنا هتتشال.', okLabel: 'رجّع', onOk: () => { S.aiRules = AI_DEF(); R(); } }) }), Button({ type: 'primary', label: 'احفظ التعليمات', onClick: () => { LOGV('settings.ai.save', st.aiTab); K.toast('اتحفظت التعليمات — هتتطبق على أي حاجة جديدة بتتولد', 'success'); } })], { sub: 'بتتطبق على كل حاجة بتتولد في «المنتجات» و«التسويق» — اكتبها مرة واحدة.' });
     A.sections = A.sections || AI_SECTIONS_DEF(); st.aiSub = st.aiSub || {}; const T = st.aiTab; const secs = A.sections[T]; const sub = st.aiSub[T] && (st.aiSub[T] === 'products' || secs.some((x) => x.id === st.aiSub[T])) ? st.aiSub[T] : 'products';
     const subTabs = h('div', { class: 'ai-subs' }, K.SubTabs({ items: [{ id: 'products', label: AI_PRODUCTS[T] }].concat(secs.map((x) => ({ id: x.id, label: x.name }))), active: sub, onChange: (id) => { st.aiSub[T] = id; R(); }, label: 'أقسام ' + { img: 'الصور', vid: 'الفيديو', txt: 'المحتوى' }[T] }), Button({ size: 'sm', type: 'text', icon: 'plus', label: 'تعليمات جديدة', attrs: { 'data-ai-addsec': '' }, onClick: () => addAiSection(A, T) }));
@@ -146,22 +146,30 @@
     const AIP = window.IBPages.all().ai && window.IBPages.all().ai.api;
     const permName = (k) => ((M.AGENT_PERMS || []).find(([v]) => v === k) || [k, k])[1];
     const seesName = (k) => ((M.AGENT_SEES || []).find(([v]) => v === k) || [k, k])[1];
-    const rows = reg.map((x) => [h('span', { class: 'acts-inline', 'data-ag-row': x.id }, h('span', { class: 'mk-av' }, Icon(x.icon || 'sparkle', 'sm')), h('b', null, x.name)),
-      permName(x.perm), x.sees.filter((k) => !(SG() && k === 'vendors')).length ? x.sees.filter((k) => !(SG() && k === 'vendors')).map(seesName).join(' · ') : (x.builtin && ['buyer', 'designer', 'dev'].includes(x.id) ? 'بياناته الخاصة' : '—'), x.role || 'مدير النظام',
-      x.archived ? K.Tag('neutral', 'مؤرشف') : K.Tag('success', x.builtin ? 'من السيستم' : 'مساعد جديد'),
-      K.RowMenu([AIP ? { label: 'تعديل', icon: 'edit', run: () => AIP.agentForm(x) } : null,
-        !x.builtin && !x.archived ? { label: 'أرشف', icon: 'trash', danger: true, run: () => K.confirm({ title: 'تأرشف «' + x.name + '»؟', text: 'هيختفي من «الذكاء الاصطناعي» عند الكل وشاتاته بتفضل.', okType: 'danger', okLabel: 'أرشف', onOk: async () => { const r = await M.agentArchive(x.id, true); K.toast(r.ok ? 'اتأرشف' : r.message, r.ok ? 'success' : 'error'); R(); } }) } : null,
-        x.archived ? { label: 'رجّعه', icon: 'undo', run: async () => { const r = await M.agentArchive(x.id, false); K.toast(r.ok ? 'رجع' : r.message, r.ok ? 'success' : 'error'); R(); } } : null].filter(Boolean), 'إجراءات ' + x.name)]);
-    const list = K.Section('المساعدين', [U.Table({ headers: ['المساعد', 'بيظهر للي معاه «عرض»', 'البيانات اللي بيقراها', 'الطلبات بتروح لـ', 'النوع', ''], rows })],
-      AIP ? [Button({ size: 'sm', type: 'primary', icon: 'plus', label: 'مساعد جديد', attrs: { 'data-set-ag-add': '' }, onClick: () => AIP.agentForm(null) })] : null,
-      { th: false, sub: 'كل مساعد تاب في «الذكاء الاصطناعي» — بيقرا بصلاحيات اللي بيكلّمه، ومابينفّذش حاجة لوحده' });
-    const live = reg.filter((x) => !x.archived); st.kbAgent = st.kbAgent && (st.kbAgent === 'all' || live.some((x) => x.id === st.kbAgent)) ? st.kbAgent : 'all';
-    const filter = h('div', { class: 'chips', role: 'radiogroup', 'aria-label': 'المساعد', 'data-kb-filter': '' }, [['all', 'كل المساعدين']].concat(live.map((x) => [x.id, x.name])).map(([id, l]) =>
-      h('button', { type: 'button', class: 'chip' + (st.kbAgent === id ? ' on' : ''), role: 'radio', 'aria-checked': String(st.kbAgent === id), 'data-kb-filter-id': id, onClick: () => { st.kbAgent = id; R(); } }, l)));
-    const out = [list, U.FieldShell({ id: 'kb-f', label: 'وريني القواعد والسكيلز بتاعة' }, filter), kbAllSec('rules', kbl, live), kbAllSec('skills', kbl, live)];
-    if (st.kbAgent === 'all' || st.kbAgent === 'designer') out.push(trendTagsSec());
-    if (st.kbAgent === 'all' || st.kbAgent === 'buyer') out.push(compsSec(), adTagsSec()); // ش44: the competitors and the ad tags
-    return out;
+    // the owner 22 Nov («بدل ما المساعدين تحت بعض تفصلهم في تابس و كل مساعد عندوا القواعد و الاسكيلز و المصادر و كل اللي يخصوا» · «اختار
+    // الموديل لكل مساعد او اعمل اختيار تلقائي»): a tab per assistant (IBAgentsSet.tabs) — under it the assistant itself, its outside
+    // brain, its rules, its skills and its sources; the designer's trends and the buyer's competitors and ad tags stay in their tabs
+    const AS = window.IBAgentsSet; if (!LINKS.at) loadLinks();
+    const live = reg.filter((x) => !x.archived); const order = live.concat(reg.filter((x) => x.archived));
+    if (!order.some((x) => x.id === st.agTab)) st.agTab = (order[0] || {}).id || '';
+    const x = order.find((q) => q.id === st.agTab);
+    const strip = AS ? AS.tabs({ agents: order, active: st.agTab, onPick: (id) => { st.agTab = id; st.kbPick = {}; R(); }, onAdd: AIP ? () => AIP.agentForm(null) : null }) : null;
+    if (!x) return [strip, K.Empty('لسه مفيش مساعدين', 'ابدأ بـ «مساعد جديد».')].filter(Boolean);
+    st.kbAgent = x.id;
+    const sees = x.sees.filter((k) => !(SG() && k === 'vendors'));
+    const fact = (k, v) => h('div', { class: 'ag-fact' }, h('span', { class: 't-small sub' }, k), h('b', null, v));
+    const about = K.Section(x.name, [h('div', { class: 'ag-about', 'data-ag-row': x.id }, h('span', { class: 'set-ic' }, Icon(x.icon || 'sparkle')),
+      h('div', { class: 'ag-facts' }, fact('بيظهر للي معاه «عرض»', permName(x.perm)), fact('البيانات اللي بيقراها', sees.length ? sees.map(seesName).join(' · ') : (x.builtin && ['buyer', 'designer', 'dev'].includes(x.id) ? 'بياناته الخاصة' : '—')),
+        fact('الطلبات بتروح لـ', x.role || 'مدير النظام'), fact('النوع', x.archived ? K.Tag('neutral', 'مؤرشف') : K.Tag('success', x.builtin ? 'من السيستم' : 'مساعد جديد')))),
+      x.about ? h('p', { class: 't-small sub ag-about-t' }, x.about) : null],
+      [AIP ? Button({ size: 'sm', icon: 'edit', label: 'تعديل', attrs: { 'data-ag-edit': x.id }, onClick: () => AIP.agentForm(x) }) : null,
+        !x.builtin && !x.archived ? Button({ size: 'sm', type: 'text', icon: 'trash', label: 'أرشف', onClick: () => K.confirm({ title: 'تأرشف «' + x.name + '»؟', text: 'هيختفي من «الذكاء الاصطناعي» عند الكل وشاتاته بتفضل.', okType: 'danger', okLabel: 'أرشف', onOk: async () => { const r = await M.agentArchive(x.id, true); K.toast(r.ok ? 'اتأرشف' : r.message, r.ok ? 'success' : 'error'); R(); } }) }) : null,
+        x.archived ? Button({ size: 'sm', icon: 'undo', label: 'رجّعه', onClick: async () => { const r = await M.agentArchive(x.id, false); K.toast(r.ok ? 'رجع' : r.message, r.ok ? 'success' : 'error'); R(); } }) : null].filter(Boolean),
+      { th: false, cols: false, sub: 'بيقرا بصلاحيات اللي بيكلّمه، وبيرد من السيستم الأول — ومابينفّذش حاجة لوحده' });
+    const out = [strip, about, AS ? AS.brainCard(x, { live: (p) => provLive('text', p), read: !!LINKS.at, redraw: R }) : null, kbAllSec('rules', kbl, live), kbAllSec('skills', kbl, live), AS ? AS.sourcesCard(x, { redraw: R }) : null];
+    if (x.id === 'designer') out.push(trendTagsSec());
+    if (x.id === 'buyer') out.push(compsSec(), adTagsSec()); // ش44: the competitors and the ad tags
+    return out.filter(Boolean);
   }
   // one kind's whole list, grouped by section in order; an item = { section, title, text, agents: [] (= all) }
   function kbAllSec(kind, all, live) {

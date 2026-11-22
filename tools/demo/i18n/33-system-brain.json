@@ -13,5 +13,12 @@
 "جهّزتلك البوب أب باللي قلته — افتحه وراجع وكمّل الناقص، و«حفظ» فيه هو التأكيد:": "I prepared the popup with what you said — open it, review and fill in what’s missing; its “Save” is the confirmation:",
 "السيستم بيرد من بياناته الأول — المخ الخارجي بموافقتك بس. أي تسجيل بيطلب تأكيدك الأول.": "The system answers from its own data first — an outside AI only with your consent. Any entry asks for your confirmation first.",
 "المخ الخارجي مش متاح دلوقتي (مفتاحه مش متظبط) — الأدمن يربطه من «الإعدادات › الربط بالمنصات».": "The outside AI isn’t available right now (its key isn’t set up) — the admin connects it from “Settings › Integrations”.",
-"تقصد أنهي مبتكر؟": "Which maker do you mean?"
+"تقصد أنهي مبتكر؟": "Which maker do you mean?",
+"المساعدين: تاب لكل مساعد — مخّه الخارجي وقواعده وسكيلزه ومصادره.": "Assistants: a tab for each — its outside AI, its rules, its skills and its sources.",
+"بيقرا بصلاحيات اللي بيكلّمه، وبيرد من السيستم الأول — ومابينفّذش حاجة لوحده": "Reads with the permissions of whoever talks to it, answers from the system first — and does nothing by itself",
+"المدير العام": "General manager",
+"لسه مفيش مساعدين": "No assistants yet",
+"ابدأ بـ «مساعد جديد».": "Start with “New assistant”.",
+"رجّعه": "Restore",
+"أرشف": "Archive"
 }

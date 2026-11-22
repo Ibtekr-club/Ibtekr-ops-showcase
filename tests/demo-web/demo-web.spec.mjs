@@ -236,6 +236,33 @@ test('AI providers: a box per kind with only the linked companies; the switch of
   await page.keyboard.press('Escape'); await page.locator('#prov-auto').click();
   await expect(page.locator('[data-prov-auto]')).toHaveAttribute('data-prov-auto', 'on'); await page.waitForTimeout(1200);
   expect(await arabicShown(page), 'settings › AI providers').toEqual([]);
+  // the assistants' tab in English: a tab per assistant, «General manager» first, its rules, skills and sources in English
+  await page.locator('#tab-agents').click(); await expect(page.locator('[data-ag-tab]')).toHaveCount(9, { timeout: 20000 }); await page.waitForTimeout(1500);
+  await expect(page.locator('[data-ag-tab]').first()).toHaveAttribute('data-ag-tab', 'manager'); await expect(page.locator('[data-ag-srcs="manager"] .ag-src')).toHaveCount(4);
+  expect(await arabicShown(page), 'settings › AI assistants › the general manager').toEqual([]);
+  await page.locator('[data-ag-tab="accountant"]').click(); await expect(page.locator('[data-ag-srcs="accountant"]')).toBeVisible(); await page.waitForTimeout(1200);
+  expect(await arabicShown(page), 'settings › AI assistants › the accountant').toEqual([]); await expect(page.locator('[data-ag-srcs="accountant"] .ag-src b').first()).toHaveText('Egyptian Tax Authority');
+  await page.locator('[data-ag-tab="hr"]').click(); await expect(page.locator('[data-ag-srcs="hr"]')).toBeVisible(); await page.waitForTimeout(1200);
+  expect(await arabicShown(page), 'settings › AI assistants › HR').toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test('the assistants in the settings: a tab each with its card, outside AI, rules, skills and sources — every one filled; «المدير العام» first, on the assistants page too', async ({ page }) => {
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/'); await page.locator('[data-demo-mode="marketplace"]').click(); await inApp(page);
+  await go(page, 'settings-ai'); await page.locator('#tab-agents').click();
+  await expect(page.locator('[data-ag-tab]')).toHaveText(['المدير العام', 'الميديا باير الذكي', 'الديزاينر الذكي', 'المبرمج الذكي', 'التشغيل الذكي', 'خدمة العملاء الذكية', 'خدمة المبتكرين الذكية', 'المحاسب الذكي', 'الموارد البشرية الذكية'], { timeout: 20000 });
+  for (const id of ['manager', 'buyer', 'designer', 'dev', 'stock', 'cs', 'makers', 'accountant', 'hr']) {
+    await page.locator(`[data-ag-tab="${id}"]`).click(); await expect(page.locator(`[data-ag-row="${id}"]`)).toBeVisible();
+    await expect(page.locator(`#ag-brain-${id}`)).toHaveText('تلقائي — زي المزوّدين');
+    expect(await page.locator('[data-kb="rules"] [data-kb-item]').count(), id + ': the four of every assistant + its own three').toBe(7);
+    expect(await page.locator('[data-kb="skills"] [data-kb-item]').count(), id + ': its three skills').toBe(3);
+    expect(await page.locator(`[data-ag-srcs="${id}"] .ag-src`).count(), id + ': its sources').toBeGreaterThanOrEqual(3);
+  }
+  // an assistant's own outside AI, from the linked companies' tabs
+  await expect(async () => { await page.keyboard.press('Escape'); await page.locator('#ag-brain-hr').click({ timeout: 1500 }); await expect(page.locator('.cm-menu [data-cm-tab]')).toHaveText(['Claude', 'ChatGPT'], { timeout: 1000 }); await page.locator('.cm-menu [data-cm="claude:claude-haiku-5-5"]').click({ timeout: 1500 }); }).toPass();
+  await expect(page.locator('#ag-brain-hr')).toHaveText('Claude — Haiku 5.5');
+  await go(page, 'ai'); await expect(page.locator('#pg-ai [role=tab]').first()).toContainText('المدير العام', { timeout: 20000 });
   expect(errors).toEqual([]);
 });
 
