@@ -1,9 +1,9 @@
 // «أنهي موديل لأنهي أمر» (the owner 22 Nov — docs/superpowers/plans/2026-11-22-model-routing.md: «يبقا مكتوب في التعليمات احسن طريقة
 // تخليني استخدم الكريديت صح يعني امتا يستخدم كل موديل و في اي امر بيناء علي احدث الموديلز»). Not a block. The card of «الإعدادات ›
-// الذكاء الاصطناعي › المزوّدين» for Claude: the three levels with their model and price and what each is for, every command with its
+// الذكاء الاصطناعي › مصادر الذكاء» for Claude: the three levels with their model and price and what each is for, every command with its
 // level (the admin moves one, or goes back to one model for everything) and this month's spend by model and by kind of work.
 //   IBAIRouting.sections({ redraw })   the cards (block 17 puts them under the providers)
-//   IBAIRouting.autoSwitch({ redraw })  the providers card's switch «اختيار مزوّدي الذكاء الاصطناعي تلقائيًا» (the owner 22 Nov): on,
+//   IBAIRouting.autoSwitch({ redraw })  the providers card's switch «اختيار مصادر الذكاء تلقائيًا» (the owner 22 Nov): on,
 //                                       every field takes a company only and the system picks the model
 //   IBAIRouting.modelField({ id, label, title, section, tool, live, read, redraw }) a field of that card while the switch is off: its
 //                                       company and model, from a list with a tab per linked company (one choice)
@@ -174,12 +174,13 @@
   const CREDITS = { 'seedream-5-pro': 75, 'seedream-5-lite': 50, 'gemini-2-5-flash': 20, 'gpt-image-2': 60 }; // one image on Magnific
   const nameOf = (m) => (MODEL[m] ? MODEL[m].name : MNAME[m] || String(m));
   const shortName = (company, name) => (name.indexOf(company + ' ') === 0 ? name.slice(company.length + 1) : name); // «Claude — Sonnet 5.5»
-  // what a model's row says under its name: a text model its levels and price, a Magnific image its credits
+  // what a model's row says beside its name: a text model its levels and its price (in · out), a Magnific image its credits
   function modelSub(k, provider, m) {
-    if (k === 'text') return [levelsOfModel(provider, m), ' · ', ltr(usd(MODEL[m].usd[0])), tx(' دخل · ', ' in · '), ltr(usd(MODEL[m].usd[1])), tx(' خرج', ' out')];
-    if (k === 'image' && provider === 'magnific') return [ltr(String(CREDITS[m])), tx(' كريدت للصورة', ' credits an image')];
+    if (k === 'text') return { tag: levelsOfModel(provider, m), price: [ltr(usd(MODEL[m].usd[0])), ' · ', ltr(usd(MODEL[m].usd[1]))] };
+    if (k === 'image' && provider === 'magnific') return { price: [ltr(String(CREDITS[m])), tx(' كريدت', ' credits')] };
     return null;
   }
+  const FOOT = { text: () => tx('السعر بالدولار لكل مليون توكن: دخل · خرج', 'Price in dollars per million tokens: in · out'), image: () => tx('الكريدت للصورة الواحدة على Magnific', 'Credits for one image on Magnific') };
   const secRow = (aiRow, k) => (isObj(aiRow) && isObj(aiRow.providers) && isObj(aiRow.providers[k]) ? aiRow.providers[k] : {});
   // the model of a field: the one saved for it while it is its company's, else the company's own (the text company's one model,
   // Magnific's image model of «إعدادات الصور»), else the company's first
@@ -211,8 +212,9 @@
     if (K.logEvent) K.logEvent('settings.ai.providers', k + (tool ? '.' + tool : '') + '=' + (v ? v.provider + ':' + v.model : 'default')); // the field and its names only
     K.toast(tx('اتحفظ — ', 'Saved — ') + (v ? CATALOG[k][v.provider].name + ' · ' + nameOf(v.model) : tx('الافتراضي للقسم', 'Section default')), 'success'); if (typeof redraw === 'function') redraw();
   }
-  // a single-choice list with a tab per company and its models under the open tab (the filter's look, one choice): picking closes it
-  function TabPick({ id, label, title, help, disabled, text, groups, value, inherit, onChange }) {
+  // a single-choice list: «تلقائي» / «الافتراضي للقسم» on top (when the field has one), the companies as one segmented line, the open
+  // company's models as rows — name, level, price in columns — and what the figures are under them; picking closes it
+  function TabPick({ id, label, title, help, disabled, text, groups, value, inherit, inheritSub, foot, onChange }) {
     const wrap = h('div', { class: 'pop-anchor', 'data-popover-root': '', style: 'display:block' });
     const btn = h('button', { type: 'button', id, class: 'select', 'aria-haspopup': 'listbox', 'aria-expanded': 'false', disabled: disabled ? '' : false, 'data-cm-btn': value ? value.provider + ':' + value.model : '' },
       Icon('chevD', 'sm'), h('span', { class: 'val' }, text));
@@ -220,25 +222,27 @@
       const menu = h('div', { class: 'menu cm-menu', 'data-popover-root': '', 'data-cm-menu': id, 'data-focus': 'no' });
       menu.append(h('div', { class: 'cm-title' }, title || label)); // a phone's sheet says what it chooses (hidden under a field on a wide screen)
       const pickIt = (v) => { close(); const same = (!v && !value) || (!!v && !!value && v.provider === value.provider && v.model === value.model); if (!same) onChange(v); };
-      if (inherit) menu.append(h('button', { type: 'button', class: 'opt cm-inherit', role: 'option', 'aria-selected': String(!value), 'data-cm': '', onClick: () => pickIt(null) }, h('span', { class: 'cm-n' }, inherit), !value ? Icon('check', 'sm') : null));
+      if (inherit) menu.append(h('button', { type: 'button', class: 'opt cm-inherit', role: 'option', 'aria-selected': String(!value), 'data-cm': '', onClick: () => pickIt(null) },
+        h('span', { class: 'cm-ic' }, Icon('zap', 'sm')), h('span', { class: 'cm-n' }, h('b', null, inherit), inheritSub ? h('small', { class: 'cm-s' }, inheritSub) : null), h('span', { class: 'cm-ck' }, !value ? Icon('check', 'sm') : null)));
       if (!groups.length) { menu.append(h('div', { class: 'menu-empty' }, tx('مفيش شركة مربوطة هنا — اربط من «الربط بالمنصات».', 'No company is connected here — connect one from “Integrations”.'))); return menu; }
-      const tabs = h('div', { class: 'cm-tabs', role: 'tablist', 'aria-label': label }); const secs = {}; let drawn = false;
+      const tabs = h('div', { class: 'cm-tabs', role: 'tablist', 'aria-label': tx('الشركة', 'Company') }); const secs = {}; let drawn = false;
       const show = (gid) => {
         tabs.querySelectorAll('[data-cm-tab]').forEach((t) => t.setAttribute('aria-selected', String(t.getAttribute('data-cm-tab') === gid)));
         for (const g of groups) secs[g.id].hidden = g.id !== gid;
         if (drawn) window.dispatchEvent(new Event('resize')); // the list is another height now: the kit places it again
       };
       for (const g of groups) {
-        tabs.append(h('button', { type: 'button', role: 'tab', class: 'chip cm-tab', 'data-cm-tab': g.id, 'aria-selected': 'false', onClick: () => show(g.id) }, h('bdi', null, g.name), g.off ? h('span', { class: 'cm-off' }, tx(' — مش مربوط', ' — not connected')) : null));
+        tabs.append(h('button', { type: 'button', role: 'tab', class: 'cm-tab', 'data-cm-tab': g.id, 'aria-selected': 'false', onClick: () => show(g.id) }, h('bdi', null, g.name), g.off ? h('span', { class: 'cm-off' }, tx(' — مش مربوط', ' — not connected')) : null));
         secs[g.id] = h('div', { class: 'cm-sec', role: 'listbox', 'aria-label': g.name, 'data-cm-sec': g.id }, g.models.map((m) => {
-          const on = !!value && value.provider === g.id && value.model === m.id;
+          const on = !!value && value.provider === g.id && value.model === m.id; const x = m.sub || {};
           return h('button', { type: 'button', class: 'opt cm-opt', role: 'option', 'aria-selected': String(on), 'data-cm': g.id + ':' + m.id, onClick: () => pickIt({ provider: g.id, model: m.id }) },
-            h('span', { class: 'cm-n' }, h('bdi', null, m.name), m.sub ? h('small', { class: 'cm-s' }, m.sub) : null), on ? Icon('check', 'sm') : null);
+            h('span', { class: 'cm-n' }, h('bdi', null, m.name)), x.tag ? h('span', { class: 'cm-tag' }, x.tag) : null, x.price ? h('span', { class: 'cm-price' }, x.price) : null, h('span', { class: 'cm-ck' }, on ? Icon('check', 'sm') : null));
         }));
       }
-      menu.append(tabs); for (const g of groups) menu.append(secs[g.id]);
+      menu.append(h('div', { class: 'cm-cap' }, tx('الشركة', 'Company')), tabs, h('div', { class: 'cm-cap' }, tx('الموديل', 'Model'))); for (const g of groups) menu.append(secs[g.id]);
+      if (foot) menu.append(h('div', { class: 'cm-foot' }, foot));
       show(value && secs[value.provider] ? value.provider : groups[0].id); drawn = true;
-      menu.addEventListener('keydown', (e) => { // ↑ ↓ through the open tab's models, ← → between the tabs
+      menu.addEventListener('keydown', (e) => { // ↑ ↓ through the open company's models
         const items = [...menu.querySelectorAll('[role=option]')].filter((x) => !x.closest('[hidden]')); const i = items.indexOf(document.activeElement);
         if (e.key === 'ArrowDown' && items.length) { e.preventDefault(); items[(i + 1) % items.length].focus(); }
         if (e.key === 'ArrowUp' && items.length) { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
@@ -252,7 +256,7 @@
   function autoSwitch(opts) {
     const redraw = opts && opts.redraw; const S0 = SET(); if (!S0 || !S0.section) return null;
     const ai = S0.section('ai') || {}; const admin = !!(S0.can && S0.can().admin); const r = routingOf(ai); const auto = r.mode === 'auto';
-    const sw = K.Switch({ id: 'prov-auto', label: tx('اختيار مزوّدي الذكاء الاصطناعي تلقائيًا', 'Choose the AI providers automatically'), checked: auto, disabled: !admin,
+    const sw = K.Switch({ id: 'prov-auto', label: tx('اختيار مصادر الذكاء تلقائيًا', 'Choose the AI providers automatically'), checked: auto, disabled: !admin,
       help: auto ? tx('شغّال — السيستم عارف موديلات كل شركة وبيختار الموديل المناسب لكل طلب. إنت بتختار الشركة بس لكل نوع.', 'On — the system knows every company’s models and picks the right one for each request. You only choose the company for each kind.')
         : tx('مقفول — اختار لكل نوع الشركة والموديل اللي يشتغل عليه.', 'Off — choose the company and the model each kind runs on.'),
       onChange: (v) => { if (!admin) return; saveRouting(S0, { mode: v ? 'auto' : 'single', tiers: r.tiers }, v ? 'auto' : 'by hand', redraw); } });
@@ -267,8 +271,8 @@
     const cur = o.value && C[o.value.provider] ? { provider: o.value.provider, model: C[o.value.provider].models.includes(o.value.model) ? o.value.model : C[o.value.provider].models[0] } : null;
     const gone = !!cur && !!o.read && !live(cur.provider);
     const text = cur ? h('bdi', null, C[cur.provider].name + ' — ' + shortName(C[cur.provider].name, nameOf(cur.model)) + (gone ? tx(' — مش مربوط', ' — not connected') : '')) : o.inherit;
-    return TabPick({ id: o.id, label: o.label, title: o.title, disabled: !!o.disabled, text, groups: groupsFor('text', cur, live, o.read), value: cur, inherit: o.inherit,
-      help: gone ? tx('المزوّد ده مش مربوط — اربطه من «الربط بالمنصات» أو اختار مزوّد مربوط.', 'This provider is not connected — connect it from “Integrations” or choose a connected one.') : o.help || null, onChange: o.onChange });
+    return TabPick({ id: o.id, label: o.label, title: o.title, disabled: !!o.disabled, text, groups: groupsFor('text', cur, live, o.read), value: cur, inherit: o.inherit, inheritSub: o.inheritSub, foot: FOOT.text(),
+      help: gone ? tx('مصدر الذكاء ده مش مربوط — اربطه من «الربط بالمنصات» أو اختار مصدر مربوط.', 'This provider is not connected — connect it from “Integrations” or choose a connected one.') : o.help || null, onChange: o.onChange });
   }
   /** A field of the card with the automatic choice off: its company and model, picked from the linked companies' tabs. */
   function modelField(o) {
@@ -280,8 +284,9 @@
       models: C[p].models.map((m) => ({ id: m, name: nameOf(m), sub: modelSub(k, p, m) })) }));
     const gone = !!cur && !!o.read && !live(cur.provider); const inherit = o.tool ? tx('الافتراضي للقسم', 'Section default') : null;
     const text = cur ? h('bdi', null, C[cur.provider].name + ' — ' + shortName(C[cur.provider].name, nameOf(cur.model)) + (gone ? tx(' — مش مربوط', ' — not connected') : '')) : inherit;
-    return TabPick({ id: o.id, label: o.label, title: o.title, disabled: !admin, text, groups, value: cur, inherit,
-      help: gone ? tx('المزوّد ده مش مربوط — اربطه من «الربط بالمنصات» أو اختار مزوّد مربوط.', 'This provider is not connected — connect it from “Integrations” or choose a connected one.') : null,
+    return TabPick({ id: o.id, label: o.label, title: o.title, disabled: !admin, text, groups, value: cur, inherit, foot: FOOT[k] && (k !== 'image' || groups.some((g) => g.id === 'magnific')) ? FOOT[k]() : null,
+      inheritSub: inherit ? tx('زي اختيار القسم كله', 'As the whole section’s choice') : null,
+      help: gone ? tx('مصدر الذكاء ده مش مربوط — اربطه من «الربط بالمنصات» أو اختار مصدر مربوط.', 'This provider is not connected — connect it from “Integrations” or choose a connected one.') : null,
       onChange: (v) => saveField(S0, ai, k, o.tool, v, o.redraw) });
   }
 
@@ -312,12 +317,12 @@
     const changed = Object.keys(r.tiers).length;
     const acts = admin && auto && changed ? [Button({ type: 'text', label: 'رجّع الترشيح', onClick: () => K.confirm({ title: 'ترجّع توزيع الموديلات للترشيح؟', text: changed + ' أمر هيرجع لمستواه المرشّح.', okLabel: 'رجّع', onOk: () => save({ mode: 'auto', tiers: {} }, 'recommended') }) })] : null;
     const notes = [
-      !auto ? U.InlineNote({ children: tx('الاختيار التلقائي مقفول — كل نوع شغّال على الموديل اللي اخترته له في كارت المزوّدين فوق، والأمر البسيط بيتحاسب بسعر موديله. شغّله عشان كل أمر ياخد موديل مستواه.', 'The automatic choice is off — every kind runs on the model you chose for it in the providers card above, and a simple command is billed at that model’s price. Turn it on so every command takes the model of its level.') })
+      !auto ? U.InlineNote({ children: tx('الاختيار التلقائي مقفول — كل نوع شغّال على الموديل اللي اخترته له في كارت «مصادر الذكاء» فوق، والأمر البسيط بيتحاسب بسعر موديله. شغّله عشان كل أمر ياخد موديل مستواه.', 'The automatic choice is off — every kind runs on the model you chose for it in the providers card above, and a simple command is billed at that model’s price. Turn it on so every command takes the model of its level.') })
         : U.InlineNote({ children: 'السيستم بيختار الموديل لوحده حسب الأمر' + (prov === 'claude' ? ': المتوسط بنص سعر القوي، والضعيف أرخص من المتوسط 20 مرة' : '') + '. غيّر مستوى أي أمر لو جودته محتاجة أعلى أو صرفه أكتر من اللازم.' }),
       prov !== 'claude' ? U.InlineNote({ kind: 'warning', children: 'المدير بالأدوات واستخراج الشيت من الواتساب والبحث على الويب بيشتغلوا على Claude دايمًا — لازم Claude يفضل مربوط ليهم.' }) : null,
     ];
     const card = K.Section('أنهي موديل لأنهي أمر (' + P.name + ')', [guide, ...notes, h('div', { class: 'air-rows' + (auto ? '' : ' off') }, rows),
-      h('p', { class: 't-small sub' }, 'الموديلات والأسعار دي بتاريخ ', ltr(LIST_DATE), ' — لو أي شركة مربوطة نزّلت موديل جديد أو وقّفت موديل، «المبرمج الذكي» هيبعت تنبيه في الجرس عشان السيستم يتحدّث. الأداة اللي ليها مزوّد تاني بتمشي على مستويات مزوّدها.')],
+      h('p', { class: 't-small sub' }, 'الموديلات والأسعار دي بتاريخ ', ltr(LIST_DATE), ' — لو أي شركة مربوطة نزّلت موديل جديد أو وقّفت موديل، «المبرمج الذكي» هيبعت تنبيه في الجرس عشان السيستم يتحدّث. الأداة اللي ليها مصدر ذكاء تاني بتمشي على مستويات مصدرها.')],
       acts, { sub: 'أحسن طريقة لاستخدام الكريدت: كل أمر على أرخص موديل يعمله صح', th: false, cols: false });
     card.setAttribute('data-ai-routing', r.mode);
     return [card, admin ? spendSec(redraw) : null].filter(Boolean);

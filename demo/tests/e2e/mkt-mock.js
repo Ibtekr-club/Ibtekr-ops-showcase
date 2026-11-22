@@ -6,15 +6,15 @@
 // rows only through mkt_schedule / mkt_post_act with marketing.publish F and the day / hour rules on Cairo's clock). The AI actions
 // (ai-images campaign / campaign_edit, ai-content marketing) are answered here too (mktAi). Every RPC / function call lands in
 // mkt.calls, every write the client sent in mkt.writes ({ table, op, ...columns }).
-import { resolvePlan } from '../../mock/shared/product-plan.js?v=1152d06ae8';
-import { filesLine } from '../../mock/shared/agent-files.js?v=1152d06ae8';
-import { agentImagePath, agentTitle, campaignGenPath, campaignPathOk, campaignTarget, cleanAgent, cleanBuyer, cleanMarketing, parseAgent, parseAgentImage, parseBuyer, parseCampaign, parseCampaignEdit, parseMarketing, campaignTargets, flowKey, campaignRefs, placeImage } from '../../mock/shared/marketing.js?v=1152d06ae8';
-import { BUYER_DEFAULTS, MAX_STEP, budgetPlan, rulesPatch } from '../../mock/shared/mkt-ads.js?v=1152d06ae8';
-import { PLATFORMS as AD_PLATFORMS, linkAccount, linkPublic, linkReady, parseLink, platformOf } from '../../mock/shared/mkt-ads-link.js?v=1152d06ae8';
-import { MAX_OPEN_JOBS, cleanScenes, jobView, mixPlan, nextMix, parseVideo, videoPath } from '../../mock/shared/mkt-video.js?v=1152d06ae8';
-import { creditsFor } from '../../mock/shared/ai-images.js?v=1152d06ae8';
-import { refName, refUrl } from '../../mock/shared/ref-link.js?v=1152d06ae8';
-import { cleanTrends, parseTrends } from '../../mock/shared/mkt-trends.js?v=1152d06ae8';
+import { resolvePlan } from '../../mock/shared/product-plan.js?v=e5a160136c';
+import { filesLine } from '../../mock/shared/agent-files.js?v=e5a160136c';
+import { agentImagePath, agentTitle, campaignGenPath, campaignPathOk, campaignTarget, cleanAgent, cleanBuyer, cleanMarketing, parseAgent, parseAgentImage, parseBuyer, parseCampaign, parseCampaignEdit, parseMarketing, campaignTargets, flowKey, campaignRefs, placeImage } from '../../mock/shared/marketing.js?v=e5a160136c';
+import { BUYER_DEFAULTS, MAX_STEP, budgetPlan, rulesPatch } from '../../mock/shared/mkt-ads.js?v=e5a160136c';
+import { PLATFORMS as AD_PLATFORMS, linkAccount, linkPublic, linkReady, parseLink, platformOf } from '../../mock/shared/mkt-ads-link.js?v=e5a160136c';
+import { MAX_OPEN_JOBS, cleanScenes, jobView, mixPlan, nextMix, parseVideo, videoPath } from '../../mock/shared/mkt-video.js?v=e5a160136c';
+import { creditsFor } from '../../mock/shared/ai-images.js?v=e5a160136c';
+import { refName, refUrl } from '../../mock/shared/ref-link.js?v=e5a160136c';
+import { cleanTrends, parseTrends } from '../../mock/shared/mkt-trends.js?v=e5a160136c';
 const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const cairo = (d = new Date()) => { const p = Object.fromEntries(fmt.formatToParts(d).map((x) => [x.type, x.value])); return { day: p.year + '-' + p.month + '-' + p.day, hm: p.hour + ':' + p.minute }; };
 export const mktToday = () => cairo().day;
