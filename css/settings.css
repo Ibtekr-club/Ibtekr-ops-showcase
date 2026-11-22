@@ -517,3 +517,24 @@ button.dx-stat{cursor:pointer}button.dx-stat:hover{background:var(--color-bg-hov
 .kb-item-t b .tag { margin-inline-start:6px; font-weight:500; vertical-align:middle }
 /* the owner 17 Nov: «أعد الكتابة بالـ AI» under a rule / skill's details */
 .kb-ai-row { display:flex; justify-content:flex-start; margin-top:-4px }
+/* «أنهي موديل لأنهي أمر» (the owner 22 Nov — js/pages/ai-routing.js): the three levels side by side, then a row per command */
+.air-tiers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.air-tier { border: 1px solid var(--color-border-subtle); border-radius: 12px; padding: 12px; background: var(--color-bg-container); }
+.air-tier-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.air-tier-h b { color: var(--color-brand-default); font-size: 15px; }
+.air-price { margin: 4px 0 6px; color: var(--color-text-secondary); }
+.air-tier p { margin: 0; }
+.air-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; margin-top: 8px; }
+.air-rows.off { opacity: .55; }
+.air-row { padding: 8px 0; border-bottom: 1px solid var(--color-border-subtle); }
+.air-row p { margin: 4px 0 0; }
+.air-row.moved .flabel, .air-row.moved label { color: var(--color-brand-default); font-weight: 700; }
+.air-spend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.air-spend h3 { margin: 0 0 6px; }
+/* the owner 22 Nov (model-routing decisions 8–10): under the text company — the automatic switch, the company's levels, the model */
+.prov-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.air-pick { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--color-border-subtle); border-radius: 12px; background: var(--color-bg-container); }
+.air-levels { display: flex; flex-wrap: wrap; gap: 8px; }
+.air-level { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--color-border-subtle); background: var(--color-bg-layout, transparent); font-size: 13px; }
+.air-level b { color: var(--color-brand-default); }
+@media (max-width: 767px) { .air-tiers, .air-rows, .air-spend { grid-template-columns: minmax(0, 1fr); } }

@@ -19,14 +19,14 @@
 // vendors_brands_guard_delete (23503 naming brand_owners_vendor_id_fkey) and the cascade of the origin's brands). Not a product feature.
 // Spec files call installSupabaseMock(page) unless E2E_SUPABASE_LIVE=1: then installLiveConfig(page) points the app at the
 // staging project in E2E_SUPABASE_URL / E2E_SUPABASE_ANON_KEY (never at whatever app/config.js holds), or skips without them.
-import { buildStudio, matchWooBrand, sheetCsvUrl, wooBrandIds } from '../../mock/shared/woo-studio.js?v=ce7f2d2b2f';
-import { parseWrite, parseStudio, parsePrompts, parseExtract, cleanWrite, cleanStudio, cleanPrompts, cleanExtract, shotPromptRows, aiSettings } from '../../mock/shared/ai-content.js?v=ce7f2d2b2f';
-import { parseGenerate, parseEdit, parseCreate, imageSettings, creditsFor, usdOf, studioPathOk, studioGenPath, studioEditPath, toolPath, renameInState, flowShotPrompt, MODEL_IDS } from '../../mock/shared/ai-images.js?v=ce7f2d2b2f';
-import { hrState, hrRoute } from './hr-mock.js?v=ce7f2d2b2f'; // phase 10 (0046): the HR tables, RPCs, team-admin and the bucket hr-docs
-import { mktState, mktRoute } from './mkt-mock.js?v=ce7f2d2b2f'; // phase 9.5.1 (0049): the marketing tables, RPCs, the bucket marketing and its AI actions
-import { settingsState, settingsRoute } from './settings-mock.js?v=ce7f2d2b2f';
+import { buildStudio, matchWooBrand, sheetCsvUrl, wooBrandIds } from '../../mock/shared/woo-studio.js?v=2046d4f32a';
+import { parseWrite, parseStudio, parsePrompts, parseExtract, cleanWrite, cleanStudio, cleanPrompts, cleanExtract, shotPromptRows, aiSettings } from '../../mock/shared/ai-content.js?v=2046d4f32a';
+import { parseGenerate, parseEdit, parseCreate, imageSettings, creditsFor, usdOf, studioPathOk, studioGenPath, studioEditPath, toolPath, renameInState, flowShotPrompt, MODEL_IDS } from '../../mock/shared/ai-images.js?v=2046d4f32a';
+import { hrState, hrRoute } from './hr-mock.js?v=2046d4f32a'; // phase 10 (0046): the HR tables, RPCs, team-admin and the bucket hr-docs
+import { mktState, mktRoute } from './mkt-mock.js?v=2046d4f32a'; // phase 9.5.1 (0049): the marketing tables, RPCs, the bucket marketing and its AI actions
+import { settingsState, settingsRoute } from './settings-mock.js?v=2046d4f32a';
 // phase 11 (0056): the team RPCs, settings-admin / notify, company_docs, the buckets company-docs / settings, activity_log filters
-import { portalState, portalRoute } from './portal-mock.js?v=ce7f2d2b2f'; // phase 13 T4 (0065): the maker portal's Edge Function on the mock's rows
+import { portalState, portalRoute } from './portal-mock.js?v=2046d4f32a'; // phase 13 T4 (0065): the maker portal's Edge Function on the mock's rows
 export const SUPABASE_URL = 'https://demo.ibtekr.invalid';
 // what the developer's «تحديثات ووردبريس» check answers when a spec gives no list of its own (the demo copy shows this)
 const WP_STATUS = { core: { version: '6.7.2', latest: '6.8.3', update: true, known: true }, woo: { version: '9.8.1' }, php: '8.2.20',
@@ -1147,7 +1147,8 @@ export async function installSupabaseMock(page, opts = {}) {
         const eqs = [...url.searchParams.entries()].filter(([k, v]) => COLS.includes(k) && v.startsWith('eq.')).map(([k, v]) => [k, v.slice(3)]);
         const gte = url.searchParams.get('created_at'); const since = gte && gte.startsWith('gte.') ? Date.parse(gte.slice(4)) : null;
         const lim = Number(url.searchParams.get('limit')) || 1000;
-        const rows = mock.aiRuns.filter((x) => (isAdmin(u) || x.created_by === u.id) && eqs.every(([k, v]) => String(x[k]) === v) && (since === null || Date.parse(x.created_at) >= since)).sort((x, y) => (x.created_at < y.created_at ? 1 : -1)).slice(0, lim);
+        const neqs = [...url.searchParams.entries()].filter(([k, v]) => COLS.includes(k) && v.startsWith('neq.')).map(([k, v]) => [k, v.slice(4)]); // IBAI.spendBreakdown: action=neq.image
+        const rows = mock.aiRuns.filter((x) => (isAdmin(u) || x.created_by === u.id) && eqs.every(([k, v]) => String(x[k]) === v) && neqs.every(([k, v]) => String(x[k]) !== v) && (since === null || Date.parse(x.created_at) >= since)).sort((x, y) => (x.created_at < y.created_at ? 1 : -1)).slice(0, lim);
         return json(200, rows.map((x) => (cols.includes('*') ? { ...x } : Object.fromEntries(cols.map((c) => [c, x[c] === undefined ? null : x[c]])))));
       }
       // phase 5.4 decision 8 (0026): image_imports — select only (a Claude session queues the rows as postgres, the server marks
