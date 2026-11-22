@@ -41,3 +41,32 @@ test('a model\'s work is left to the member\'s choice: a why, an opinion, writin
   for (const s of ['ليه مبيعات انتيكما نزلت الشهر ده؟', 'اكتب وصف لمنتج جديد', 'عايز اعرف رأيك في الحسابات', 'ازيك', 'اقترح عرض للأسبوع الجاي', 'الحسابات فيها مشكلة من امبارح ومش عارف السبب',
     'حساب antekama وعدد الأوردرات الملغية', '']) assert.deepEqual(u(s), { type: 'unknown' }, s);
 });
+
+// The owner 22 Nov — «الفلتر بالكلام علي الداتا عيزو يبقا من ضمن السيستم»: a list of a page by the word people call it, the rest of
+// the words for the page's own filter; what the words name among the filter's choices, and what is left for the table's search.
+test('a list filtered by words: the list, its tab and the words — never the orders, a page alone, an order to write or a «why»', () => {
+  const all = { vendors: ['Artisan Loft'], today: '2026-11-22', pages: ['orders', 'vendors', 'accounts', 'inventory', 'products', 'cs', 'tickets', 'hr'].map((id) => ({ id, label: id })) };
+  const f = (s, c) => { const r = B.understand(s, c || all); return r.type === 'listFilter' ? [r.list, r.hash, r.tab, r.words] : r.type; };
+  assert.deepEqual(f('اعرض المبتكرين الموقوفين'), ['makers', 'makers', 'سجل المبتكرين', ['الموقوفين']]);
+  assert.deepEqual(f('طلبات الفريق العاجلة'), ['tickets', 'tickets', 'السجل', ['العاجلة']]);
+  assert.deepEqual(f('هات المصروفات بتاعة الإعلانات'), ['expenses', 'expenses', '', ['الإعلانات']]);
+  assert.deepEqual(f('وريني العملاء المتضايقين على واتساب'), ['customers', 'cs-customers', '', ['المتضايقين', 'واتساب']]);
+  assert.deepEqual(f('اعرض القطع المرتجعة في المخزن'), ['inventory', 'inventory', 'سجل المخزون', ['المرتجعة']]);
+  assert.deepEqual(f('الموظفين الغايبين'), ['team', 'hr-team', '', ['الغايبين']]);
+  assert.deepEqual(f('اعرض المنتجات مكرمية'), ['products', 'products-records', '', ['مكرمية']], 'the word as it was written, for the search');
+  assert.deepEqual(f('show inactive makers'), ['makers', 'makers', 'سجل المبتكرين', ['inactive']]);
+  // what it is not
+  assert.equal(f('اعرض الأوردرات المتأخرة'), 'ordersFilter'); assert.equal(f('افتح المخزن'), 'goPage'); assert.equal(f('افتح حسابات المبتكرين'), 'navigate'); assert.equal(f('رتب المبتكرين بالعربون'), 'sortVendors');
+  assert.equal(f('سجل مصروف 500 كهربا'), 'unknown', 'an order to write is not a list to show'); assert.equal(f('ليه المبتكرين متأخرين'), 'unknown');
+  assert.equal(typeof f('اعرض المبتكرين الموقوفين', Object.assign({}, all, { pages: [{ id: 'orders', label: 'الأوردرات' }] })), 'string', 'a page the member may not open is not filtered');
+});
+
+test('the filter’s choices the words name: by stem, the words people say for a choice, the longer label first, the rest for the search', () => {
+  const O = [['نشط', 'الحالة'], ['في إجازة', 'الحالة'], ['غير نشط', 'الحالة'], ['ديكور', 'الفئة'], ['عاجل', 'الأولوية'], ['مسودة', 'الحالة'], ['نفد', 'المخزون'], ['متضايق', 'الحالة'], ['واتساب', 'القناة'], ['مرتجع', 'السبب'], ['الإعلانات', 'النوع'], ['غائب', 'الحالة اليوم'], ['في انتظار المراجعة', 'الحالة'], ['مفتوحة (كل الحالات المفتوحة)', 'الحالة']].map(([label, group]) => ({ label, group }));
+  const p = (w) => { const r = B.pickOptions(w, O); return [r.picks.map((i) => O[i].label), r.rest]; };
+  assert.deepEqual(p(['الموقوفين']), [['غير نشط'], []]); assert.deepEqual(p(['العاجلة']), [['عاجل'], []]); assert.deepEqual(p(['المسودة']), [['مسودة'], []]);
+  assert.deepEqual(p(['المتضايقين', 'واتساب']), [['متضايق', 'واتساب'], []]); assert.deepEqual(p(['الغايبين']), [['غائب'], []]); assert.deepEqual(p(['خلصت']), [['نفد'], []]);
+  assert.deepEqual(p(['نشط']), [['نشط'], []]); assert.deepEqual(p(['غير', 'نشط']), [['غير نشط'], []], 'the longer label takes the words it shares');
+  assert.deepEqual(p(['انتظار', 'المراجعة']), [['في انتظار المراجعة'], []]); assert.deepEqual(p(['المفتوحة']), [['مفتوحة (كل الحالات المفتوحة)'], []]);
+  assert.deepEqual(p(['النشطين', 'ديكور', 'خشب']), [['نشط', 'ديكور'], ['خشب']]); assert.deepEqual(p(['مكرمية']), [[], ['مكرمية']]); assert.deepEqual(p([]), [[], []]);
+});

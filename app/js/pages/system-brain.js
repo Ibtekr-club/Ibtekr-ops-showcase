@@ -6,6 +6,7 @@
    asks the member before any outside model is called.
      IBBrain.understand(text, ctx) → the block-27 command shapes, or
        { type: 'goPage', page }                        a page of the side menu
+       { type: 'listFilter', list, page, hash, tab, name, words }   a list of another page filtered by words (the page's own filter)
        { type: 'choose', question, options, texts }    two names fit: the member picks, texts[i] is the request said again
        { type: 'unknown' }
      ctx: { vendors: [name], today, pages: [{ id, label }] }
@@ -93,6 +94,52 @@
     return words(String(text).replace(/[؟?!.,،]/g, ' ')).filter((w) => !(OPEN.test(' ' + w + ' ') || /^ال?اوردر/.test(w) || /^(و|ب|ل)?ال?اوردر/.test(w) || FILL.includes(w) || STATE.includes(w) || STATE.includes(w.replace(/^ال/, '')) || MARK.includes(w) || maker.includes(w))).length;
   }
 
+  // ---- a list filtered by words (the owner 22 Nov — «الفلتر بالكلام علي الداتا عيزو يبقا من ضمن السيستم»): «اعرض المبتكرين الموقوفين»,
+  // «طلبات الفريق العاجلة», «المنتجات المسودة» — the list by the word people call it, the rest of the words for its own filter
+  // (the page matches them on the filter's choices; what is no choice is searched for in the table). The orders keep their own.
+  const LISTS = [
+    { list: 'makers', page: 'vendors', hash: 'makers', tab: 'سجل المبتكرين', name: 'المبتكرين', en: 'Makers', words: ['مبتكر', 'مبتكرين', 'مورد', 'موردين', 'maker', 'makers'] },
+    { list: 'products', page: 'products', hash: 'products-records', tab: '', name: 'المنتجات', en: 'Products', words: ['منتج', 'منتجات', 'product', 'products'] },
+    { list: 'tickets', page: 'tickets', hash: 'tickets', tab: 'السجل', name: 'طلبات الفريق', en: 'Team requests', words: ['طلب', 'طلبات', 'request', 'requests'] },
+    { list: 'expenses', page: 'accounts', hash: 'expenses', tab: '', name: 'المصروفات', en: 'Expenses', words: ['مصروف', 'مصروفات', 'مصاريف', 'expense', 'expenses'] },
+    { list: 'inventory', page: 'inventory', hash: 'inventory', tab: 'سجل المخزون', name: 'المخزن', en: 'Inventory', words: ['مخزن', 'مخزون', 'قطع', 'قطعه', 'inventory', 'items', 'stock'] },
+    { list: 'team', page: 'hr', hash: 'hr-team', tab: '', name: 'الفريق', en: 'The team', words: ['موظف', 'موظفين', 'فريق', 'اعضاء', 'عضو', 'team', 'members', 'staff'] },
+    { list: 'customers', page: 'cs', hash: 'cs-customers', tab: '', name: 'العملاء', en: 'Customers', words: ['عميل', 'عملاء', 'customer', 'customers'] },
+  ];
+  const bare = (w) => String(w).replace(/^(و|ب|ل|لل)?ال/, '').replace(/^لل/, '');
+  // a word to its stem: the article and a joined «و / ب / ل» off, then the plural and gender endings (three letters stay at least)
+  const stem = (w) => { let x = bare(w).replace(/ئ/g, 'ي').replace(/ؤ/g, 'و').replace(/ء/g, ''); if (/^[a-z]/.test(x)) return x.length > 3 ? x.replace(/(es|s)$/, '') : x; for (const e of ['ين', 'ون', 'ات', 'يه', 'ه', 'ي', 'ا']) if (x.length - e.length >= 3 && x.endsWith(e)) { x = x.slice(0, -e.length); break; } return x; };
+  const NOT_CRITERIA = ['صفحه', 'سجل', 'قايمه', 'قائمه', 'تاب', 'جدول', 'حسابات', 'تقارير', 'تقرير', 'اللي', 'بتاع', 'بتاعه', 'بتوع', 'بتاعت', 'نوع', 'نوعها', 'حالتهم', 'the', 'of', 'with', 'that', 'are', 'is', 'in', 'all', 'me', 'page', 'list'];
+  function listAsk(t, pages, raw) {
+    const ws = words(t.replace(/[؟?!.,،]/g, ' ')); const rw = String(raw || '').replace(/[؟?!.,،]/g, ' ').trim().split(/\s+/); const asSaid = (i) => (rw.length === ws.length ? rw[i] : ws[i]); /* the words as the member wrote them (the table's search reads them) */ const ids = pages ? new Set(pages.map((p) => p.id)) : null; let L = null; let at = -1;
+    ws.forEach((w, i) => { if (L) return; const b = bare(w); const hit = LISTS.find((x) => x.words.includes(b) && (!ids || ids.has(x.page))); if (hit) { L = hit; at = i; } });
+    // not a list to show: an order to write («سجل …»), a number said (an amount, an order), or — with no «اعرض» / «فلتر» — a sentence
+    // that does not open on the list itself («وزّع المهام على الفريق» is not «الفريق الغايبين»)
+    if (!L || /\d/.test(t) || /(^|\s)(سجل|سجلي|ضيف|اضف|اخصم|ادفع|حول|امسح|احذف|عدل|غير|add|record|delete|edit)(\s|$)/.test(t)) return null;
+    if (at !== 0 && !OPEN.test(' ' + t + ' ') && !/(^|\s)(فلتر|فلترلي|filter)(\s|$)/.test(t)) return null;
+    // «طلبات الفريق»: the list's own second word is not a criterion
+    const own = L.list === 'tickets' ? ['فريق', 'team'] : L.list === 'team' ? ['عمل', 'شغل'] : [];
+    const crit = ws.map((w, i) => [w, i]).filter(([w, i]) => i !== at && !OPEN.test(' ' + w + ' ') && !FILL.includes(w) && !NOT_CRITERIA.includes(bare(w)) && !own.includes(bare(w)) && !L.words.includes(bare(w)) && !/^(فلتر|فلترلي|filter|find|list)$/.test(w) && bare(w).length > 1).map(([, i]) => asSaid(i));
+    return crit.length ? { type: 'listFilter', list: L.list, page: L.page, hash: L.hash, tab: L.tab, name: L.name, en: L.en, words: crit } : null;
+  }
+  // The words people say for a choice the filter names otherwise
+  const SAID = { موقوف: 'غير نشط', واقف: 'غير نشط', متوقف: 'غير نشط', شغال: 'نشط', خلص: 'نفد', خلصان: 'نفد', ناقص: 'قليل', زعلان: 'متضايق', مبسوط: 'سعيد', inactive: 'غير نشط', stopped: 'غير نشط' };
+  /** The filter's choices the words name. options: [{ label, group }] → { picks: [index], rest: [the words no choice took] }.
+   *  A choice is named when every word of its label is said (by stem); the longer label wins the words it shares («غير نشط» over «نشط»). */
+  function pickOptions(said, options) {
+    const same = (a, b) => a === b || (a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a)) && Math.abs(a.length - b.length) <= 2);
+    const ws = (said || []).map((w) => norm(w)).filter(Boolean); const sw = ws.map(stem); const extra = []; // a said word may stand for a whole label
+    ws.forEach((w) => { const k = Object.keys(SAID).find((x) => same(stem(w), x)); if (k) extra.push({ w, label: norm(SAID[k]) }); });
+    const cand = [];
+    (options || []).forEach((o, i) => { const lab = norm(String(o.label || '').replace(/\(.*?\)/g, ' ').replace(/[—\-·|]/g, ' ')); const lw = words(lab).filter((x) => !['في', 'من', 'علي', 'على', 'the', 'of', 'in'].includes(x)).map(stem).filter((x) => x.length > 1); if (!lw.length || lw.length > 4) return;
+      const viaAlt = extra.find((x) => x.label === lab); if (viaAlt) { cand.push({ i, used: [ws.indexOf(viaAlt.w)], n: lw.length + 1 }); return; }
+      const used = []; for (const l of lw) { const k = sw.findIndex((x, j) => !used.includes(j) && same(x, l)); if (k < 0) return; used.push(k); }
+      cand.push({ i, used, n: lw.length }); });
+    cand.sort((a, b) => b.n - a.n); const taken = new Set(); const picks = [];
+    for (const c of cand) { if (c.used.every((j) => taken.has(j))) continue; picks.push(c.i); c.used.forEach((j) => taken.add(j)); }
+    const said0 = (said || []).filter((w) => norm(w)); return { picks: picks.sort((a, b) => a - b), rest: said0.filter((w, j) => !taken.has(j)) };
+  }
+
   function understand(text, ctx) {
     const raw = String(text == null ? '' : text).trim(); const t = norm(raw); if (!t) return { type: 'unknown' };
     const c = ctx || {}; const vendors = c.vendors || [];
@@ -108,6 +155,10 @@
     const open = OPEN.test(' ' + t + ' ');
     if (cmd.type === 'navigate' && !(open || short(t, 3))) return { type: 'unknown' }; // a page's name inside a longer question is not «open it»
     if (cmd.type === 'setRange' && !(open || short(t, 5) || /فتره|الفتره/.test(t))) return { type: 'unknown' };
+    // a list of a page with words for its filter — never the orders (their own filter), and only as an ask to show («اعرض …»), to filter, or a short one;
+    // it goes before a bare «open the page» the old commands read in the same words («اعرض المبتكرين الموقوفين» is not «حسابات المبتكرين»)
+    const la = (cmd.type === 'unknown' || cmd.type === 'navigate') && !/(^|\s)(و|ب|ل)?ال?اوردر/.test(t) && (open || short(t, 5) || /(^|\s)(فلتر|فلترلي|filter)(\s|$)/.test(t)) ? listAsk(t, c.pages, raw) : null;
+    if (la) return la;
     if (cmd.type !== 'unknown' && !(cmd.type === 'navigate' && cmd.page === 'orders' && pageOf(t, c.pages) && pageOf(t, c.pages) !== 'orders')) return nm.hit ? Object.assign({}, cmd, { heard: nm.hit }) : cmd;
     const page = pageOf(t, c.pages);
     if (page && (open || short(t, 3))) return { type: 'goPage', page };
@@ -115,8 +166,8 @@
   }
 
   // what to try when the member says no to an outside model
-  const EXAMPLES = ['افتح المخزن', 'اعرض الأوردرات المتأخرة', 'أوردرات المبتكر ‹الاسم› جاري التنفيذ', 'سجل سحب مرتبات 5000', 'رتب المبتكرين بالعربون'];
+  const EXAMPLES = ['افتح المخزن', 'اعرض الأوردرات المتأخرة', 'اعرض المبتكرين الموقوفين', 'أوردرات المبتكر ‹الاسم› جاري التنفيذ', 'سجل سحب مرتبات 5000', 'رتب المبتكرين بالعربون'];
   /** A model's work, never the system's: a why, an opinion, writing, a picture. */
   const thinks = (text) => THINK.test(' ' + norm(text) + ' ');
-  return Object.freeze({ understand, findName, skel, norm, thinks, EXAMPLES });
+  return Object.freeze({ understand, findName, skel, norm, thinks, pickOptions, LISTS, EXAMPLES });
 });

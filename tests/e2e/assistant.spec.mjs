@@ -439,8 +439,9 @@ test('ش45: the header\'s assistant hands a programming question to the develope
   // the question waits in the box (nothing sent until the member presses) — then one call on a new chat
   await expect(page.locator('#mk-ask')).toHaveValue('ليه الموقع بطيء على الموبايل؟');
   expect(mock.mkt.calls.filter((c) => c.action === 'agent')).toEqual([]);
-  await page.locator('#mk-ask').press('Enter'); await expect(page.locator('[data-mk-consent]')).toHaveCount(0); // the outside company is agreed to (the handler above)
-  await expect.poll(() => mock.mkt.calls.filter((c) => c.action === 'agent').map((c) => [c.agent, c.chat])).toEqual([['dev', null]]);
+  await page.locator('#mk-ask').press('Enter');
+  // the consent card may show a moment after the send: looked at on every try, so the handler above answers it
+  await expect(async () => { await expect(page.locator('[data-mk-consent]')).toHaveCount(0, { timeout: 300 }); expect(mock.mkt.calls.filter((c) => c.action === 'agent').map((c) => [c.agent, c.chat])).toEqual([['dev', null]]); }).toPass({ timeout: 10000 });
   await expect(page.locator('#pg-ai')).toContainText('سؤالك: ليه الموقع بطيء على الموبايل؟');
 });
 
@@ -538,4 +539,22 @@ test('the outside model gets the message alone: an answer that needs data waits 
   const card = page.locator('[data-brain-share]'); await expect(card).toContainText('المخ الخارجي بياخد رسالتك بس');
   await expect(card.locator('[data-bs-never] li')).toHaveText(['تليفونات العملاء', 'عناوين العملاء', 'الحسابات البنكية', 'المرتبات', 'نسب العمولة', 'المفاتيح والباسوردات', 'نص رسايل العملاء']);
   await expect(card.locator('[data-bs-log]')).toHaveCount(1); await expect(card.locator('[data-bs-log]')).toContainText('Claude'); await expect(card.locator('[data-bs-log]')).toContainText('الأوردرات · المبيعات');
+});
+
+// The owner 22 Nov — «الفلتر بالكلام علي الداتا عيزو يبقا من ضمن السيستم»: a list of another page filtered by words — the system opens the
+// list's tab and works its own «فلتر» (the choices the words name) and «بحث» (the words that are no choice); no model is called.
+test('a list filtered by words: the makers by their status, then by a word searched — the page\'s own filter and search, said back with the count, from the system', async ({ page }) => {
+  await signIn(page, ADMIN); await page.getByRole('button', { name: 'مساعد AI' }).click();
+  const last = panel(page).locator('.ai-msg.ai').last(); const makers = mock.vendors.filter((v) => !v.archived_at);
+  const inactive = makers.filter((v) => v.status === 'inactive').length; const active = makers.filter((v) => v.status === 'active');
+  await say(page, 'اعرض المبتكرين الموقوفين');
+  await expect(last.locator('.ai-text')).toHaveText('فلترت المبتكرين: الحالة = غير نشط — ' + inactive + ' مبتكر.'); await expect(last.locator('[data-ai-src]')).toHaveText('من السيستم');
+  await expect(page.locator('main.content:not([hidden]) [data-fm-btn="vendors"]')).toBeVisible(); await expect(page.locator('main.content:not([hidden]) [role=tab][aria-selected=true]').first()).toContainText('سجل المبتكرين');
+  await expect(page.locator('main.content:not([hidden]) [data-fm-btn="vendors"]')).toHaveAttribute('aria-label', /1 مختار/);
+  // a word that is no choice of the filter is searched for in the table, inside what the filter left
+  const name = active[0].name; await say(page, 'اعرض المبتكرين النشطين ' + name.split(' ')[0]);
+  await expect(last.locator('.ai-text')).toHaveText(new RegExp('^فلترت المبتكرين: الحالة = نشط، وبحثت عن «' + name.split(' ')[0] + '» — \\d+ صف\\.$'));
+  await expect(page.locator('main.content:not([hidden]) [data-tq-row] input')).toHaveValue(name.split(' ')[0]);
+  // nothing the filter knows and nothing to search: the page is open, and the system says so
+  expect(mock.aiCalls.filter((c) => c.action === 'assistant').length, 'no model was called').toBe(0);
 });
