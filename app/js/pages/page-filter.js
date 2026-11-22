@@ -10,6 +10,8 @@
   const vis = (e) => !!(e && e.offsetParent);
   const main = () => document.querySelector('main.content:not([hidden])') || document;
   async function until(fn, ms) { const end = Date.now() + (ms || 4000); for (;;) { const v = fn(); if (v) return v; if (Date.now() > end) return null; await wait(80); } }
+  // the text as the page shows it (the English demo shows a label in English and keeps the app's own words underneath)
+  const shown = (el) => { const T = window.IBT; try { return T && T.shown ? String(T.shown(el)) : el.textContent; } catch (e) { return el.textContent; } };
   const press = (el) => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 
   async function run(L) {
@@ -24,10 +26,11 @@
       if (menu) {
         const clear = menu.querySelector('[data-fm-clear]'); if (clear) press(clear);
         const opts = [...menu.querySelectorAll('[data-fm]')].map((el) => { const sec = el.closest('[data-fm-key]'); const tab = sec ? menu.querySelector('[data-fm-tab="' + CSS.escape(sec.getAttribute('data-fm-key')) + '"] .fm-tl') : null;
-          return { el, label: (el.querySelector('.mp-l') || el).textContent.replace(/^-+\s*/, '').trim(), group: tab ? tab.textContent.trim() : '' }; });
-        const got = B.pickOptions(L.words, opts); rest = got.rest;
+          const lab = el.querySelector('.mp-l') || el; return { el, label: shown(lab).replace(/^-+\s*/, '').trim(), own: lab.textContent.replace(/^-+\s*/, '').trim(), group: tab ? shown(tab).trim() : '' }; });
+        let got = B.pickOptions(L.words, opts); if (!got.picks.length) got = B.pickOptions(L.words, opts.map((o) => ({ label: o.own, group: o.group }))); // the app's own words, when the shown ones name nothing
+        rest = got.rest;
         got.picks.forEach((i) => { press(opts[i].el); picked.push({ group: opts[i].group, label: opts[i].label }); });
-        const apply = menu.querySelector('[data-fm-apply]'); count = apply ? apply.textContent.replace(/^(اعرض|Show)\s*/, '').trim() : ''; if (apply) press(apply); await wait(250);
+        const apply = menu.querySelector('[data-fm-apply]'); count = apply ? shown(apply).replace(/^(اعرض|Show)\s*/, '').trim() : ''; if (apply) press(apply); await wait(250);
       }
     }
     // the words no choice took: the table's own search (inside what the filter left)

@@ -102,6 +102,11 @@ test('marketplace: dashboard, orders (a status change kept after a reload), prod
   // words alone need none of the system's data
   await page.fill('.ai-input', 'اكتبلي كابشن لمنتج جديد'); await page.locator('.ai-form').press('Enter'); await lastAi.locator('[data-ai-brain="claude"]').click();
   await expect(lastAi.locator('[data-ai-shared]')).toHaveText('اتبعتله: رسالتك بس — من غير بيانات من السيستم', { timeout: 10000 }); await expect(lastAi.locator('[data-ai-src]')).toHaveText('الرد من Claude');
+  // a list of another page filtered by words — the system works the page's own filter and says how many it left; no outside model
+  await page.fill('.ai-input', 'اعرض المبتكرين الموقوفين'); await page.locator('.ai-form').press('Enter');
+  await expect(lastAi.locator('.ai-text')).toHaveText('فلترت المبتكرين: الحالة = غير نشط — 1 مبتكر.', { timeout: 10000 }); await expect(lastAi.locator('[data-ai-src]')).toHaveText('من السيستم');
+  await page.fill('.ai-input', 'طلبات الفريق العاجلة'); await page.locator('.ai-form').press('Enter'); await expect(lastAi.locator('.ai-text')).toHaveText('فلترت طلبات الفريق: الأولوية = عاجل — 1 طلب.', { timeout: 10000 });
+  await page.fill('.ai-input', 'المنتجات المنشورة lamp'); await page.locator('.ai-form').press('Enter'); await expect(lastAi.locator('.ai-text')).toHaveText(/^فلترت المنتجات: الحالة = منشور، وبحثت عن «lamp» — \d+ صف\.$/, { timeout: 10000 });
   await page.keyboard.press('Escape');
 
   await page.evaluate(() => window.__ibDemoAfter('POST', window.__ibDemo.HOST + '/functions/v1/share-mail', '{}', {}));
@@ -199,6 +204,10 @@ test('English: the language drop-down in the banner turns the demo to English, l
   await expect(aiLast.locator('[data-ai-need-kind="orders"]')).toContainText('No customer names, phones or addresses'); expect(await arabicShown(page), 'the assistant › the data card').toEqual([]);
   await aiLast.locator('[data-ai-share-ok]').click(); await expect(aiLast.locator('[data-ai-shared]')).toHaveText('Sent to it: your message + Orders', { timeout: 10000 }); await page.waitForTimeout(600);
   expect(await arabicShown(page), 'the assistant › the answer and what was sent').toEqual([]); await page.keyboard.press('Escape');
+  // a list filtered by words, asked in English: the page's filter in English, the answer in English
+  await page.getByRole('button', { name: 'AI assistant' }).click(); await page.fill('.ai-input', 'show the products draft'); await page.locator('.ai-form').press('Enter');
+  await expect(aiLast.locator('.ai-text')).toHaveText(/^Filtered Products: .+ = Draft — \d+ .+\.$/, { timeout: 10000 }); await page.waitForTimeout(600);
+  expect(await arabicShown(page), 'the assistant › a list filtered by words').toEqual([]); await page.keyboard.press('Escape');
   // an assistant's own chat in English: the system's numbers, the hand-over, the company and the data card
   await go(page, 'ai'); const aiP = page.locator('#pg-ai'); await aiP.getByRole('tab', { name: /General manager/ }).click({ timeout: 20000 }); await expect(aiP.locator('#mk-ask')).toBeVisible(); await page.waitForTimeout(500); const aiA = aiP.locator('.mk-msg.ai[data-mk-turn]').last();
   await aiP.locator('#mk-ask').fill('Any news today?'); await aiP.locator('[data-mk-ask]').click(); await expect(aiA.locator('[data-mk-src]')).toHaveText('From the system', { timeout: 10000 }); await expect(aiA).toContainText('Where every assistant stands now:');
