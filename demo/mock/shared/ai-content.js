@@ -2,7 +2,7 @@
 // by the ai-content Edge Function and the node tests: the request checks, the Claude request (instructions, product data,
 // JSON schema), the answer's cleaning (decision 3: the WooCommerce write limits, no price or SKU ever) and the cost.
 // Nothing here calls the network. No backslash-u escapes in this file: the deploy tool rewrites them into the characters.
-import { seoVarsOk } from './woo-products.js?v=a7fa841ca3';
+import { seoVarsOk } from './woo-products.js?v=1152d06ae8';
 
 export const OUTPUTS = ['name', 'short', 'long', 'keywords', 'bullets', 'seo'];
 export const LANGS = ['ar', 'en'];

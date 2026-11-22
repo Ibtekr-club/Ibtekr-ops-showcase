@@ -4,10 +4,10 @@
 // its prototype functions: navigate / filter_orders / set_period / sort_vendors / propose_entry, and set_filter for the orders
 // filter builder), the request, reading a turn, the actions' cleaning and the data shaping (never a phone, never an address).
 // No I/O here.
-import { NAME_RULE, nameHas } from './names.js?v=a7fa841ca3';
-import { confirmAge, delayRules, orderDelayOf, orderElapsed } from './delay.js?v=a7fa841ca3';
-import { FALLBACK, line, paras } from './ai-content.js?v=a7fa841ca3';
-import { AGENT_IDS, AGENT_NAME, ASK_MAX, DRAFT_DUR, DRAFT_GOALS, DRAFT_IDEA, DRAFT_MAX, agentAsk, campaignDraft } from './campaign-draft.js?v=a7fa841ca3';
+import { NAME_RULE, nameHas } from './names.js?v=1152d06ae8';
+import { confirmAge, delayRules, orderDelayOf, orderElapsed } from './delay.js?v=1152d06ae8';
+import { FALLBACK, line, paras } from './ai-content.js?v=1152d06ae8';
+import { AGENT_IDS, AGENT_NAME, ASK_MAX, DRAFT_DUR, DRAFT_GOALS, DRAFT_IDEA, DRAFT_MAX, agentAsk, campaignDraft } from './campaign-draft.js?v=1152d06ae8';
 
 export const ASSISTANT_TURNS = 12; // the last turns the page sends back (the server keeps no chat)
 export const Q_MAX = 1000;
