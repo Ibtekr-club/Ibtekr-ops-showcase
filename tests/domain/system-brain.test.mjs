@@ -70,3 +70,20 @@ test('the filter’s choices the words name: by stem, the words people say for a
   assert.deepEqual(p(['انتظار', 'المراجعة']), [['في انتظار المراجعة'], []]); assert.deepEqual(p(['المفتوحة']), [['مفتوحة (كل الحالات المفتوحة)'], []]);
   assert.deepEqual(p(['النشطين', 'ديكور', 'خشب']), [['نشط', 'ديكور'], ['خشب']]); assert.deepEqual(p(['مكرمية']), [[], ['مكرمية']]); assert.deepEqual(p([]), [[], []]);
 });
+
+// The owner 22 Nov — «لو طلبت حساب مبتكر منتج او موظف او تقرير معين»: what is asked to be read out — never an order to write, a
+// list to filter, or a question a model has to think about.
+test('a read-out: a maker’s account by name, a period’s sales / expenses / orders / summary, one product, one member', () => {
+  const all = { vendors: ['Artisan Loft', 'Anticora'], today: '2026-11-22', pages: ['orders', 'vendors', 'accounts', 'inventory', 'products', 'cs', 'tickets', 'hr'].map((id) => ({ id, label: id })) };
+  const r = (s) => { const x = B.understand(s, all); return x.type === 'readMaker' ? ['maker', x.vendor] : x.type === 'readPeriod' ? [x.what, x.preset] : x.type === 'readProduct' ? ['product', x.q] : x.type === 'readMember' ? ['member', x.q] : x.type; };
+  assert.deepEqual(r('حساب Anticora'), ['maker', 'Anticora']); assert.deepEqual(r('رصيد Artisan Loft كام؟'), ['maker', 'Artisan Loft']); assert.deepEqual(r('حساب المبتكر Anticora'), ['maker', 'Anticora']);
+  assert.deepEqual(r('Anticora account'), ['maker', 'Anticora']); assert.deepEqual(r('balance of Artisan Loft'), ['maker', 'Artisan Loft']);
+  assert.deepEqual(r('مبيعات الشهر ده'), ['sales', 'thisMonth']); assert.deepEqual(r('مصروفات الأسبوع ده'), ['expenses', 'thisWeek']); assert.deepEqual(r('كام أوردر النهارده'), ['orders', 'today']);
+  assert.deepEqual(r('ملخص الشهر اللي فات'), ['summary', 'lastMonth']); assert.deepEqual(r('sales this month'), ['sales', 'thisMonth']); assert.deepEqual(r('expenses last month'), ['expenses', 'lastMonth']);
+  assert.deepEqual(r('المنتج lamp'), ['product', 'lamp']); assert.deepEqual(r('product IBTFA1007'), ['product', 'IBTFA1007']);
+  assert.deepEqual(r('الموظف منى'), ['member', 'منى']); assert.deepEqual(r('member Mona'), ['member', 'Mona']);
+  // what it is not
+  assert.notEqual(B.understand('سجل عربون 300 لـ Anticora', all).type, 'readMaker');
+  assert.equal(r('اعرض المنتجات مكرمية'), 'listFilter'); assert.equal(r('اعرض الأوردرات المتأخرة'), 'ordersFilter'); assert.equal(r('افتح حسابات المبتكرين'), 'navigate');
+  assert.equal(r('ليه مبيعات الشهر ده قليلة'), 'unknown', 'a why is a model’s to answer');
+});

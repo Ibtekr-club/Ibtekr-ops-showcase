@@ -558,3 +558,28 @@ test('a list filtered by words: the makers by their status, then by a word searc
   // nothing the filter knows and nothing to search: the page is open, and the system says so
   expect(mock.aiCalls.filter((c) => c.action === 'assistant').length, 'no model was called').toBe(0);
 });
+
+// The owner 22 Nov — «لو طلبت حساب مبتكر منتج او موظف او تقرير معين»: the system reads it out itself — the numbers the pages hold,
+// in the chat, with «تفاصيل» and «تنزيل Excel» — no model called and the page left where it was.
+test('read-outs from the system: a maker\'s account, a period\'s orders and expenses, a product and a member — in the chat, no model, the page unchanged', async ({ page }) => {
+  await signIn(page, ADMIN); await page.getByRole('button', { name: 'مساعد AI' }).click();
+  const last = panel(page).locator('.ai-msg.ai').last(); const hash = await page.evaluate(() => location.hash);
+  const maker = mock.vendors.find((v) => !v.archived_at && v.status === 'active');
+  await say(page, 'حساب ' + maker.name);
+  await expect(last.locator('.ai-text')).toHaveText(new RegExp('^حساب ' + maker.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ': .*أوردراته المفتوحة \\d+')); await expect(last.locator('[data-ai-src]')).toHaveText('من السيستم');
+  await expect(last.locator('[data-ai-details]')).toBeVisible();
+  await say(page, 'كام أوردر الشهر ده'); await expect(last.locator('.ai-text')).toHaveText(/^أوردرات .+: \d+ أوردر بإجمالي [\d,]+ ج\.م — مكتمل \d+، ملغي \d+، محتاج إجراء \d+\.$/);
+  await say(page, 'مصروفات الشهر ده'); await expect(last.locator('.ai-text')).toHaveText(/^مصروفات .+: المصروفات [\d,]+ ج\.م في \d+ حركة/);
+  // «تفاصيل»: the part the system built — its chips and its table
+  await last.locator('[data-ai-details]').click(); const modal = page.locator('.modal').last();
+  await expect(modal).toContainText('المصروفات'); await expect(modal).toContainText('عدد الحركات'); await modal.getByRole('button', { name: 'إغلاق' }).last().click(); await expect(page.locator('.modal')).toHaveCount(0);
+  // a product by a word of its name or its SKU; several that fit are asked about
+  const prod = (mock.products || []).find((p) => p.sku && p.lang !== 'ar');
+  if (prod) { await say(page, 'المنتج ' + prod.sku); await expect(last.locator('.ai-text')).toContainText('(' + prod.sku + '): السعر'); }
+  await say(page, 'المنتج zzzznothing'); await expect(last.locator('.ai-text')).toHaveText(/^مالقيتش منتج بـ «zzzznothing»/);
+  // a member of the team by a word of the name
+  const me = await page.evaluate(() => window.IBHR.everyone()[0].name);
+  await say(page, 'الموظف ' + me); await expect(last.locator('.ai-text')).toHaveText(new RegExp('الدور .*، الحالة .*، رصيد الإجازات \\d+ يوم\\.$'));
+  expect(await page.evaluate(() => location.hash), 'the page did not move').toBe(hash);
+  expect(mock.aiCalls.filter((c) => c.action === 'assistant').length, 'no model was called').toBe(0);
+});

@@ -107,6 +107,17 @@ test('marketplace: dashboard, orders (a status change kept after a reload), prod
   await expect(lastAi.locator('.ai-text')).toHaveText('فلترت المبتكرين: الحالة = غير نشط — 1 مبتكر.', { timeout: 10000 }); await expect(lastAi.locator('[data-ai-src]')).toHaveText('من السيستم');
   await page.fill('.ai-input', 'طلبات الفريق العاجلة'); await page.locator('.ai-form').press('Enter'); await expect(lastAi.locator('.ai-text')).toHaveText('فلترت طلبات الفريق: الأولوية = عاجل — 1 طلب.', { timeout: 10000 });
   await page.fill('.ai-input', 'المنتجات المنشورة lamp'); await page.locator('.ai-form').press('Enter'); await expect(lastAi.locator('.ai-text')).toHaveText(/^فلترت المنتجات: الحالة = منشور، وبحثت عن «lamp» — \d+ صف\.$/, { timeout: 10000 });
+  // read-outs (the owner 22 Nov): the system says a maker's account, a period's sales, a product and a member from its own data —
+  // the numbers of the pages, with «تفاصيل» — and the page stays where it was
+  const before = await page.evaluate(() => location.hash); const readOut = async (q, want) => { await page.fill('.ai-input', q); await page.locator('.ai-form').press('Enter'); await expect(lastAi.locator('.ai-text')).toHaveText(want, { timeout: 10000 }); await expect(lastAi.locator('[data-ai-src]')).toHaveText('من السيستم'); await expect(lastAi.locator('[data-ai-details]')).toBeVisible(); };
+  const anti = await page.evaluate(() => { const m = window.__ibDemo.mock; const v = m.vendors.find((x) => x.name === 'Anticora'); return Math.round(m.acc.dokan_balances.find((b) => b.vendor_id === v.id).balance).toLocaleString('en-US'); });
+  await readOut('حساب Anticora', new RegExp('^حساب Anticora: رصيد Dokan ' + anti + ' ج\\.م، .*والصافي [\\d,]+ ج\\.م\\..* أوردراته المفتوحة \\d+'));
+  await readOut('مبيعات الشهر ده', /^مبيعات .+: المبيعات المكتملة [\d,]+ ج\.م من \d+ أوردر، وتحت التنفيذ [\d,]+ ج\.م \(\d+\)، ومرتجع وملغي [\d,]+ ج\.م \(\d+\)\.$/);
+  await readOut('مصروفات الشهر ده', /^مصروفات .+: المصروفات [\d,]+ ج\.م في \d+ حركة/);
+  await readOut('المنتج lamp', /^Stained Glass Lamp \(IBTFA1007\): السعر [\d,]+ ج\.م.*، المخزون .+، الحالة منشور، المبتكر Fayrouz Glass/);
+  await readOut('الموظف منى', /^منى حسن — .+: الدور .+، الحالة نشط، الدوام .+، رصيد الإجازات \d+ يوم\.$/);
+  await page.fill('.ai-input', 'المنتج glass'); await page.locator('.ai-form').press('Enter'); await expect(lastAi.locator('[data-ai-pick] button')).toHaveCount(2); // two fit: the system asks which
+  expect(await page.evaluate(() => location.hash), 'a read-out leaves the page where it was').toBe(before);
   await page.keyboard.press('Escape');
 
   await page.evaluate(() => window.__ibDemoAfter('POST', window.__ibDemo.HOST + '/functions/v1/share-mail', '{}', {}));
@@ -207,7 +218,15 @@ test('English: the language drop-down in the banner turns the demo to English, l
   // a list filtered by words, asked in English: the page's filter in English, the answer in English
   await page.getByRole('button', { name: 'AI assistant' }).click(); await page.fill('.ai-input', 'show the products draft'); await page.locator('.ai-form').press('Enter');
   await expect(aiLast.locator('.ai-text')).toHaveText(/^Filtered Products: .+ = Draft — \d+ .+\.$/, { timeout: 10000 }); await page.waitForTimeout(600);
-  expect(await arabicShown(page), 'the assistant › a list filtered by words').toEqual([]); await page.keyboard.press('Escape');
+  expect(await arabicShown(page), 'the assistant › a list filtered by words').toEqual([]);
+  // the read-outs in English: the sentence, the details popup — nothing left in Arabic
+  // (the store is the single seller here: no maker's account to ask for — the sales carry no platform share)
+  for (const [q, want] of [['orders today', /^Orders .+: \d+ orders? totalling [\d,]+ EGP — \d+ completed, \d+ cancelled, \d+ need action\.$/], ['member Mona', /^Mona Hassan — .+: role .+, status active, shift .+, leave balance \d+ days?\.$/], ['sales this month', /^Sales .+: Completed sales [\d,]+ EGP from \d+ orders?, in progress [\d,]+ EGP \(\d+\), returned and cancelled [\d,]+ EGP \(\d+\)\.$/],
+    ['product lamp', /^Arch Table Lamp \(DCR-LMP-01\): price [\d,]+ EGP, .*status Published/], ['summary this month', /^Summary .+: \d+ orders? totalling [\d,]+ EGP — .+ Completed sales .+ Expenses [\d,]+ EGP in \d+ entr/]]) {
+    await page.fill('.ai-input', q); await page.locator('.ai-form').press('Enter'); await expect(aiLast.locator('.ai-text')).toHaveText(want, { timeout: 10000 }); }
+  expect(await arabicShown(page), 'the assistant › the read-outs').toEqual([]);
+  await aiLast.locator('[data-ai-details]').click(); await expect(page.locator('.modal').last()).toContainText('Completed sales'); await page.waitForTimeout(400);
+  expect(await arabicShown(page), 'the assistant › a read-out’s details').toEqual([]); await page.locator('.modal').last().getByRole('button', { name: 'Close' }).last().click(); await page.keyboard.press('Escape');
   // an assistant's own chat in English: the system's numbers, the hand-over, the company and the data card
   await go(page, 'ai'); const aiP = page.locator('#pg-ai'); await aiP.getByRole('tab', { name: /General manager/ }).click({ timeout: 20000 }); await expect(aiP.locator('#mk-ask')).toBeVisible(); await page.waitForTimeout(500); const aiA = aiP.locator('.mk-msg.ai[data-mk-turn]').last();
   await aiP.locator('#mk-ask').fill('Any news today?'); await aiP.locator('[data-mk-ask]').click(); await expect(aiA.locator('[data-mk-src]')).toHaveText('From the system', { timeout: 10000 }); await expect(aiA).toContainText('Where every assistant stands now:');
