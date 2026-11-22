@@ -34,5 +34,8 @@
 "وافق المرة دي": "Approve this once",
 "مااتبعتش بيانات.": "No data was sent.",
 "وافقت المرة دي.": "Approved this once.",
-"اتبعتله: رسالتك بس — من غير بيانات من السيستم": "Sent to it: your message only — no data from the system"
+"اتبعتله: رسالتك بس — من غير بيانات من السيستم": "Sent to it: your message only — no data from the system",
+"تمام، ما استخدمتش مخ خارجي.": "OK, no outside AI was used.",
+"مش فاهم الطلب ده من السيستم، ومفيش مخ خارجي مربوط أسأله — الأدمن يربطه من «الإعدادات › الربط بالمنصات».": "The system itself doesn’t understand this request, and no outside AI is connected to ask — the admin connects one from “Settings › Integrations”.",
+"ماقدرتش أحفظ الرد — جرّب تاني": "Could not save the answer — try again"
 }

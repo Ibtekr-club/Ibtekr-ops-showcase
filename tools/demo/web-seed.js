@@ -280,6 +280,7 @@ function assistants(mock) {
   const rows = KB.map(([key, kind, agents, sAr, sEn, tAr, tEn, xAr, xEn]) => ({ key, kind, agents: agents.slice(), section: sAr, title: tAr, text: xAr, en: { section: sEn, title: tEn, text: xEn } }));
   H.aiKbDefaults = rows.map((r) => Object.assign({}, r, { agents: r.agents.slice() }));
   H.aiKb = rows.map((r, i) => Object.assign({ id: i + 1 }, r, { agents: r.agents.slice() }));
+  H.agentReads = true; // an assistant's outside answer reads its own data kinds — asked about first (the owner 22 Nov)
   H.rulesOn = true; // the assistants' own rules run on the demo's data (tests/e2e/rules-mock.mjs) — their notes fill the bell's «المساعدين»
 }
 

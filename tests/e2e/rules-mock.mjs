@@ -3,7 +3,7 @@
 // or clears the notes of «rule:…» in ai_agent_notes (runRules). On only when the install asks for it (opts.agentRules), so the
 // notes of every other test stay as seeded. The RPC ai_agent_rules_status (the admin) gives the settings card its numbers.
 import { DELAY_STOP, delayRules, isConfirmed, leadBy, lineDelayOf, lineElapsed, orderDelayOf, orderElapsed } from '../../mock/shared/delay.js';
-import { METRICS, evaluate, holds, labelOf, metricsFor, rulesOf, say, sentence } from '../../mock/shared/agent-rules.js';
+import { METRICS, WORDS, evaluate, holds, labelOf, metricsFor, rulesOf, say, sentence, tipOf } from '../../mock/shared/agent-rules.js';
 
 const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit' });
 const cairoDay = (d) => fmt.format(d);
@@ -75,4 +75,14 @@ export function rulesStatus(mock, at = new Date()) {
     agents[a.id] = { own: r.own, metrics: metricsFor(a, o).map((k) => ({ key: k, label: labelOf(k, en), unit: say(0, METRICS[k].unit, en).slice(1).trim(), op: METRICS[k].op, value: METRICS[k].value, kind: METRICS[k].kind, now: now(k), nowText: nowText(k) })),
       rules: r.rules.map((x) => ({ ...x, text: sentence(x, en), now: now(x.metric), nowText: nowText(x.metric), firing: x.on && holds(x, facts[x.metric]) })) }; }
   return { at: at.toISOString(), on: !!mock.mkt.rulesOn, agents };
+}
+
+/** ai_agent_facts (a member): for each assistant the member sees — the numbers it watches now, the words each is asked about
+ *  with, what to do about it, and the rule on it that holds (if one does). What an assistant's chat answers from, with no model. */
+export function agentFacts(mock, can, at = new Date()) {
+  const en = english(); const o = { single: singleOf(mock) }; const facts = ruleFacts(mock, at); const ai = dataOf(mock, 'ai'); const agents = {};
+  for (const a of liveAgents(mock)) { if (!can(a.id)) continue; const rules = rulesOf(ai, a, o).rules.filter((r) => r.on);
+    agents[a.id] = { name: a.name, metrics: metricsFor(a, o).filter((k) => facts[k] !== null && facts[k] !== undefined).map((k) => { const hit = rules.find((r) => r.metric === k && holds(r, facts[k]));
+      return { key: k, label: labelOf(k, en), now: facts[k], nowText: say(facts[k], METRICS[k].unit, en), kw: WORDS[k] || [], tip: tipOf(k, en), rule: hit ? sentence(hit, en) : '' }; }) }; }
+  return { at: at.toISOString(), agents };
 }

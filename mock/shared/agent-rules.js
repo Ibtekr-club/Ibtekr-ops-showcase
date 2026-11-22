@@ -31,6 +31,9 @@ export const METRICS = {
   site_speed: M('dev', 'sales', 'score', 'lte', 50, 'problem', 'درجة سرعة الموقع على الموبايل', 'The site’s speed score on mobile', 'افتح فحص السرعة وابدأ بأكبر توفير.', 'Open the speed check and start with the biggest saving.'),
   site_updates: M('dev', 'sales', 'count', 'gte', 1, 'alert', 'تحديثات ووردبريس مستنية', 'WordPress updates waiting', 'حدّث على نسخة الاختبار الأول.', 'Update the staging copy first.'),
 };
+// The words a member asks about each number with (letters as the page's norm() leaves them: ا for أ / إ / آ, ه for ة, ي for ى) —
+// the assistant's own chat answers such a question from the system, with no model behind it (agent-brain.js)
+export const WORDS = {"orders_unconfirmed": ["تاكيد", "متاكد", "unconfirmed", "confirm"], "tickets_urgent": ["عاجل", "urgent"], "tickets_overdue": ["متابعه", "متابعتها", "follow"], "orders_late": ["متاخر", "تاخير", "اتاخر", "late"], "orders_risk": ["قابل للتاخير", "قابله للتاخير", "هيتاخر", "at risk"], "returns_waiting": ["مرتجع", "فحص", "return"], "cs_waiting": ["محادث", "رسايل", "رساله", "مستني رد", "مستنيه رد", "conversation", "message"], "cs_waiting_minutes": ["اقدم محادث", "اقدم رساله", "oldest"], "makers_late": ["متاخر", "تاخير", "اتاخر", "late"], "makers_no_bank": ["بنك", "bank"], "withdraw_pending": ["سحب", "withdraw"], "sub_days_left": ["اشتراك", "subscription"], "hr_requests_pending": ["اجاز", "سلف", "طلبات الموارد", "leave", "advance"], "overtime_pending": ["اضافي", "اوفر تايم", "overtime"], "ads_suggestions": ["اقتراح", "suggestion"], "ads_spend_week": ["صرف", "spend"], "design_requests": ["طلبات تصميم", "طلبات التصميم", "design request"], "posts_failed": ["فشل", "failed"], "site_speed": ["سرعه", "بطي", "speed", "slow"], "site_updates": ["تحديث", "ووردبريس", "update", "wordpress"]};
 export const OPS = ['gte', 'lte']; export const KINDS = ['alert', 'problem', 'idea']; export const MAX_RULES = 12;
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
@@ -63,6 +66,7 @@ export const holds = (rule, n) => typeof n === 'number' && Number.isFinite(n) &&
 const UNIT = { count: ['', ''], minutes: [' دقيقة', ' min'], days: [' يوم', ' days'], score: [' من 100', ' of 100'], egp: [' ج.م', ' EGP'] };
 /** A number with its unit, as the page and the notes say it. */
 export function say(n, unit, en) { const u = UNIT[unit] || UNIT.count; return (en ? Number(n).toLocaleString('en-US') : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')) + u[en ? 1 : 0]; }
+export const tipOf = (metric, en) => (METRICS[metric] ? (en ? METRICS[metric].doEn : METRICS[metric].doAr) : '');
 export const labelOf = (metric, en) => (METRICS[metric] ? (en ? METRICS[metric].en : METRICS[metric].ar) : metric);
 /** The rule as a sentence: «أوردرات متأخرة — 1 أو أكتر». */
 export function sentence(rule, en) { const m = METRICS[rule.metric]; if (!m) return '';

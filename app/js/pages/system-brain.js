@@ -116,5 +116,7 @@
 
   // what to try when the member says no to an outside model
   const EXAMPLES = ['افتح المخزن', 'اعرض الأوردرات المتأخرة', 'أوردرات المبتكر ‹الاسم› جاري التنفيذ', 'سجل سحب مرتبات 5000', 'رتب المبتكرين بالعربون'];
-  return Object.freeze({ understand, findName, skel, norm, EXAMPLES });
+  /** A model's work, never the system's: a why, an opinion, writing, a picture. */
+  const thinks = (text) => THINK.test(' ' + norm(text) + ' ');
+  return Object.freeze({ understand, findName, skel, norm, thinks, EXAMPLES });
 });

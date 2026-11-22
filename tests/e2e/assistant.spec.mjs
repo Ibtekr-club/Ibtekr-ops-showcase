@@ -12,6 +12,7 @@ test.beforeEach(async ({ page }) => {
   pageErrors = []; page.on('pageerror', (e) => pageErrors.push(e.message));
   mock = await installSupabaseMock(page);
   mock.st.vault.anthropic = JSON.stringify({ key: 'sk-ant-' + 'a'.repeat(40) }); // Claude linked: the outside model the assistant may ask, after the member's «موافق»
+  await page.addLocatorHandler(page.locator('[data-mk-consent] [data-mk-brain="claude"]'), async (b) => { await b.click(); }); // an assistant's own chat («الذكاء الاصطناعي») asks the same way: answered as soon as it shows
 });
 test.afterEach(() => { if (LIVE) return; expect(pageErrors).toEqual([]); expect(mock.unhandled).toEqual([]); });
 async function signIn(page, id) {
@@ -438,7 +439,7 @@ test('ش45: the header\'s assistant hands a programming question to the develope
   // the question waits in the box (nothing sent until the member presses) — then one call on a new chat
   await expect(page.locator('#mk-ask')).toHaveValue('ليه الموقع بطيء على الموبايل؟');
   expect(mock.mkt.calls.filter((c) => c.action === 'agent')).toEqual([]);
-  await page.locator('#mk-ask').press('Enter');
+  await page.locator('#mk-ask').press('Enter'); await expect(page.locator('[data-mk-consent]')).toHaveCount(0); // the outside company is agreed to (the handler above)
   await expect.poll(() => mock.mkt.calls.filter((c) => c.action === 'agent').map((c) => [c.agent, c.chat])).toEqual([['dev', null]]);
   await expect(page.locator('#pg-ai')).toContainText('سؤالك: ليه الموقع بطيء على الموبايل؟');
 });

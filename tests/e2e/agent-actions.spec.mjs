@@ -6,7 +6,10 @@ import { installSupabaseMock, LIVE, DEV_PW } from './supabase-mock.mjs';
 // page («افتح …») under it; nothing runs until the member clicks, and the popup's own button is the confirmation. Mock only.
 const ADMIN = 'admin.dev@ibtekr.local';
 let mock = null; let pageErrors = [];
-test.beforeEach(async ({ page }) => { test.skip(LIVE, 'the mocked Supabase only'); pageErrors = []; page.on('pageerror', (e) => pageErrors.push(e.message)); mock = await installSupabaseMock(page); });
+test.beforeEach(async ({ page }) => { test.skip(LIVE, 'the mocked Supabase only'); pageErrors = []; page.on('pageerror', (e) => pageErrors.push(e.message)); mock = await installSupabaseMock(page);
+  // the owner 22 Nov: an assistant's chat answers from the system first, and what it does not take waits for the member's «أيوه» on an outside
+  // company — these specs are about the outside model's answers, so Claude is linked and the card is answered as soon as it shows
+  mock.st.vault.anthropic = JSON.stringify({ key: 'sk-ant-' + 'a'.repeat(40) }); await page.addLocatorHandler(page.locator('[data-mk-consent] [data-mk-brain="claude"]'), async (b) => { await b.click(); }); });
 test.afterEach(() => { expect(pageErrors).toEqual([]); expect(mock.unhandled).toEqual([]); });
 const pg = (page) => page.locator('main.content.mod:not([hidden])');
 

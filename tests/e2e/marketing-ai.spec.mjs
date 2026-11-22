@@ -35,6 +35,9 @@ async function start(page, extra = {}) {
   test.skip(LIVE, 'asserts on the mocked Supabase (its seed and the calls it recorded)');
   pageErrors = []; page.on('pageerror', (e) => pageErrors.push(e.message));
   mock = await installSupabaseMock(page, { mktAdObjects: OBJECTS, mktAdStats: STATS, mktSuggestions: SUGG, tickets: TICKETS, ...extra });
+  // the owner 22 Nov: an assistant's chat answers from the system first, and what it does not take waits for the member's «أيوه» on an outside
+  // company — these specs are about the outside model's answers, so Claude is linked and the card is answered as soon as it shows
+  mock.st.vault.anthropic = JSON.stringify({ key: 'sk-ant-' + 'a'.repeat(40) }); await page.addLocatorHandler(page.locator('[data-mk-consent] [data-mk-brain="claude"]'), async (b) => { await b.click(); });
 }
 test.afterEach(() => { if (LIVE) return; expect(pageErrors).toEqual([]); expect(mock.unhandled).toEqual([]); });
 async function signIn(page, email) {
@@ -853,7 +856,7 @@ test('handoff — the media buyer asked for a video sends the member to the desi
   await expect(P.locator('#mk-ask')).toHaveAttribute('placeholder', /للديزاينر/);
   await expect(P.locator('#mk-ask')).toHaveValue('اعملي فيديو ريل 15 ثانية لفازة المكرمية الجديدة');
   expect(mock.mkt.calls.filter((c) => c.action === 'agent').length, 'nothing sent until «ابعت»').toBe(before);
-  await P.locator('#mk-ask').press('Enter');
+  await P.locator('#mk-ask').press('Enter'); await expect(pg(page).locator('[data-mk-consent]')).toHaveCount(0); // the outside company is agreed to (the handler above)
   await expect.poll(() => mock.mkt.calls.filter((c) => c.action === 'agent').pop().agent).toBe('designer');
   // an assistant outside the team: no button
   await pg(page).getByRole('tab', { name: /الميديا باير/ }).click();
@@ -872,7 +875,7 @@ test('0120 — «التشغيل الذكي» (was «المخزن الذكي»): 
   const P = pg(page); const box = P.locator('[data-mk-agent="stock"]');
   await expect(box).toBeVisible();
   await expect(P.locator('#mk-ask')).toHaveAttribute('placeholder', /للتشغيل الذكي/);
-  await P.locator('#mk-ask').fill('إيه أقدم قطعة في المخزن؟'); await P.locator('#mk-ask').press('Enter');
+  await P.locator('#mk-ask').fill('إيه أقدم قطعة في المخزن؟'); await P.locator('#mk-ask').press('Enter'); await expect(pg(page).locator('[data-mk-consent]')).toHaveCount(0); // the outside company is agreed to (the handler above)
   await expect.poll(() => mock.mkt.calls.filter((c) => c.action === 'agent').map((c) => c.agent)).toEqual(['stock']);
   await expect(box.locator('.mk-chat')).toContainText('سؤالك: إيه أقدم قطعة في المخزن؟');
   await expect(box.locator('[data-mk-chat-item]')).toHaveCount(1);
@@ -951,7 +954,7 @@ test('the owner 17 Nov — the chat bar like Claude\'s: «+» files (an image re
   await P.locator('#mk-ask').fill('وكمان قولّي أحسن وقت للنشر'); await P.locator('#mk-ask').press('Enter');
   await expect(P.locator('[data-mk-queue="1"]')).toContainText('أحسن وقت للنشر');
   release();
-  await expect(P.locator('[data-mk-queue]')).toHaveCount(0);
+  await expect(P.locator('[data-mk-queue]')).toHaveCount(0); await expect(P.locator('[data-mk-consent]')).toHaveCount(0); // the queued message asks about the outside company too (the handler above)
   await expect.poll(() => mock.mkt.calls.filter((x) => x.fn === 'ai-content' && x.action === 'agent').length).toBe(2);
   const calls = mock.mkt.calls.filter((x) => x.fn === 'ai-content' && x.action === 'agent');
   expect(calls.map((x) => [x.question, x.files])).toEqual([['بص على البوست ده', ['image:post.png']], ['وكمان قولّي أحسن وقت للنشر', []]]);

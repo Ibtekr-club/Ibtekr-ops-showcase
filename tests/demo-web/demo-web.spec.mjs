@@ -199,6 +199,15 @@ test('English: the language drop-down in the banner turns the demo to English, l
   await expect(aiLast.locator('[data-ai-need-kind="orders"]')).toContainText('No customer names, phones or addresses'); expect(await arabicShown(page), 'the assistant › the data card').toEqual([]);
   await aiLast.locator('[data-ai-share-ok]').click(); await expect(aiLast.locator('[data-ai-shared]')).toHaveText('Sent to it: your message + Orders', { timeout: 10000 }); await page.waitForTimeout(600);
   expect(await arabicShown(page), 'the assistant › the answer and what was sent').toEqual([]); await page.keyboard.press('Escape');
+  // an assistant's own chat in English: the system's numbers, the hand-over, the company and the data card
+  await go(page, 'ai'); const aiP = page.locator('#pg-ai'); await aiP.getByRole('tab', { name: /General manager/ }).click({ timeout: 20000 }); await expect(aiP.locator('#mk-ask')).toBeVisible(); await page.waitForTimeout(500); const aiA = aiP.locator('.mk-msg.ai[data-mk-turn]').last();
+  await aiP.locator('#mk-ask').fill('Any news today?'); await aiP.locator('[data-mk-ask]').click(); await expect(aiA.locator('[data-mk-src]')).toHaveText('From the system', { timeout: 10000 }); await expect(aiA).toContainText('Where every assistant stands now:');
+  await aiP.locator('#mk-ask').fill('Suggest a plan for next week'); await aiP.locator('[data-mk-ask]').click(); await expect(aiP.locator('[data-mk-consent]')).toBeVisible({ timeout: 10000 }); await page.waitForTimeout(600);
+  expect(await arabicShown(page), 'an assistant’s chat › the system’s answer and the consent card').toEqual([]);
+  await aiP.locator('[data-mk-consent] [data-mk-brain]').first().click(); await expect(aiP.locator('[data-mk-need]')).toBeVisible({ timeout: 10000 }); await page.waitForTimeout(600);
+  expect(await arabicShown(page), 'an assistant’s chat › the data card').toEqual([]);
+  await aiP.locator('[data-mk-share-no]').click(); await expect(aiA).toContainText('OK, no data was sent to', { timeout: 10000 }); await page.waitForTimeout(600);
+  expect(await arabicShown(page), 'an assistant’s chat › refused').toEqual([]);
   expect(errors).toEqual([]);
   // back to Arabic
   await page.locator('#demo-bar [data-demo-dd="lang"]').click(); await page.locator('#demo-bar [data-demo-dd-opt="ar"]').click();
@@ -295,6 +304,17 @@ test('the assistants in the settings: a tab each with its card, outside AI, rule
   await expect(async () => { await page.keyboard.press('Escape'); await page.locator('#ag-brain-hr').click({ timeout: 1500 }); await expect(page.locator('.cm-menu [data-cm-tab]')).toHaveText(['Claude', 'ChatGPT'], { timeout: 1000 }); await page.locator('.cm-menu [data-cm="claude:claude-haiku-5-5"]').click({ timeout: 1500 }); }).toPass();
   await expect(page.locator('#ag-brain-hr')).toHaveText('Claude — Haiku 5.5');
   await go(page, 'ai'); await expect(page.locator('#pg-ai [role=tab]').first()).toContainText('المدير العام', { timeout: 20000 });
+  // an assistant's chat answers from the system first: the general manager says where every assistant stands and hands a number to
+  // its assistant; that one answers it from the demo's own data; a «why» waits for the company, which asks for the data kinds
+  const ai = page.locator('#pg-ai'); const ans = ai.locator('.mk-msg.ai[data-mk-turn]').last(); const sendAi = async (t) => { await ai.locator('#mk-ask').fill(t); await ai.locator('[data-mk-ask]').click(); };
+  await ai.getByRole('tab', { name: /المدير العام/ }).click(); await expect(ai.locator('#mk-ask')).toHaveAttribute('placeholder', /المدير العام/); await sendAi('ملخص الوضع النهارده');
+  await expect(ans.locator('[data-mk-src]')).toHaveText('من السيستم', { timeout: 10000 }); await expect(ans).toContainText('الوضع دلوقتي عند كل مساعد:'); await expect(ans).toContainText('⚠ التشغيل الذكي: أوردرات متأخرة (1)');
+  await sendAi('كام أوردر متأخر؟'); await expect(ans).toContainText('ده تخصص «التشغيل الذكي»', { timeout: 10000 }); await ans.locator('[data-mk-handoff-go]').click();
+  await expect(ai.locator('#mk-ask')).toHaveValue('كام أوردر متأخر؟'); await ai.locator('[data-mk-ask]').click();
+  await expect(ans).toContainText('أوردرات متأخرة: 1.', { timeout: 10000 }); await expect(ans.locator('[data-mk-src]')).toHaveText('من السيستم');
+  await sendAi('حلل ليه الأوردرات بتتأخر'); await expect(ai.locator('[data-mk-consent] [data-mk-brain]')).toHaveText(['Claude', 'ChatGPT', 'لا'], { timeout: 10000 });
+  await ai.locator('[data-mk-consent] [data-mk-brain="claude"]').click(); await expect(ai.locator('[data-mk-need]')).toHaveAttribute('data-mk-need', 'orders vendors tickets inventory', { timeout: 10000 });
+  await ai.locator('[data-mk-share-ok]').click(); await expect(ans.locator('[data-mk-src]')).toHaveText('الرد من Claude', { timeout: 10000 }); await expect(ans.locator('[data-mk-shared]')).toHaveText('اتبعتله: رسالتك + الأوردرات · المبتكرين · طلبات الفريق · المخزن');
   expect(errors).toEqual([]);
 });
 

@@ -37,10 +37,10 @@
   const LOG = { rows: null, loading: false };
   function card(o) {
     const A = window.IBActivity; const redraw = o && o.redraw;
-    if (LOG.rows === null && !LOG.loading && A && A.byAction) { LOG.loading = true; A.byAction('assistant.share', 20).then((r) => { LOG.loading = false; LOG.rows = r || []; if (typeof redraw === 'function') redraw(); }); }
+    if (LOG.rows === null && !LOG.loading && A && A.byAction) { LOG.loading = true; A.byAction(['assistant.share', 'mkt.agent.share'], 20).then((r) => { LOG.loading = false; LOG.rows = r || []; if (typeof redraw === 'function') redraw(); }); }
     const when = (at) => { try { return new Intl.DateTimeFormat(EN ? 'en-GB' : 'ar-EG-u-nu-latn', { timeZone: 'Africa/Cairo', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(at)); } catch (e) { return String(at || '').slice(0, 16); } };
     // a log line is «<company> · <kinds>» — written by the adapter: ids only
-    const row = (r) => { const p = String(r.detail || '').split(' · '); const kinds = clean(String(p[1] || '').split(', '));
+    const row = (r) => { let p = String(r.detail || '').split(' · '); if (p.length > 2) p = p.slice(1); /* an assistant's send names the assistant first */ const kinds = clean(String(p[1] || '').split(', '));
       return h('li', { class: 'bs-log-i', 'data-bs-log': '' }, h('span', { class: 'bs-log-w' }, when(r.at)), h('b', null, h('bdi', null, BRAIN[p[0]] || p[0] || '—')), h('span', { class: 'bs-log-k' }, names(kinds) || '—'), h('span', { class: 'bs-log-a' }, r.actor)); };
     const log = LOG.rows === null ? h('p', { class: 't-small sub' }, tx('بنحمّل…', 'Loading…'))
       : LOG.rows.length ? h('ul', { class: 'bs-log', 'data-bs-logs': '' }, LOG.rows.map(row)) : h('p', { class: 't-small sub', 'data-bs-logs': 'none' }, tx('لسه مفيش بيانات اتبعتت لمخ خارجي.', 'No data has been sent to an outside AI yet.'));

@@ -42,5 +42,9 @@
  [
   "^اتبعتله: رسالتك \\+ (.+)$",
   "Sent to it: your message + $1"
+ ],
+ [
+  "^تمام، مااتبعتش أي بيانات لـ (.+)\\. من غيرها مش هيقدر يجاوب على ده\\.$",
+  "OK, no data was sent to $1. Without it, it can’t answer this."
  ]
 ]

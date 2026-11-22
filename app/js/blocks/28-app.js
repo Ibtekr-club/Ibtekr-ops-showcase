@@ -1115,6 +1115,14 @@
   function aiBusy(b) { ai.busy = b; if (aiInput) aiInput.disabled = b; if (aiSendBtn) aiSendBtn.hidden = b; if (aiStopBtn) aiStopBtn.hidden = !b; if (!b && aiInput && aiPanel && !aiPanel.hidden) aiInput.focus(); }
   function aiModeNote() { if (aiNoteEl) aiNoteEl.textContent = 'السيستم بيرد من بياناته الأول — المخ الخارجي بموافقتك بس، وبياخد رسالتك من غير بيانات الشركة إلا اللي توافق عليه. أي تسجيل بيطلب تأكيدك الأول.'; }
   const aiContext = () => ({ page: state.page, tab: state.page === 'accounts' ? state.tab : '', period: state.page === 'accounts' ? { from: state.range.from, to: state.range.to } : null });
+  // an assistant's chat on «الذكاء الاصطناعي» asks the system's engine too (the owner 22 Nov): a money entry it understands whole comes
+  // back as the system's popup filled — { text, forms } for a link under the answer; nothing else is run from there
+  window.IBSystemEntry = (text) => {
+    const got = window.IBBrain ? window.IBBrain.understand(String(text || ''), aiCtx()) : { type: 'unknown' };
+    if (!['addExpense', 'addVendorMove', 'addAccountMove'].includes(got.type) || (got.missing && got.missing.length) || !got.amount) return null;
+    const at = ai.msgs.length; aiExec(got); const out = ai.msgs.splice(at); aiDraw(); const m = out.find((x) => x.forms && x.forms.length);
+    return m ? { text: m.text, forms: m.forms.map((f) => f.input).filter((f) => f && f.form) } : null;
+  };
   // the owner 22 Nov («اي مخ خارجي … من غير ما يكون عندوا كل معلومات الشركة الا لو انا وافقت بعد ما الايجنت بتاعي يطلب مني»): the outside
   // model gets the message only — `share` = the data kinds the member approved for this request (none at first). When the
   // server answers `need`, the assistant asks about those kinds (aiNeedPick): «وافق المرة دي» sends the same message again
