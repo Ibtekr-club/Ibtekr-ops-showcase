@@ -7,6 +7,8 @@
      IBBrain.understand(text, ctx) → the block-27 command shapes, or
        { type: 'goPage', page }                        a page of the side menu
        { type: 'listFilter', list, page, hash, tab, name, words }   a list of another page filtered by words (the page's own filter)
+       { type: 'readMaker', vendor } · { type: 'readPeriod', what, preset } · { type: 'readProduct', q } · { type: 'readMember', q }
+                                                       a read-out from the system's own data, said in the chat
        { type: 'choose', question, options, texts }    two names fit: the member picks, texts[i] is the request said again
        { type: 'unknown' }
      ctx: { vendors: [name], today, pages: [{ id, label }] }
@@ -39,7 +41,7 @@
   const near = (a, b) => a.length >= 4 && b.length >= 4 && dist(a, b) <= 1;
   // a name read by its sound is looked for only where a name is announced («المبتكر …», «بتاع …», «براند …») — a word of the
   // system's own («متأخر», «ملغي») is never taken for a name
-  const MARK = ['المبتكر', 'مبتكر', 'للمبتكر', 'المورد', 'مورد', 'للمورد', 'بتاع', 'بتاعه', 'بتاعت', 'بتوع', 'براند', 'البراند', 'متجر', 'المتجر', 'فيندور', 'الفيندور', 'vendor', 'maker'];
+  const MARK = ['المبتكر', 'مبتكر', 'للمبتكر', 'المورد', 'مورد', 'للمورد', 'بتاع', 'بتاعه', 'بتاعت', 'بتوع', 'براند', 'البراند', 'متجر', 'المتجر', 'فيندور', 'الفيندور', 'vendor', 'maker', 'حساب', 'رصيد', 'كشف', 'صافي', 'مستحقات', 'account', 'balance', 'statement'];
   /** A name of `names` said in `text`: as written anywhere (3); after a word that announces a name, by its sound (2) or with a slip
    *  of the hand / one word of a longer name (1). Two that fit as well → others. */
   function findName(text, names) {
@@ -99,11 +101,11 @@
   // (the page matches them on the filter's choices; what is no choice is searched for in the table). The orders keep their own.
   const LISTS = [
     { list: 'makers', page: 'vendors', hash: 'makers', tab: 'سجل المبتكرين', name: 'المبتكرين', en: 'Makers', words: ['مبتكر', 'مبتكرين', 'مورد', 'موردين', 'maker', 'makers'] },
-    { list: 'products', page: 'products', hash: 'products-records', tab: '', name: 'المنتجات', en: 'Products', words: ['منتج', 'منتجات', 'product', 'products'] },
+    { list: 'products', page: 'products', hash: 'products-records', tab: '', name: 'المنتجات', en: 'Products', words: ['منتجات', 'products'] },
     { list: 'tickets', page: 'tickets', hash: 'tickets', tab: 'السجل', name: 'طلبات الفريق', en: 'Team requests', words: ['طلب', 'طلبات', 'request', 'requests'] },
     { list: 'expenses', page: 'accounts', hash: 'expenses', tab: '', name: 'المصروفات', en: 'Expenses', words: ['مصروف', 'مصروفات', 'مصاريف', 'expense', 'expenses'] },
     { list: 'inventory', page: 'inventory', hash: 'inventory', tab: 'سجل المخزون', name: 'المخزن', en: 'Inventory', words: ['مخزن', 'مخزون', 'قطع', 'قطعه', 'inventory', 'items', 'stock'] },
-    { list: 'team', page: 'hr', hash: 'hr-team', tab: '', name: 'الفريق', en: 'The team', words: ['موظف', 'موظفين', 'فريق', 'اعضاء', 'عضو', 'team', 'members', 'staff'] },
+    { list: 'team', page: 'hr', hash: 'hr-team', tab: '', name: 'الفريق', en: 'The team', words: ['موظفين', 'فريق', 'اعضاء', 'team', 'members', 'staff'] },
     { list: 'customers', page: 'cs', hash: 'cs-customers', tab: '', name: 'العملاء', en: 'Customers', words: ['عميل', 'عملاء', 'customer', 'customers'] },
   ];
   const bare = (w) => String(w).replace(/^(و|ب|ل|لل)?ال/, '').replace(/^لل/, '');
@@ -140,6 +142,30 @@
     const said0 = (said || []).filter((w) => norm(w)); return { picks: picks.sort((a, b) => a - b), rest: said0.filter((w, j) => !taken.has(j)) };
   }
 
+  // ---- read-outs (the owner 22 Nov — «لو طلبت حساب مبتكر منتج او موظف او تقرير معين»): the system says the numbers it holds, in the chat —
+  // a maker's account by his name, a period's sales / expenses / orders / summary, one product, one member. The page reads them
+  // from its own data; a why or an opinion about them stays a model's work (THINK above).
+  const PERIODS = [['yesterday', /(^|\s)(امبارح|yesterday)(\s|$)/], ['lastWeek', /(الاسبوع اللي فات|الاسبوع الماضي|last week)/], ['thisWeek', /(الاسبوع ده|هذا الاسبوع|الاسبوع الحالي|this week)/],
+    ['lastMonth', /(الشهر اللي فات|الشهر الماضي|last month)/], ['thisMonth', /(الشهر ده|هذا الشهر|الشهر الحالي|this month)/], ['last7', /(اخر 7 ايام|اخر سبع ايام|last 7 days)/], ['last30', /(اخر 30 يوم|last 30 days)/],
+    ['today', /(^|\s)(النهارده|انهارده|اليوم|today)(\s|$)/]];
+  const WHAT = [['sales', /(^|\s)(ال)?(مبيعات|sales|revenue)(\s|$)/], ['expenses', /(^|\s)(ال)?(مصروفات|مصاريف|expenses)(\s|$)/], ['orders', /(^|\s)(ال)?(اوردر|اوردرات|orders)(\s|$)/], ['summary', /(^|\s)(ال)?(ملخص|تقرير|summary|report)(\s|$)/]];
+  const ACCOUNT = /(^|\s)(حساب|حسابه|رصيد|رصيده|كشف|صافي|الصافي|مستحقات|عليه|ليه|balance|account|statement|owes?)(\s|$)/;
+  const ONE = { product: /^(ال)?(منتج|product)$|^(سعر|بكام|price)$/, member: /^(ال)?(موظف|موظفه|عضو|employee|member)$|^(بيانات|ملف|profile)$/ };
+  const WRITE = /(^|\s)(سجل|سجلي|ضيف|اضف|اخصم|ادفع|حول|امسح|احذف|عدل|غير|add|record|delete|edit|change)(\s|$)/;
+  function readAsk(t, raw, nm) {
+    if (WRITE.test(t)) return null;
+    const ws = words(t.replace(/[؟?!.,،]/g, ' ')); if (!ws.length || ws.length > 8) return null;
+    if (nm && nm.hit && ACCOUNT.test(t) && !/\d/.test(t.replace(norm(nm.hit), ' '))) return { type: 'readMaker', vendor: nm.hit };
+    const per = PERIODS.find((x) => x[1].test(t)); const what = WHAT.find((x) => x[1].test(' ' + t + ' '));
+    if (per && what && !STATE.some((w) => ws.includes(w) || ws.includes('ال' + w))) return { type: 'readPeriod', what: what[0], preset: per[0] };
+    // one product / one member: the word that names the kind first, then what to look for — as it was written
+    const rw = String(raw || '').replace(/[؟?!.,،]/g, ' ').trim().split(/\s+/); const said = (i) => (rw.length === ws.length ? rw[i] : ws[i]);
+    for (const kind of ['product', 'member']) { const at = ws.findIndex((w) => ONE[kind].test(w)); if (at < 0 || at > 1) continue;
+      const q = ws.map((w, i) => [w, i]).filter(([w, i]) => i !== at && !OPEN.test(' ' + w + ' ') && !FILL.includes(w) && !ONE[kind].test(w) && !/^(ال)?(مبتكر|موظف|منتج)$/.test(w)).map(([, i]) => said(i));
+      if (q.length && q.length <= 5) return { type: kind === 'product' ? 'readProduct' : 'readMember', q: q.join(' ') }; }
+    return null;
+  }
+
   function understand(text, ctx) {
     const raw = String(text == null ? '' : text).trim(); const t = norm(raw); if (!t) return { type: 'unknown' };
     const c = ctx || {}; const vendors = c.vendors || [];
@@ -157,6 +183,8 @@
     if (cmd.type === 'setRange' && !(open || short(t, 5) || /فتره|الفتره/.test(t))) return { type: 'unknown' };
     // a list of a page with words for its filter — never the orders (their own filter), and only as an ask to show («اعرض …»), to filter, or a short one;
     // it goes before a bare «open the page» the old commands read in the same words («اعرض المبتكرين الموقوفين» is not «حسابات المبتكرين»)
+    // a read-out of what the system holds goes before a bare page or period («مبيعات الشهر ده» is the number, «الشهر ده» is the period)
+    if (['unknown', 'navigate', 'setRange'].includes(cmd.type) || (cmd.type === 'ordersFilter' && cmd.filter && Object.keys(cmd.filter).join() === 'vendor' && ACCOUNT.test(t))) { const rd = readAsk(t, raw, nm); if (rd) return rd; }
     const la = (cmd.type === 'unknown' || cmd.type === 'navigate') && !/(^|\s)(و|ب|ل)?ال?اوردر/.test(t) && (open || short(t, 5) || /(^|\s)(فلتر|فلترلي|filter)(\s|$)/.test(t)) ? listAsk(t, c.pages, raw) : null;
     if (la) return la;
     if (cmd.type !== 'unknown' && !(cmd.type === 'navigate' && cmd.page === 'orders' && pageOf(t, c.pages) && pageOf(t, c.pages) !== 'orders')) return nm.hit ? Object.assign({}, cmd, { heard: nm.hit }) : cmd;
@@ -166,7 +194,7 @@
   }
 
   // what to try when the member says no to an outside model
-  const EXAMPLES = ['افتح المخزن', 'اعرض الأوردرات المتأخرة', 'اعرض المبتكرين الموقوفين', 'أوردرات المبتكر ‹الاسم› جاري التنفيذ', 'سجل سحب مرتبات 5000', 'رتب المبتكرين بالعربون'];
+  const EXAMPLES = ['افتح المخزن', 'اعرض الأوردرات المتأخرة', 'اعرض المبتكرين الموقوفين', 'مبيعات الشهر ده', 'حساب المبتكر ‹الاسم›', 'أوردرات المبتكر ‹الاسم› جاري التنفيذ', 'سجل سحب مرتبات 5000', 'رتب المبتكرين بالعربون'];
   /** A model's work, never the system's: a why, an opinion, writing, a picture. */
   const thinks = (text) => THINK.test(' ' + norm(text) + ' ');
   return Object.freeze({ understand, findName, skel, norm, thinks, pickOptions, LISTS, EXAMPLES });

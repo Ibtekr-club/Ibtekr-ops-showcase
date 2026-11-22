@@ -1006,6 +1006,13 @@
         ai.msgs.push({ role: 'ai', text: 'جهّزتلك البوب أب باللي قلته — افتحه وراجع وكمّل الناقص، و«حفظ» فيه هو التأكيد:', forms: [{ name: 'open_form', input: { form: { addExpense: 'expense_add', addVendorMove: 'vendor_move', addAccountMove: 'account_move' }[cmd.type], values } }] }); aiDraw(); return;
       }
       // the system's own engine (js/pages/system-brain.js): a page by its name; two names that fit → the member picks one
+      // the system's read-outs (js/pages/system-brain.js): the numbers the page holds, said in the chat with «تفاصيل» / «تنزيل Excel»
+      case 'readMaker': case 'readPeriod': case 'readProduct': case 'readMember': {
+        const asked = ai.msgs.filter((x) => x.role === 'user').slice(-1)[0]; const m = { role: 'ai', text: 'بقرا الأرقام من السيستم…', live: true, question: asked ? asked.text : '' }; ai.msgs.push(m); aiBusy(true); aiDraw();
+        const done = (r) => { m.live = false; m.text = r.text; if (r.part) m.report = [{ part: r.part }]; if (r.pick) m.pick = r.pick; aiBusy(false); aiDraw(); };
+        aiRead(cmd).then(done, (e) => { console.error(e); done({ text: 'ماقدرتش أقرا البيانات دي دلوقتي — جرّب تاني.' }); });
+        return;
+      }
       // a list of a page filtered by words (js/pages/page-filter.js): the page's own «فلتر» is worked as the member would — the choices the
       // words name ticked, the rest searched for in the table — and the answer says what it did and how many it left
       case 'listFilter': {
@@ -1123,6 +1130,14 @@
   function aiBusy(b) { ai.busy = b; if (aiInput) aiInput.disabled = b; if (aiSendBtn) aiSendBtn.hidden = b; if (aiStopBtn) aiStopBtn.hidden = !b; if (!b && aiInput && aiPanel && !aiPanel.hidden) aiInput.focus(); }
   function aiModeNote() { if (aiNoteEl) aiNoteEl.textContent = 'السيستم بيرد من بياناته الأول — المخ الخارجي بموافقتك بس، وبياخد رسالتك من غير بيانات الشركة إلا اللي توافق عليه. أي تسجيل بيطلب تأكيدك الأول.'; }
   const aiContext = () => ({ page: state.page, tab: state.page === 'accounts' ? state.tab : '', period: state.page === 'accounts' ? { from: state.range.from, to: state.range.to } : null });
+  // ---- the system's read-outs (the owner 22 Nov — «لو طلبت حساب مبتكر منتج او موظف او تقرير معين»): js/pages/system-read.js reads
+  // and words them; here are the hands it reads with — the same rows «حسابات المبتكرين», the accounts and the reports show.
+  const aiWait = async (fn, ms) => { const end = Date.now() + ms; for (;;) { const v = fn(); if (v) return v; if (Date.now() > end) return null; await new Promise((r) => setTimeout(r, 150)); } };
+  // the accounts' rows are read once a session; a question asked before the accounts page was ever opened waits for them
+  const aiAccReady = async () => { const A = ACC(); if (!A || barred('accounts')) return false; if (A.state && A.state() === 'idle' && A.load) { try { await A.load(); } catch (e) { /* the answer says what it could not read */ } }
+    else if (A.state && A.state() === 'loading') await aiWait(() => A.state() !== 'loading', 6000); refreshSeed(); return true; };
+  const aiRead = (cmd) => window.IBSystemRead.run(cmd, { barred, single: singleOn, accReady: aiAccReady, makers: vendorsNow, withdrawalOf: wdOf, orders: ordersRows, ordersReport: (r) => R.ordersReport(ordersRows(), r, TODAY),
+    salesOf: accRepOf, expenses: () => store.expenses, range: (preset) => D.presetRange(preset, TODAY), dateLong: D.formatDateLong, wait: aiWait, norm: (x) => window.IBBrain.norm(x) });
   // an assistant's chat on «الذكاء الاصطناعي» asks the system's engine too (the owner 22 Nov): a money entry it understands whole comes
   // back as the system's popup filled — { text, forms } for a link under the answer; nothing else is run from there
   window.IBSystemEntry = (text) => {
@@ -1218,7 +1233,7 @@
   }
   // ---- phase 13 decision 42: «تنزيل Excel» — the data the answer read (the same parts «تفاصيل» shows), one sheet, numbers as numbers
   function aiExcel(m) {
-    const parts = (m.report || []).map((r) => airParts(r.data, AIR_KIND[r.kind] || r.kind));
+    const parts = (m.report || []).map((r) => (r.part ? r.part : airParts(r.data, AIR_KIND[r.kind] || r.kind))); // r.part = a part the system's own read-out built
     const cell = (c) => { const t = String(c); return /^-?\d[\d,]*(\.\d+)?$/.test(t) ? Number(t.replace(/,/g, '')) : t; };
     const aoa = [['السؤال', m.question || ''], ['الرد', m.text || ''], []];
     const walk = (p) => { aoa.push([p.title + (p.sub ? ' — ' + p.sub : '')]); if (p.note) aoa.push([p.note]);
@@ -1349,7 +1364,7 @@
     parts.forEach(walk); return lines.join('\n');
   }
   function aiReport(m) {
-    const parts = (m.report || []).map((r) => airParts(r.data, AIR_KIND[r.kind] || r.kind));
+    const parts = (m.report || []).map((r) => (r.part ? r.part : airParts(r.data, AIR_KIND[r.kind] || r.kind))); // r.part = a part the system's own read-out built
     const sec = (p) => h('section', { class: 'air-sec' }, h('h3', { class: 't-h5' }, p.title), p.sub ? h('p', { class: 't-small help', style: 'margin:0' }, p.sub) : null,
       p.note ? h('p', { class: 't-small' }, p.note) : null,
       p.chips.length ? h('div', { class: 'dt-sum' }, p.chips.map(([a, b]) => h('div', { class: 'dt-chip' }, h('span', { class: 't-small' }, a), h('b', null, num(String(b)))))) : null,
