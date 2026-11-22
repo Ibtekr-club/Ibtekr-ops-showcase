@@ -10,7 +10,7 @@ window.IB_DEMO = true;
   var set = function (k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); return true; } catch (e) { return false; } };
   var MODES = { marketplace: 'Marketplace', single: 'Single store' };
   // a new build of the demo starts from its own data: changes a visitor saved on an older build are dropped (the model he picked stays)
-  var BUILD = 'f99262a7d8', KEY_BUILD = 'ib.demo.build';
+  var BUILD = 'be8a79b6e8', KEY_BUILD = 'ib.demo.build';
   if (get(KEY_BUILD) !== BUILD) { set(KEY_LOG, null); set(KEY_BUILD, BUILD); }
   var mode = MODES[get(KEY_MODE)] ? get(KEY_MODE) : null;
   // the language: Arabic as the system is, or English — the dictionary (en.js) and the layer that writes the page in English (i18n.js)

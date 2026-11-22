@@ -5,7 +5,7 @@
 // They are the team's guidance — never a way to execute anything. The pure part here, shared by ai-content, the browser adapter's
 // checks and the tests. The limits are 0118's.
 
-import { FALLBACK, MAX_TOKENS, memberNotes, notesText } from './ai-content.js?v=f99262a7d8';
+import { FALLBACK, MAX_TOKENS, memberNotes, notesText } from './ai-content.js?v=be8a79b6e8';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 export const KB_AGENTS = ['designer', 'dev', 'buyer'];
