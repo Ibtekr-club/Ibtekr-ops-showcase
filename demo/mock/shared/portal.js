@@ -1,4 +1,4 @@
-import { delayRules, leadBy, lineDelayOf, lineElapsed } from './delay.js?v=4adb402588';
+import { delayRules, leadBy, lineDelayOf, lineElapsed } from './delay.js?v=52fd27522f';
 // The maker portal (phase 13 T4): the pure part of the Edge
 // Function `portal` — the request shapes, the password rules (the server's copy of block 06's passwordIssues), the maker's order
 // lines with the delay rule of block 29 (late after 11 days, at risk from 9 to 11) on the order's age, the account figures («الصافي»:

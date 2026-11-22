@@ -1,9 +1,9 @@
 // «نسخة التعليقات» — second half of shim.js: loads the tests' stand-in backend (tests/e2e/supabase-mock.mjs and what it imports,
 // copied next to this file by build.mjs) with a page object that hands its route handlers to the shim, then signs in as the
 // stand-in's admin through the sign-in screen itself (the same steps as the tests), so the app opens on the dashboard.
-import { installSupabaseMock, USERS, DEV_PW } from './tests/e2e/supabase-mock.js?v=4adb402588';
-import { demoSeed, demoAfter } from './seed.js?v=4adb402588';
-import { webSeed, englishData } from './web-seed.js?v=4adb402588';
+import { installSupabaseMock, USERS, DEV_PW } from './tests/e2e/supabase-mock.js?v=52fd27522f';
+import { demoSeed, demoAfter } from './seed.js?v=52fd27522f';
+import { webSeed, englishData } from './web-seed.js?v=52fd27522f';
 
 const D = window.__ibDemo;
 const page = {

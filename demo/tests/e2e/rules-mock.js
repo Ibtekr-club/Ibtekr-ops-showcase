@@ -2,8 +2,8 @@
 // it counts the metrics from the tables (ruleFacts), runs the rules of the row «ai» (mock/shared/agent-rules.js) and writes
 // or clears the notes of «rule:…» in ai_agent_notes (runRules). On only when the install asks for it (opts.agentRules), so the
 // notes of every other test stay as seeded. The RPC ai_agent_rules_status (the admin) gives the settings card its numbers.
-import { DELAY_STOP, delayRules, isConfirmed, leadBy, lineDelayOf, lineElapsed, orderDelayOf, orderElapsed } from '../../mock/shared/delay.js?v=4adb402588';
-import { METRICS, WORDS, evaluate, holds, labelOf, metricsFor, rulesOf, say, sentence, tipOf } from '../../mock/shared/agent-rules.js?v=4adb402588';
+import { DELAY_STOP, delayRules, isConfirmed, leadBy, lineDelayOf, lineElapsed, orderDelayOf, orderElapsed } from '../../mock/shared/delay.js?v=52fd27522f';
+import { METRICS, WORDS, evaluate, holds, labelOf, metricsFor, rulesOf, say, sentence, tipOf } from '../../mock/shared/agent-rules.js?v=52fd27522f';
 
 const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit' });
 const cairoDay = (d) => fmt.format(d);

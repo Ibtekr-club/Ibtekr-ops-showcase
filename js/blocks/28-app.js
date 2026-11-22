@@ -1006,6 +1006,14 @@
         ai.msgs.push({ role: 'ai', text: 'جهّزتلك البوب أب باللي قلته — افتحه وراجع وكمّل الناقص، و«حفظ» فيه هو التأكيد:', forms: [{ name: 'open_form', input: { form: { addExpense: 'expense_add', addVendorMove: 'vendor_move', addAccountMove: 'account_move' }[cmd.type], values } }] }); aiDraw(); return;
       }
       // the system's own engine (js/pages/system-brain.js): a page by its name; two names that fit → the member picks one
+      // a list of a page filtered by words (js/pages/page-filter.js): the page's own «فلتر» is worked as the member would — the choices the
+      // words name ticked, the rest searched for in the table — and the answer says what it did and how many it left
+      case 'listFilter': {
+        if (barred(cmd.page) || !window.IBPageFilter) { aiSay('الصفحة دي مش من صلاحياتك.'); return; }
+        const m = { role: 'ai', text: '', live: true }; ai.msgs.push(m); aiBusy(true); aiDraw();
+        window.IBPageFilter.run(cmd).then((r) => { m.live = false; m.text = r.text; aiBusy(false); aiDraw(); }, () => { m.live = false; m.text = 'ماقدرتش أفلتر القايمة دي.'; aiBusy(false); aiDraw(); });
+        return;
+      }
       case 'goPage': if (barred(cmd.page)) { aiSay('الصفحة دي مش من صلاحياتك.'); return; } go(cmd.page); aiSay('فتحت «' + (NAV.find((n) => n[2] === cmd.page) || [])[1] + '».'); return;
       case 'choose': ai.msgs.push({ role: 'ai', text: cmd.question, pick: { options: cmd.options, texts: cmd.texts } }); aiDraw(); return;
       default: aiSay(AI_HELP);
