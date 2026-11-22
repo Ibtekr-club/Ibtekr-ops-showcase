@@ -5,8 +5,8 @@
 // filters the page sends (eq / like / gte / lte, offset/limit or Range pages). settingsState(opts) seeds (opts.roles → the roles copy, opts.vault,
 // opts.companyDocs, opts.sessions); settingsRoute(c) answers a request of those paths or returns null. Every RPC / function call
 // lands in st.calls, every write in st.writes.
-import { CARDS, SECRET_NAMES, fieldsOf, nameOk, parseSecret, secretPublic } from '../../mock/shared/settings-link.js?v=22482ab8bb';
-import { SOURCES } from '../../mock/shared/notify.js?v=22482ab8bb';
+import { CARDS, SECRET_NAMES, fieldsOf, nameOk, parseSecret, secretPublic } from '../../mock/shared/settings-link.js?v=a7fa841ca3';
+import { SOURCES } from '../../mock/shared/notify.js?v=a7fa841ca3';
 
 const PERM_KEY = /^[a-z_]+\.[a-z_0-9]+$/;
 const ROLE_ID = /^[a-z][a-z0-9_]{1,30}$/;
@@ -57,6 +57,10 @@ export function settingsRoute(c) {
       // 0123: the image provider per tool (the known ids only)
       const IP = ['magnific', 'openai', 'gemini']; const im = ((sec('ai').providers || {}).image) || {}; const idef = IP.includes(im.default) ? im.default : 'magnific';
       const aiPub = { image: { default: idef, tools: Object.fromEntries(['studio', 'campaign', 'tool'].map((t) => [t, IP.includes((im.tools || {})[t]) ? im.tools[t] : idef])) } };
+      // the text companies linked and working (names only) — the assistant's «أستخدم مخ خارجي؟» offers these, the default one first
+      const TB = { claude: 'anthropic', openai: 'openai', gemini: 'gemini' }; const off = ((sec('integrations') || {}).off) || {}; const paused = ((sec('integrations') || {}).paused) || {};
+      const tdef = ((sec('ai').providers || {}).text || {}).default;
+      aiPub.text = { linked: Object.keys(TB).filter((k) => S.vault[TB[k]] && !off[TB[k]] && !paused[TB[k]]), default: TB[tdef] ? tdef : 'claude' };
       const st0 = sec('store'); const plat = ['woo', 'shopify', 'easyorders'].includes(st0.platform) ? st0.platform : 'woo'; const dokan = plat === 'woo' && st0.dokan !== false && st0.dokan !== 'false';
       const storePub = { platform: plat, dokan, mode: dokan && st0.mode !== 'single' ? 'marketplace' : 'single', margin: typeof st0.margin === 'number' && st0.margin >= 0 && st0.margin <= 500 ? Math.round(st0.margin * 100) / 100 : 30 }; // 0127 store_cfg
       return json(200, { store: storePub, ai: aiPub, aiTemplates: { img: tpl('img'), vid: tpl('vid'), txt: tpl('txt') }, makers: strip({ delay: sec('makers').delay || {}, fake: sec('makers').fake }), brand: sec('brand'), quick: sec('quick'), lists: strip({ cancel: li.cancel, returns: li.returns, stop: li.stop, shipping: li.shipping, labels: li.labels, expenseKinds: li.expenseKinds, statusAdded: li.statusAdded, statusOrder: li.statusOrder }), general: strip({ company: g.company, site: g.site, tz: g.tz, week: g.week, compact: g.compact, thumbs: g.thumbs, rememberFilters: g.rememberFilters, hidePhones: g.hidePhones, clock: ['12', '24'].includes(g.clock) ? g.clock : undefined, dateFmt: ['dmy', 'ymd'].includes(g.dateFmt) ? g.dateFmt : undefined }),

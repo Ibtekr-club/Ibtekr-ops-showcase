@@ -595,6 +595,14 @@
     return t || (IMG_PROVIDERS.includes(img.default) ? img.default : 'magnific');
   }
   const magnificOn = (tool) => imageProvider(tool) === 'magnific';
+  // the owner 22 Nov («لو مركب اكتر من مخ ممكن يخيرني مثلا شات جي بي او كلود»): the text companies linked and working, for the
+  // assistant's «أستخدم مخ خارجي؟» — settings_public().ai.text { linked, default } (names only); the default one first
+  const TEXT_BRAINS = { claude: 'Claude', openai: 'ChatGPT', gemini: 'Gemini' };
+  function textBrains() {
+    const t = (data.public && data.public.ai && data.public.ai.text) || {}; const linked = Array.isArray(t.linked) ? t.linked.filter((x) => TEXT_BRAINS[x]) : [];
+    const ids = linked.filter((x, i) => linked.indexOf(x) === i).sort((a, b) => (b === t.default) - (a === t.default));
+    return ids.map((id) => ({ id, name: TEXT_BRAINS[id] }));
+  }
   // 0127 (the plan 2026-11-17-stores-single.md): the store's platform and how the business sells — the same rules as
   // mock/shared/store/index.js (tests/functions/store.test.mjs compares them). The admin's own row «store» first, else
   // settings_public().store; no row = WooCommerce + Dokan (marketplace) as always. storeCaps() says what the pages may show.
@@ -737,7 +745,7 @@
     log('brand.menu', String(what || '').slice(0, 60), 'brand'); return { ok: true, menu: v };
   }
 
-  window.IBSettings = { MENU_ICONS, MENU_LOCKED, MENU_LABEL_MAX, cleanMenu, menuOf, menuNow, saveMenu, loginLocks, loginUnlock, load, ensure, loadPublic, clear, data, section, sections: () => Object.assign({}, data.sections), roles, liveRoles, public: () => data.public, can, PERMS, PERM_KEYS, lists, saveLists, statusLabel, workshop, oneSeller, STATUS_KINDS, setRoleLevelPerms, setMemberLevel, levelPermsOf, MEMBER_LEVELS: MLEVELS, quickList, quickSave, quickDelete, quickOrder, QUICK_SCOPES: Q_SCOPES, expenseKinds, statusList, addedStatuses, delayRules, fakeRule, saveFake, orderStatuses, orderStatusAdd, orderStatusSlug, orderStatusDelete, orderStatusOrder, ADDED_MAX, ADDED_LEN, weekStart, imageProvider, magnificOn, store, single, storeCaps, storeOf, STORE_PLATFORMS, STORE_READY, SINGLE_READY, STORE_CAPS, clock, dateFmt, KIND_MAX, KINDS_MAX,
+  window.IBSettings = { textBrains, MENU_ICONS, MENU_LOCKED, MENU_LABEL_MAX, cleanMenu, menuOf, menuNow, saveMenu, loginLocks, loginUnlock, load, ensure, loadPublic, clear, data, section, sections: () => Object.assign({}, data.sections), roles, liveRoles, public: () => data.public, can, PERMS, PERM_KEYS, lists, saveLists, statusLabel, workshop, oneSeller, STATUS_KINDS, setRoleLevelPerms, setMemberLevel, levelPermsOf, MEMBER_LEVELS: MLEVELS, quickList, quickSave, quickDelete, quickOrder, QUICK_SCOPES: Q_SCOPES, expenseKinds, statusList, addedStatuses, delayRules, fakeRule, saveFake, orderStatuses, orderStatusAdd, orderStatusSlug, orderStatusDelete, orderStatusOrder, ADDED_MAX, ADDED_LEN, weekStart, imageProvider, magnificOn, store, single, storeCaps, storeOf, STORE_PLATFORMS, STORE_READY, SINGLE_READY, STORE_CAPS, clock, dateFmt, KIND_MAX, KINDS_MAX,
     save, setRolePerms, createRole, updateRole, deleteRole, setMemberRole, setMemberRoles, setMemberPerms, setMemberStatus, sessions, revokeSession, deviceOf,
     links, setSecret, wooSet, testSecret, unlink, connections, notifyStatus, notifyTick, activity, pageOf, docs, addDoc, updateDoc, removeDoc, docUrl, uploadLogo, logoUrl, LOGO_SLOTS, uploadFont, removeFont, loadFont, fontList, FONT_MAX, FONTS_MAX, wipe, WIPE_SECTIONS, teamWipe, filesWipe };
 })();
