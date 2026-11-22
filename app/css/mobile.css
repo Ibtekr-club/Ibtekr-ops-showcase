@@ -521,6 +521,8 @@
   .ai-panel .ai-input{height:40px;padding:0;border:0;border-radius:0;background:none;font-size:16px}
   .ai-panel .ai-input:focus{outline:0;box-shadow:none}
   .ai-panel .ai-send{flex:0 0 40px;width:40px;height:40px;border-radius:50%;background:var(--color-brand-default);color:var(--color-text-on-brand)}
+  .ai-panel .ai-mic{flex:0 0 40px;width:40px;height:40px}
+  .ai-panel .ai-mic svg{width:20px;height:20px}
   .ai-panel .ai-note{flex:none;padding:var(--m-s2) var(--m-s4) calc(var(--m-s2) + env(safe-area-inset-bottom,0px));font-size:12px;line-height:18px;text-align:center}
   html.m-kb .ai-panel .ai-note{padding-bottom:var(--m-s2)}
   body:has(.ai-panel:not([hidden])) .page-head .actions>.btn.btn-brand,html.m-kb .page-head .actions>.btn.btn-brand,body:has(.ai-panel:not([hidden])) .m-fab,html.m-kb .m-fab{display:none}

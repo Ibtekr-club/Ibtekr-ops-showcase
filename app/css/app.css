@@ -2399,3 +2399,11 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 .ib-ask-opt { cursor: pointer; border: 1px solid var(--color-brand-default); color: var(--color-brand-default); background: var(--color-bg-container); font: inherit; }
 .ib-ask-opt:hover:not(:disabled) { background: var(--color-brand-default); color: #FFF7EF; }
 .ib-ask-opt:disabled { opacity: .55; cursor: default; }
+
+/* the header's assistant takes dictation (js/pages/ai-mic.js — the owner 22 Nov): a microphone beside the box, red and pulsing
+   while it listens — as in the assistants' chat */
+.ai-form .ai-mic{flex:none;width:36px;height:36px;border-radius:50%;color:var(--color-text-secondary)}
+.ai-form .ai-mic:not(.on):hover{background:var(--color-bg-hover);color:var(--color-text-primary)}
+.ai-form .ai-mic.on{background:#DA0001;color:#fff;animation:ai-mic 1.2s ease-in-out infinite}
+@keyframes ai-mic{50%{box-shadow:0 0 0 6px rgba(218,0,1,.18)}}
+@media (prefers-reduced-motion:reduce){.ai-form .ai-mic.on{animation:none}}

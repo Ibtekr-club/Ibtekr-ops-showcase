@@ -357,6 +357,17 @@ test.describe('a phone', () => {
     await page.tap('.ai-btn'); await page.waitForTimeout(400);
     const ai = await page.evaluate(() => { const r = document.querySelector('.ai-panel').getBoundingClientRect(); const bar = document.getElementById('demo-bar').getBoundingClientRect(); const ch = [...document.querySelectorAll('.ai-chips .btn')].map((c) => Math.round(c.getBoundingClientRect().top)); return { top: Math.round(r.top), bar: Math.round(bar.bottom), bottom: Math.round(r.bottom), w: Math.round(r.width), focus: document.activeElement.classList.contains('ai-input'), chipLines: new Set(ch).size, font: parseFloat(getComputedStyle(document.querySelector('.ai-input')).fontSize) }; });
     expect(ai.top).toBe(ai.bar); expect(ai.bottom).toBe(844); expect(ai.w).toBe(390); expect(ai.focus).toBe(false); expect(ai.chipLines).toBe(1); expect(ai.font).toBeGreaterThanOrEqual(16);
+    // (22 Nov — «اكلم المدير الايه اي اللي في الهيدر من المايك زي المساعدين التانيين»): a microphone beside the box; what is said is
+    // written into the box, a second press stops, and nothing is sent until the member sends it (the browser's speech-to-text
+    // is stood in for here)
+    await page.evaluate(() => { window.__heard = []; window.SpeechRecognition = class { start() { window.__sr = this; } stop() { window.__heard.push('stop'); } }; });
+    const mic = page.locator('.ai-panel .ai-form [data-ai-mic]'); await expect(mic).toBeVisible(); await expect(mic).toHaveAttribute('data-ai-mic', 'off');
+    const micBox = await mic.boundingBox(); expect(micBox.width).toBeGreaterThanOrEqual(40); expect(micBox.height).toBeGreaterThanOrEqual(40);
+    await mic.tap(); await expect(mic).toHaveAttribute('data-ai-mic', 'on'); await expect(mic).toHaveAttribute('aria-pressed', 'true');
+    await page.evaluate(() => { window.__sr.onresult({ results: [Object.assign([{ transcript: 'اعرض الأوردرات المتأخرة' }], { isFinal: true })] }); });
+    await expect(page.locator('.ai-panel .ai-input')).toHaveValue('اعرض الأوردرات المتأخرة'); expect(await page.locator('.ai-panel .ai-msg.user').count()).toBe(0);
+    await mic.tap(); await expect(mic).toHaveAttribute('data-ai-mic', 'off'); expect(await page.evaluate(() => window.__heard.length)).toBeGreaterThanOrEqual(1);
+    await page.locator('.ai-panel .ai-input').fill('');
     await page.evaluate(() => { document.documentElement.style.setProperty('--m-vv-h', '420px'); document.documentElement.classList.add('m-kb'); });
     const kb = await page.evaluate(() => ({ bottom: Math.round(document.querySelector('.ai-panel').getBoundingClientRect().bottom), top: Math.round(document.querySelector('.ai-panel').getBoundingClientRect().top), form: Math.round(document.querySelector('.ai-form').getBoundingClientRect().bottom), nav: getComputedStyle(document.querySelector('.bottom-nav')).display }));
     expect(kb.bottom).toBe(kb.top + 420); expect(kb.form).toBeLessThanOrEqual(kb.bottom); expect(kb.nav).toBe('none');
